@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUMANJI | Welcome to the Jungle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/xterm@4.19.0/css/xterm.css" />
+    <script src="https://unpkg.com/xterm@4.19.0/lib/xterm.js"></script>
+    <script src="https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        :root {
+            --retro-green: #39ff14;
+            --retro-yellow: #fefe33;
+            --jungle-green: #004d00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @keyframes scanline {
+            0% {
+                transform: translateY(-100%);
+            }
+
+            100% {
+                transform: translateY(100vh);
+            }
+        }
+
+        @keyframes flicker {
+
+            0%,
+            19%,
+            21%,
+            23%,
+            25%,
+            54%,
+            56%,
+            100% {
+                opacity: 1;
+            }
+
+            20%,
+            24%,
+            55% {
+                opacity: 0.5;
+            }
+
+            22% {
+                opacity: 0.3;
+            }
+        }
+
+        body {
+            background-color: #000;
+            color: #4ade80;
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            background: radial-gradient(ellipse at center, rgba(14, 22, 14, 0.85) 0%, rgba(4, 8, 4, 0.96) 100%),
+                url('/static/assets/jumanji_expedition_desk.jpg') no-repeat center center fixed;
+            background-size: cover;
+            padding: 16px 30px;
+            overflow-x: hidden;
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #c59b27;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .jumanji-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.6rem;
+            color: #d4af37;
+            text-shadow: 2px 2px 0 #2a1608, 0 0 15px rgba(212, 175, 55, 0.5);
+            animation: flicker 4s infinite;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .status-box {
+            color: #d4af37;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.75rem;
+            border: 2px solid #3d2512;
+            outline: 1px solid #c59b27;
+            padding: 8px 12px;
+            background: rgba(18, 12, 7, 0.9);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-box span.amber {
+            color: #f59e0b;
+        }
+
+        .status-box span.gold {
+            color: #d4af37;
+        }
+
+        .btn {
+            text-decoration: none;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.72rem;
+            padding: 8px 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-align: center;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .back-btn {
+            color: #d4af37;
+            border: 2px solid #c59b27;
+            background: linear-gradient(180deg, #422a16 0%, #26160a 100%);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .back-btn:hover {
+            background: #c59b27;
+            color: #1a0f07;
+            box-shadow: 0 0 15px #c59b27;
+        }
+
+        .logout-btn {
+            color: #ef4444;
+            border: 2px solid #991b1b;
+            background: rgba(20, 10, 10, 0.8);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .logout-btn:hover {
+            background: #dc2626;
+            color: #fff;
+            box-shadow: 0 0 15px #dc2626;
+        }
+
+        .main-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: calc(100vh - 100px);
+            position: relative;
+            z-index: 10;
+        }
+
+        /* Glassmorphism Panel */
+        .glass-panel {
+            background: rgba(0, 15, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(57, 255, 20, 0.3);
+            border-left: 4px solid var(--retro-green);
+            padding: 25px;
+            overflow-y: auto;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.1);
+        }
+
+        .glass-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .glass-panel::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        .glass-panel::-webkit-scrollbar-thumb {
+            background: var(--retro-green);
+        }
+
+        h2 {
+            font-family: 'Press Start 2P', monospace;
+            color: var(--retro-yellow);
+            font-size: 1rem;
+            margin-bottom: 20px;
+            line-height: 1.4;
+            text-shadow: 0 0 5px rgba(254, 254, 51, 0.5);
+        }
+
+        .briefing p {
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+
+        .hint-box {
+            border: 1px dashed var(--retro-green);
+            padding: 15px;
+            background: rgba(0, 255, 0, 0.05);
+            margin-bottom: 25px;
+        }
+
+        .hint-box ul {
+            list-style-type: square;
+            margin-left: 20px;
+            margin-top: 10px;
+            font-size: 0.95rem;
+        }
+
+        .flag-box {
+            border: 2px solid rgba(254, 254, 51, 0.5);
+            padding: 15px;
+            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .flag-box:hover {
+            border-color: var(--retro-yellow);
+            box-shadow: 0 0 10px rgba(254, 254, 51, 0.2);
+        }
+
+        .flag-box.solved {
+            border-color: var(--retro-green) !important;
+            background: rgba(0, 255, 0, 0.1);
+        }
+
+        .flag-box-root {
+            border-color: rgba(255, 68, 68, 0.5);
+        }
+
+        .flag-box-root:hover {
+            border-color: #ff4444;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
+        }
+
+        .flag-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.8rem;
+            margin-bottom: 10px;
+        }
+
+        .flag-input {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            background: #000;
+            border: 1px solid var(--retro-green);
+            color: var(--retro-green);
+            font-family: 'Share Tech Mono', monospace;
+            text-align: center;
+        }
+
+        .flag-input:focus {
+            outline: none;
+            box-shadow: 0 0 5px var(--retro-green);
+        }
+
+        .submit-btn {
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--retro-green);
+            border: 1px solid var(--retro-green);
+            padding: 8px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.7rem;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+        }
+
+        .submit-btn:hover {
+            background: var(--retro-green);
+            color: #000;
+        }
+
+        /* Temple Relic Terminal Console */
+        .terminal-wrapper {
+            background: rgba(16, 11, 7, 0.96);
+            border: 6px solid #3d2512;
+            outline: 3px solid #c59b27;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.95), inset 0 0 40px rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            position: relative;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            background: linear-gradient(180deg, #3d2714 0%, #28180b 60%, #1a0f07 100%);
+            border-bottom: 3px solid #c59b27;
+            padding: 10px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        .terminal-header-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.78rem;
+            color: #d4af37;
+            text-shadow: 2px 2px 0 #2a1608;
+            letter-spacing: 1px;
+        }
+
+        .radio-beacon-badge {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.8rem;
+            color: #4ade80;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(8, 16, 8, 0.85);
+            border: 1px solid #2d4520;
+            padding: 4px 10px;
+            border-radius: 3px;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px #4ade80;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.4;
+                transform: scale(0.85);
+            }
+        }
+
+        /* Temple Work Area: Left CRT + Right Protocol Guide */
+        .temple-work-area {
+            display: flex;
+            flex-grow: 1;
+            padding: 12px;
+            gap: 14px;
+            overflow: hidden;
+            background: rgba(10, 7, 4, 0.9);
+        }
+
+        .temple-crt-frame {
+            flex: 1;
+            background: #080d08;
+            border: 6px solid #2e1c0e;
+            outline: 2px solid #8c602a;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.95), 0 0 25px rgba(0, 0, 0, 0.7);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .crt-corner-bracket {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border-color: #c59b27;
+            border-style: solid;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .crt-corner-bracket.top-left {
+            top: 4px;
+            left: 4px;
+            border-width: 3px 0 0 3px;
+        }
+
+        .crt-corner-bracket.top-right {
+            top: 4px;
+            right: 4px;
+            border-width: 3px 3px 0 0;
+        }
+
+        .crt-corner-bracket.bottom-left {
+            bottom: 4px;
+            left: 4px;
+            border-width: 0 0 3px 3px;
+        }
+
+        .crt-corner-bracket.bottom-right {
+            bottom: 4px;
+            right: 4px;
+            border-width: 0 3px 3px 0;
+        }
+
+        .crt-screen-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(circle at center, rgba(16, 26, 16, 0.6) 0%, rgba(6, 10, 6, 0.95) 100%);
+        }
+
+        .crt-scanline-fx {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%);
+            background-size: 100% 3px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #terminal {
+            position: absolute;
+            inset: 0;
+            padding: 12px 16px;
+            overflow: hidden;
+            background: transparent;
+        }
+
+        #terminal .xterm {
+            height: 100%;
+            width: 100%;
+        }
+
+        .xterm .xterm-viewport {
+            background-color: transparent !important;
+        }
+
+        /* Temple Protocols Guide */
+        .temple-guide-panel {
+            width: 360px;
+            background: #ede1be;
+            color: #2b1d10;
+            border: 3px solid #b89758;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), inset 0 0 35px rgba(184, 151, 88, 0.35);
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            position: relative;
+            border-radius: 3px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .temple-guide-pin {
+            position: absolute;
+            top: 8px;
+            right: 14px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #e6c875, #7a581e);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .temple-guide-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px dashed #9c7b45;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+
+        .temple-guide-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.68rem;
+            color: #3b2512;
+            line-height: 1.3;
+        }
+
+        .temple-guide-subtitle {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            color: #70502a;
+            letter-spacing: 1px;
+        }
+
+        .stage-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid #bfa068;
+            padding: 10px;
+            border-radius: 2px;
+            margin-bottom: 10px;
+        }
+
+        .stage-tag {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.58rem;
+            color: #5c381c;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stage-desc {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.4;
+            color: #2b1d10;
+            margin-bottom: 6px;
+        }
+
+        .stage-cmd {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            font-weight: bold;
+            color: #123d14;
+            background: #d8cba2;
+            padding: 3px 6px;
+            border-radius: 2px;
+            border-left: 3px solid #1a571c;
+            word-break: break-all;
+        }
+
+        .stage-box.root-tier {
+            border-color: #cf7365;
+            background: rgba(255, 240, 240, 0.5);
+        }
+
+        .stage-box.root-tier .stage-tag {
+            color: #8a1f11;
+        }
+
+        .stage-box.root-tier .stage-cmd {
+            color: #7f1d1d;
+            border-left-color: #b91c1c;
+        }
+
+        .radio-comms-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid #bfa068;
+            padding: 10px;
+            border-radius: 2px;
+            margin-top: 4px;
+        }
+
+        .radio-tag {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.58rem;
+            color: #1a571c;
+            margin-bottom: 4px;
+        }
+
+        .temple-guide-footer {
+            border-top: 1px solid #bfa068;
+            padding-top: 8px;
+            margin-top: 10px;
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.68rem;
+            color: #70502a;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 1080px) {
+            .temple-guide-panel {
+                display: none;
+            }
+        }
+
+        #flash-message {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid var(--retro-green);
+            padding: 15px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.8rem;
+            z-index: 2000;
+            display: none;
+        }
+
+        #win-screen,
+        #video-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 5000;
+            display: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        #win-screen {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--retro-green);
+        }
+
+        #jumanji-video {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+
+        #intro-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 6000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .intro-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 2.5rem;
+            color: var(--retro-green);
+            margin-bottom: 30px;
+            text-align: center;
+            text-shadow: 0 0 20px var(--retro-green);
+        }
+
+        .start-prompt {
+            color: var(--retro-yellow);
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.2rem;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+
+        #intro-video-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 6001;
+            display: none;
+            opacity: 1;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        #intro-video-screen video {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="intro-screen" style="display: none;" onclick="startR3Sequence()">
+        <div class="intro-title">JUMANJI X SDC GAMES</div>
+        <div class="start-prompt">PRESS ANY KEY OR CLICK TO START</div>
+    </div>
+
+    <div id="intro-video-screen">
+        <video id="intro-video" src="/static/assets/round3_intro.mp4" playsinline preload="auto"></video>
+    </div>
+
+    <div id="video-screen">
+        <video id="jumanji-video" src=""></video>
+    </div>
+
+    <div id="win-screen">
+        <h1 class="jumanji-title" style="font-size: 3rem;">YOU HAVE SAVED JUMANJI</h1>
+    </div>
+
+    <div id="flash-message"></div>
+
+    <div class="header">
+        <div class="jumanji-title">THE DEEP JUNGLE</div>
+
+        <div class="header-controls">
+            <div class="status-box">
+                TIMER: <span id="countdown-timer" class="amber">--:--</span>
+            </div>
+            <div class="status-box">
+                SCORE: <span id="current-score" class="gold">{{ points }}</span>
+            </div>
+            <a href="{{ url_for('hub') }}" class="btn back-btn" style="margin-right: 5px;">[ HUB ]</a>
+            <a href="{{ url_for('logout') }}" class="btn logout-btn">[ LOGOUT ]</a>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="terminal-wrapper">
+            <!-- Top Antique Brass Header Plaque -->
+            <div class="terminal-header">
+                <span class="terminal-header-title">✦ JUMANJI MAINFRAME RELIC // THE DEEP JUNGLE CORE ✦</span>
+                <div class="radio-beacon-badge">
+                    <span class="pulse-dot"></span>
+                    <span>RADIO BEACON // LISTENING (nigel_comms.sh)</span>
+                </div>
+            </div>
+
+            <!-- Work Area: CRT Terminal + Temple Guide Panel -->
+            <div class="temple-work-area">
+                <!-- Temple Stone & Teak CRT Screen -->
+                <div class="temple-crt-frame">
+                    <div class="crt-corner-bracket top-left"></div>
+                    <div class="crt-corner-bracket top-right"></div>
+                    <div class="crt-corner-bracket bottom-left"></div>
+                    <div class="crt-corner-bracket bottom-right"></div>
+                    <div class="crt-screen-inner">
+                        <div class="crt-scanline-fx"></div>
+                        <div id="terminal"></div>
+                    </div>
+                </div>
+
+                <!-- Temple Override Protocols Guide -->
+                <aside class="temple-guide-panel">
+                    <div class="temple-guide-pin"></div>
+                    <div class="temple-guide-header">
+                        <span style="font-size: 1.5rem;">📜</span>
+                        <div>
+                            <div class="temple-guide-title">TEMPLE OVERRIDE PROTOCOLS</div>
+                            <div class="temple-guide-subtitle">ANCIENT MAINFRAME BREACH MANUAL</div>
+                        </div>
+                    </div>
+
+                    <div class="stage-box">
+                        <div class="stage-tag">
+                            <span>STAGE 1: USER OVERRIDE</span>
+                            <span style="color: #d4af37;">+1,000 PTS</span>
+                        </div>
+                        <div class="stage-desc">Query the mainframe SQLite records in
+                            <code>/var/jumanji_mainframe</code> to extract the override token.</div>
+                        <div class="stage-cmd">deploy_override OVERRIDE-USER-...</div>
+                    </div>
+
+                    <div class="stage-box root-tier">
+                        <div class="stage-tag">
+                            <span>STAGE 2: ROOT ESCALATION</span>
+                            <span style="color: #b91c1c;">+1,500 PTS</span>
+                        </div>
+                        <div class="stage-desc">Exploit the ancient SUID binary <code>/usr/local/bin/lift_curse</code>
+                            with the sacred chant to claim root authority.</div>
+                        <div class="stage-cmd">deploy_override OVERRIDE-ROOT-...</div>
+                    </div>
+
+                    <div class="radio-comms-box">
+                        <div class="radio-tag">📻 FIELD TRANSMISSIONS</div>
+                        <div style="font-size: 0.8rem; line-height: 1.4; color: #2b1d10;">Tune into Nigel Billingsley's
+                            radio guidance at any time:</div>
+                        <div style="margin-top: 4px; font-weight: bold; color: #123d14;">nigel_comms</div>
+                    </div>
+
+                    <div class="temple-guide-footer">
+                        <span>TOTAL REWARD: 2,500 POINTS // ESCALATE TO ROOT</span>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Timer Logic ---
+        let remainingSeconds = parseInt('{{ remaining_seconds }}', 10);
+        const timerElement = document.getElementById('countdown-timer');
+
+        function updateTimer() {
+            if (remainingSeconds <= 0) {
+                window.location.href = "{{ url_for('login') }}";
+                return;
+            }
+            let minutes = Math.floor(remainingSeconds / 60);
+            let seconds = remainingSeconds % 60;
+            timerElement.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            remainingSeconds--;
+        }
+
+        // --- Terminal Logic (Xterm.js + Socket.IO) ---
+        const term = new Terminal({
+            cursorBlink: true,
+            allowTransparency: true,
+            theme: {
+                background: 'transparent',
+                foreground: '#4ade80',
+                cursor: '#4ade80',
+                selectionBackground: 'rgba(212, 175, 55, 0.35)'
+            },
+            fontFamily: '"Share Tech Mono", monospace',
+            fontSize: 16
+        });
+
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+        });
+
+        const socket = io();
+
+        function initGame() {
+            setInterval(updateTimer, 1000);
+            updateTimer();
+
+            setTimeout(() => {
+                fitAddon.fit();
+            }, 100);
+
+            if (socket.connected) {
+                socket.emit('start-pty', { avatar_id: 'round3' });
+            } else {
+                socket.on('connect', () => {
+                    socket.emit('start-pty', { avatar_id: 'round3' });
+                });
+            }
+        }
+
+        // Intro sequence logic
+        const hasSeenIntro = parseInt('{{ has_seen_r3_intro | default(0) }}', 10) || 0;
+
+        let isIntroActive = false;
+
+        if (hasSeenIntro === 0) {
+            document.querySelector('.header').style.display = 'none';
+            document.querySelector('.main-grid').style.display = 'none';
+            document.getElementById('intro-screen').style.display = 'flex';
+            isIntroActive = true;
+        } else {
+            initGame();
+        }
+
+        function startR3Sequence() {
+            if (!isIntroActive) return;
+            isIntroActive = false; // Prevent multiple triggers
+            document.getElementById('intro-screen').style.display = 'none';
+
+            // Fire API immediately so refresh doesn't replay the intro screen
+            fetch('/api/start_r3', { method: 'POST' });
+
+            const vidScreen = document.getElementById('intro-video-screen');
+            vidScreen.style.display = 'block';
+            void vidScreen.offsetWidth;
+            vidScreen.style.opacity = '1';
+
+            const vid = document.getElementById('intro-video');
+            vid.currentTime = 0;
+
+            function finishIntro() {
+                document.querySelector('.header').style.display = 'flex';
+                document.querySelector('.main-grid').style.display = 'flex';
+                vidScreen.style.opacity = '0';
+                setTimeout(() => {
+                    vidScreen.style.display = 'none';
+                    initGame();
+                }, 1500);
+            }
+
+            vid.onended = finishIntro;
+            vid.onerror = (e) => {
+                console.warn("R3 intro stream error:", e);
+                finishIntro();
+            };
+
+            const playPromise = vid.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.warn("R3 intro audio playback prevented, attempting muted playback:", err);
+                    vid.muted = true;
+                    vid.play().catch(e => {
+                        console.error("R3 video playback failed entirely:", e);
+                        finishIntro();
+                    });
+                });
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (isIntroActive) startR3Sequence();
+        });
+
+        // --- Flag Submission Logic ---
+        function showFlash(message, color) {
+            const flash = document.getElementById('flash-message');
+            flash.innerHTML = message;
+            flash.style.color = color;
+            flash.style.borderColor = color;
+            flash.style.display = 'block';
+            setTimeout(() => { flash.style.display = 'none'; }, 3000);
+        }
+
+        term.onData(data => {
+            socket.emit('pty-input', { input: data });
+        });
+
+        socket.on('pty-output', data => {
+            term.write(data.output);
+        });
+
+        // Listen for successful flag submissions from the terminal!
+        socket.on('score-update', data => {
+            document.getElementById('current-score').innerText = data.new_points;
+            showFlash(`PROTOCOL ACCEPTED! SCORE UPDATED.`, 'var(--retro-green)');
+            setTimeout(() => location.reload(), 2000);
+        });
+
+        socket.on('game-win-r3', data => {
+            const winScreen = document.getElementById('win-screen');
+            winScreen.style.display = 'flex';
+            void winScreen.offsetWidth; // Trigger reflow
+            winScreen.style.opacity = '1';
+
+            document.querySelector('.header').style.display = 'none';
+            document.querySelector('.main-grid').style.display = 'none';
+
+            setTimeout(() => {
+                const video = document.getElementById('intro-video');
+                video.src = "/static/assets/round3_win.mp4";
+                video.loop = false;
+                video.load();
+
+                const videoScreen = document.getElementById('intro-video-screen');
+                videoScreen.style.display = 'block';
+                void videoScreen.offsetWidth; // Trigger reflow
+                videoScreen.style.opacity = '1';
+
+                winScreen.style.opacity = '0';
+                setTimeout(() => { winScreen.style.display = 'none'; }, 1000);
+
+                video.onended = () => {
+                    window.location.href = '/logout';
+                };
+                video.onerror = (e) => {
+                    console.warn("R3 win video stream error, redirecting:", e);
+                    setTimeout(() => { window.location.href = '/logout'; }, 3000);
+                };
+
+                let playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn("Autoplay with sound prevented, trying muted:", error);
+                        video.muted = true;
+                        video.play().catch(e => {
+                            window.location.href = '/logout';
+                        });
+                    });
+                }
+            }, 3000);
+        });
+
+        // Cleanup when leaving page
+        window.addEventListener('beforeunload', () => {
+            socket.emit('stop-pty');
+        });
+    </script>
+</body>
+
+</html>

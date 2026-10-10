@@ -1,0 +1,19 @@
+#!/bin/bash
+if [ -z "$1" ]; then
+  echo "Usage: complete JUMANJI{...}"
+  exit 1
+fi
+
+FLAG="$1"
+TOKEN="${CTF_TOKEN:-$(cat /etc/ctf_token 2>/dev/null)}"
+
+# Extract avatar from flag if formatted as JUMANJI{avatar_hash}
+if [[ "$FLAG" =~ JUMANJI\{([a-zA-Z0-9_]+)_[a-f0-9]{8}\} ]]; then
+  AVATAR="${BASH_REMATCH[1]}"
+else
+  AVATAR=$(basename "$PWD")
+fi
+
+curl -s -X POST -H "Content-Type: application/json" \
+  -d "{\"avatar_id\":\"$AVATAR\", \"flag\":\"$FLAG\", \"token\":\"$TOKEN\"}" \
+  http://host.docker.internal:8080/api/score | jq -r '. | if .status == "success" then "FLAG VERIFIED. +" + (.points_awarded|tostring) + " POINTS." elif .status == "already_solved" then "CHECKPOINT ALREADY COMPLETED." else "ERROR: " + .error end'

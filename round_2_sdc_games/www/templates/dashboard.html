@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JUMANJI | Technozion CyberSec</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --retro-green: #39ff14;
+            --retro-yellow: #fefe33;
+            --term-green: #00ff00;
+        }
+
+        /* External Libraries */
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            color: var(--retro-green);
+            font-family: 'Press Start 2P', monospace;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* CRT Effects */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 50;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        .crt::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: radial-gradient(circle, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.6) 100%);
+            z-index: 51;
+            pointer-events: none;
+        }
+
+        @keyframes flicker {
+            0% {
+                opacity: 0.95;
+            }
+
+            5% {
+                opacity: 0.85;
+            }
+
+            10% {
+                opacity: 0.95;
+            }
+
+            15% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .flicker {
+            animation: flicker 0.15s infinite;
+        }
+
+        /* 1. Entry Screen */
+        #entry-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 3000;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .jumanji-splash-title {
+            font-size: 5rem;
+            color: #d4af37;
+            letter-spacing: -2px;
+            text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000, 0 0 20px rgba(212, 175, 55, 0.5);
+            margin-bottom: 40px;
+            text-align: center;
+            line-height: 1.2;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000, 0 0 20px rgba(212, 175, 55, 0.5);
+                transform: scale(1);
+            }
+
+            50% {
+                text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000, 0 0 40px rgba(212, 175, 55, 1);
+                transform: scale(1.02);
+            }
+        }
+
+        .insert-coin {
+            font-size: 1.5rem;
+            color: var(--retro-yellow);
+            animation: blink 1s infinite;
+            cursor: pointer;
+            text-shadow: 0 0 10px var(--retro-yellow);
+        }
+
+        @keyframes blink {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0;
+            }
+        }
+
+        /* Win Screen */
+        #win-screen {
+            position: fixed;
+            inset: 0;
+            background: url('/static/assets/jumanji_bg.jpg') no-repeat center center;
+            background-size: cover;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        #win-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 0;
+        }
+
+        .win-title {
+            position: relative;
+            z-index: 1;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 3rem;
+            color: var(--retro-yellow);
+            text-align: center;
+            text-shadow: 3px 3px 0 #8b4513, 6px 6px 0 #000;
+        }
+
+        /* 2. Video Screen */
+        #video-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 2000;
+            background: #000;
+            display: none;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .video-container video {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            filter: contrast(1.2) saturate(1.2);
+        }
+
+        /* 3. Game Dashboard */
+        #dashboard-wrapper {
+            position: absolute;
+            inset: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            opacity: 0;
+            pointer-events: none;
+            background: url('/static/assets/jumanji_bg.jpg') no-repeat center center;
+            background-size: cover;
+            transition: opacity 1.2s cubic-bezier(0.2, 0.8, 0.2, 1), transform 1.2s cubic-bezier(0.2, 0.8, 0.2, 1), filter 1.2s;
+            padding: 40px;
+        }
+
+        #dashboard-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 0;
+        }
+
+        #dashboard-wrapper.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .game-content {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .game-nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed rgba(57, 255, 20, 0.35);
+        }
+
+        .game-badge {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.75rem;
+            color: var(--retro-yellow);
+            letter-spacing: 1px;
+            text-shadow: 0 0 8px rgba(254, 254, 51, 0.4);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .status-box {
+            color: var(--retro-green);
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.75rem;
+            border: 2px solid var(--retro-green);
+            padding: 8px 12px;
+            background: rgba(0, 20, 0, 0.7);
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
+            white-space: nowrap;
+        }
+
+        .nav-btn {
+            text-decoration: none;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.75rem;
+            padding: 8px 12px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        .nav-btn-hub {
+            color: var(--retro-green);
+            border: 2px solid var(--retro-green);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .nav-btn-hub:hover {
+            background: var(--retro-green);
+            color: #000;
+            box-shadow: 0 0 15px var(--retro-green);
+        }
+
+        .nav-btn-logout {
+            color: var(--retro-yellow);
+            border: 2px solid var(--retro-yellow);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        .nav-btn-logout:hover {
+            background: var(--retro-yellow);
+            color: #000;
+            box-shadow: 0 0 15px var(--retro-yellow);
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .jumanji-title {
+            font-size: 3.5rem;
+            color: #d4af37;
+            letter-spacing: -2px;
+            text-shadow: 4px 4px 0 #8b4513, 8px 8px 0 #000;
+            margin-bottom: 8px;
+        }
+
+        .sub-banner {
+            font-size: 0.95rem;
+            color: var(--retro-green);
+            text-shadow: 0 0 5px #000, 0 0 15px var(--retro-green);
+        }
+
+        /* Center Display Area (Image + Description) */
+        .display-area {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 40px;
+            flex-grow: 1;
+            margin-top: 30px;
+            width: 100%;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .avatar-display {
+            width: 300px;
+            height: 400px;
+            border: 4px solid var(--retro-green);
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 25px var(--retro-green);
+            position: relative;
+        }
+
+        .avatar-display img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .avatar-placeholder {
+            position: absolute;
+            color: var(--retro-green);
+            font-size: 0.8rem;
+            text-align: center;
+            animation: blink 2s infinite;
+        }
+
+        .dialog-box {
+            flex-grow: 1;
+            height: 400px;
+            border: 4px solid var(--retro-yellow);
+            background: rgba(0, 0, 0, 0.85);
+            padding: 30px;
+            font-size: 1rem;
+            line-height: 1.8;
+            color: #fff;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .dialog-content span.highlight {
+            color: var(--retro-yellow);
+        }
+
+        .dialog-content span.error {
+            color: #ff0000;
+        }
+
+        .confirm-btn {
+            background: var(--retro-green);
+            color: #000;
+            border: 2px solid #fff;
+            padding: 15px 20px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1rem;
+            cursor: pointer;
+            align-self: flex-end;
+            display: none;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .confirm-btn:hover {
+            background: #fff;
+            transform: scale(1.05);
+        }
+
+        /* Bottom Row Roster */
+        .roster-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            margin-top: 20px;
+            padding-bottom: 20px;
+        }
+
+        .char-btn {
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid var(--retro-green);
+            color: var(--retro-green);
+            padding: 15px 12px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.72rem;
+            line-height: 1.4;
+            cursor: pointer;
+            text-align: center;
+            flex: 1;
+            max-width: 250px;
+            min-height: 65px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            box-shadow: inset 0 0 10px rgba(57, 255, 20, 0.2);
+            text-shadow: 1px 1px #000;
+        }
+
+        .char-btn:hover,
+        .char-btn.active {
+            background: rgba(57, 255, 20, 0.9);
+            color: #000;
+            transform: translateY(-10px);
+            text-shadow: none;
+        }
+
+        /* 4. Authentic Jumanji Relic Terminal Console */
+        #terminal-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 1500;
+            background: radial-gradient(ellipse at center, rgba(14, 22, 14, 0.85) 0%, rgba(4, 8, 4, 0.96) 100%),
+                        url('/static/assets/jumanji_expedition_desk.jpg') no-repeat center center fixed;
+            background-size: cover;
+            display: none;
+            opacity: 0;
+            transform: scale(0.92) translateY(15px);
+            transition: opacity 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+            font-family: 'Share Tech Mono', monospace;
+            color: #4ade80;
+            padding: 16px 24px;
+            box-sizing: border-box;
+        }
+
+        .relic-console-container {
+            width: 100%;
+            max-width: 1550px;
+            height: 94vh;
+            margin: auto;
+            background: rgba(16, 11, 7, 0.95);
+            border: 6px solid #3d2512;
+            outline: 3px solid #c59b27;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.95), inset 0 0 40px rgba(0, 0, 0, 0.85);
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Top Antique Brass Plaque & Controls */
+        .relic-console-header {
+            background: linear-gradient(180deg, #3d2714 0%, #28180b 60%, #1a0f07 100%);
+            border-bottom: 3px solid #c59b27;
+            padding: 10px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        }
+
+        .avatar-cameo-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .cameo-portrait {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px solid #d4af37;
+            box-shadow: 0 0 12px rgba(212, 175, 55, 0.4), inset 0 0 8px #000;
+            object-fit: cover;
+            object-position: top center;
+            background: #000;
+        }
+
+        .avatar-title-block {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .jungle-badge {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.72rem;
+            color: #d4af37;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .avatar-name-plate {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.82rem;
+            color: #fff;
+            text-shadow: 2px 2px 0 #2a1608, 0 0 8px rgba(212, 175, 55, 0.5);
+            letter-spacing: 1px;
+        }
+
+        .relic-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .relic-stat-badge {
+            background: rgba(8, 14, 8, 0.85);
+            border: 2px solid #3d2a17;
+            outline: 1px solid #c59b27;
+            padding: 6px 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .stat-label {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            color: #c8b788;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.78rem;
+            letter-spacing: 1px;
+        }
+
+        .stat-value.gold {
+            color: #d4af37;
+            text-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+        }
+
+        .stat-value.amber {
+            color: #f59e0b;
+            text-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+        }
+
+        .stat-value.emerald {
+            color: #4ade80;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px #4ade80;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        .relic-exit-btn {
+            background: linear-gradient(180deg, #422a16 0%, #26160a 100%);
+            border: 2px solid #c59b27;
+            color: #d4af37;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.68rem;
+            padding: 9px 13px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .relic-exit-btn:hover {
+            background: #c59b27;
+            color: #1a0f07;
+            box-shadow: 0 0 15px #c59b27;
+            transform: translateY(-2px);
+        }
+
+        /* Relic Work Area */
+        .relic-work-area {
+            display: flex;
+            flex-grow: 1;
+            padding: 14px;
+            gap: 16px;
+            overflow: hidden;
+            background: rgba(10, 7, 4, 0.9);
+        }
+
+        /* Wooden CRT Monitor Frame */
+        .relic-crt-frame {
+            flex: 1;
+            background: #080d08;
+            border: 6px solid #2e1c0e;
+            outline: 2px solid #8c602a;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.95), 0 0 25px rgba(0, 0, 0, 0.7);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .crt-corner-bracket {
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            border-color: #c59b27;
+            border-style: solid;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        .crt-corner-bracket.top-left { top: 4px; left: 4px; border-width: 3px 0 0 3px; }
+        .crt-corner-bracket.top-right { top: 4px; right: 4px; border-width: 3px 3px 0 0; }
+        .crt-corner-bracket.bottom-left { bottom: 4px; left: 4px; border-width: 0 0 3px 3px; }
+        .crt-corner-bracket.bottom-right { bottom: 4px; right: 4px; border-width: 0 3px 3px 0; }
+
+        .crt-screen-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: radial-gradient(circle at center, rgba(16, 26, 16, 0.6) 0%, rgba(6, 10, 6, 0.95) 100%);
+        }
+
+        .crt-scanline-fx {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%);
+            background-size: 100% 3px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .terminal-body {
+            position: absolute;
+            inset: 0;
+            padding: 12px 16px;
+            overflow: hidden;
+        }
+
+        .terminal-body .xterm {
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Parchment Field Guide (Explorer's Notebook) */
+        .parchment-field-guide {
+            width: 340px;
+            background: #ede1be;
+            color: #2b1d10;
+            border: 3px solid #b89758;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), inset 0 0 35px rgba(184, 151, 88, 0.35);
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            position: relative;
+            border-radius: 3px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .parchment-pin {
+            position: absolute;
+            top: 8px;
+            right: 14px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #e6c875, #7a581e);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        }
+
+        .parchment-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px dashed #9c7b45;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+
+        .parchment-icon {
+            font-size: 1.5rem;
+        }
+
+        .parchment-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.68rem;
+            color: #3b2512;
+            line-height: 1.3;
+        }
+
+        .parchment-subtitle {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            color: #70502a;
+            letter-spacing: 1px;
+        }
+
+        .parchment-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .field-lore-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid #bfa068;
+            padding: 10px;
+            border-radius: 2px;
+        }
+
+        .lore-tag, .command-tag, .objective-tag {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.58rem;
+            color: #5c381c;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .lore-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            line-height: 1.45;
+            color: #2b1d10;
+        }
+
+        .field-command-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid #bfa068;
+            padding: 10px;
+            border-radius: 2px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .command-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .cmd-chip {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #123d14;
+            background: #d8cba2;
+            padding: 3px 6px;
+            border-radius: 2px;
+            border-left: 3px solid #1a571c;
+            word-break: break-all;
+        }
+
+        .cmd-desc {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.72rem;
+            color: #5a4128;
+            margin-left: 4px;
+        }
+
+        .field-objective-box {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid #bfa068;
+            padding: 10px;
+            border-radius: 2px;
+        }
+
+        .objective-text {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.4;
+            color: #2b1d10;
+        }
+
+        .parchment-footer {
+            border-top: 1px solid #bfa068;
+            padding-top: 8px;
+            margin-top: 10px;
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.68rem;
+            color: #70502a;
+            letter-spacing: 1px;
+        }
+
+        @media (max-width: 1080px) {
+            .parchment-field-guide {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body class="crt flicker">
+
+    <!-- 1. Entry Screen -->
+    <div id="entry-screen" onclick="startSequence()">
+        <div class="jumanji-splash-title">JUMANJI<br><span
+                style="font-size: 2.5rem; color: #fff; text-shadow: none;">X</span><br>SDC GAMES</div>
+        <div class="insert-coin">PRESS START OR ENTER TO PLAY</div>
+    </div>
+
+    <div id="win-screen">
+        <div class="win-title">YOU SAVED JUMANJI</div>
+    </div>
+
+    <!-- 2. Video Boot Sequence -->
+    <div id="video-screen">
+        <div class="video-container">
+            <video id="jumanji-video" src="/static/assets/jumanji_intro.mp4" playsinline preload="auto"></video>
+        </div>
+    </div>
+
+    <!-- 3. Retro Game Dashboard -->
+    <div id="dashboard-wrapper">
+        <div class="game-content">
+            <div class="game-nav-bar">
+                <div class="game-badge">RECONNAISSANCE</div>
+                <div class="header-controls">
+                    <div class="status-box">TIMER: <span id="countdown-timer">--:--</span></div>
+                    <div class="status-box">SCORE: <span id="user-points">{{ initial_points }}</span></div>
+                    <a href="{{ url_for('hub') }}" class="nav-btn nav-btn-hub">[ HUB ]</a>
+                    <a href="{{ url_for('logout') }}" class="nav-btn nav-btn-logout">[ LOGOUT ]</a>
+                </div>
+            </div>
+
+            <div class="game-header">
+                <div class="jumanji-title">JUMANJI</div>
+                <div class="sub-banner">TECHNOZION SDC GAMES | ROUND 2: CYBERSEC</div>
+            </div>
+
+            <div class="display-area">
+                <div class="avatar-display">
+                    <div class="avatar-placeholder" id="avatar-placeholder">SELECT AVATAR</div>
+                    <img id="avatar-img" src="" alt="Avatar">
+                </div>
+
+                <div class="dialog-box">
+                    <div id="dialog-text" class="dialog-content">Awaiting player selection from the roster below...
+                    </div>
+                    <button class="confirm-btn" id="confirm-btn" onclick="startTerminal()">DROP IN (START)</button>
+                </div>
+            </div>
+
+            <!-- Bottom Row: Character Roster -->
+            <div class="roster-row">
+                <button class="char-btn" id="btn-bravestone" onclick="selectChar('bravestone')">
+                    Dr. Bravestone
+                </button>
+                <button class="char-btn" id="btn-oberon" onclick="selectChar('oberon')">
+                    Prof. Oberon
+                </button>
+                <button class="char-btn" id="btn-ruby" onclick="selectChar('ruby')">
+                    Ruby Roundhouse
+                </button>
+                <button class="char-btn" id="btn-finbar" onclick="selectChar('finbar')">
+                    Mouse Finbar
+                </button>
+                <button class="char-btn" id="btn-seaplane" onclick="selectChar('seaplane')">
+                    Seaplane McDonough
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="terminal-screen">
+        <div class="relic-console-container">
+            <!-- Top Antique Brass Plaque & Control Bar -->
+            <div class="relic-console-header">
+                <div class="avatar-cameo-wrap">
+                    <img id="term-avatar-cameo" src="/static/assets/real_bravestone.png" alt="Avatar Cameo" class="cameo-portrait">
+                    <div class="avatar-title-block">
+                        <span class="jungle-badge">✦ EXPEDITION FIELD COMMUNICATOR ✦</span>
+                        <div id="term-avatar-name" class="avatar-name-plate">DR. SMOLDER BRAVESTONE</div>
+                    </div>
+                </div>
+
+                <div class="relic-controls">
+                    <div class="relic-stat-badge">
+                        <span class="stat-label">EXPEDITION SCORE</span>
+                        <span id="term-user-points" class="stat-value gold">{{ initial_points }}</span>
+                    </div>
+                    <div class="relic-stat-badge">
+                        <span class="stat-label">JUNGLE TIMER</span>
+                        <span id="term-timer-display" class="stat-value amber">--:--</span>
+                    </div>
+                    <div class="relic-stat-badge">
+                        <span class="stat-label">RELIC LINK</span>
+                        <span class="stat-value emerald"><span class="pulse-dot"></span>ACTIVE</span>
+                    </div>
+                    <button onclick="exitTerminal()" class="relic-exit-btn">[ RETURN TO CAMP ]</button>
+                </div>
+            </div>
+
+            <!-- Main Work Area: Wooden Bezel CRT + Parchment Field Notes -->
+            <div class="relic-work-area">
+                <!-- Wooden Bezel CRT Monitor -->
+                <div class="relic-crt-frame">
+                    <div class="crt-corner-bracket top-left"></div>
+                    <div class="crt-corner-bracket top-right"></div>
+                    <div class="crt-corner-bracket bottom-left"></div>
+                    <div class="crt-corner-bracket bottom-right"></div>
+                    <div class="crt-screen-inner">
+                        <div class="crt-scanline-fx"></div>
+                        <div class="terminal-body" id="terminal-body">
+                            <!-- xterm.js will be injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nigel's Parchment Field Journal -->
+                <aside class="parchment-field-guide">
+                    <div class="parchment-pin"></div>
+                    <div class="parchment-header">
+                        <span class="parchment-icon">📜</span>
+                        <div>
+                            <div class="parchment-title">EXPEDITION FIELD NOTES</div>
+                            <div class="parchment-subtitle">NIGEL'S JUNGLE SURVIVAL GUIDE</div>
+                        </div>
+                    </div>
+
+                    <div class="parchment-body">
+                        <div class="field-lore-box">
+                            <div class="lore-tag">ACTIVE AVATAR LORE</div>
+                            <div id="parchment-avatar-lore" class="lore-text">Dr. Smolder Bravestone always searches where others dare not... look beneath the surface in /opt/jungle/ruins for hidden relics.</div>
+                        </div>
+
+                        <div class="field-command-box">
+                            <div class="command-tag">SURVIVAL COMMANDS</div>
+                            <div class="command-row">
+                                <span class="cmd-chip">parrot_hint 1-5</span>
+                                <span class="cmd-desc">Lore & Technical Clues</span>
+                            </div>
+                            <div class="command-row">
+                                <span class="cmd-chip">complete JUMANJI{...}</span>
+                                <span class="cmd-desc">Submit Relic Flag</span>
+                            </div>
+                        </div>
+
+                        <div class="field-objective-box">
+                            <div class="objective-tag">ROUND 2 OBJECTIVE</div>
+                            <p class="objective-text">Locate the hidden relic for your active avatar. Complete all 5 to claim <b>2,950 total points</b> and unlock the path forward.</p>
+                        </div>
+                    </div>
+
+                    <div class="parchment-footer">
+                        <span>TECHNOZION SDC // JUMANJI CYBERSEC</span>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Assets -->
+    <audio id="drum-audio" src="/static/assets/drum.mp3" preload="auto" loop></audio>
+    <audio id="drum-hit" src="/static/assets/drum.mp3" preload="auto"></audio>
+
+    <script>
+        const entryScreen = document.getElementById('entry-screen');
+        const videoScreen = document.getElementById('video-screen');
+        const dashboardWrapper = document.getElementById('dashboard-wrapper');
+        const terminalScreen = document.getElementById('terminal-screen');
+
+        const dialogText = document.getElementById('dialog-text');
+        const avatarImg = document.getElementById('avatar-img');
+        const avatarPlaceholder = document.getElementById('avatar-placeholder');
+        const confirmBtn = document.getElementById('confirm-btn');
+        const termAvatarName = document.getElementById('term-avatar-name');
+
+        const video = document.getElementById('jumanji-video');
+        const drumAudio = document.getElementById('drum-audio');
+        const drumHit = document.getElementById('drum-hit');
+        const termInput = document.getElementById('term-input');
+        const termOutput = document.getElementById('terminal-output');
+        let selectedAvatarId = null;
+        let selectedAvatarName = "";
+        let currentImgUrl = "/static/assets/real_bravestone.png";
+        let isTyping = false;
+
+        function playDrumHit() {
+            drumHit.currentTime = 0;
+            drumHit.play().catch(e => console.log('Audio playback prevented'));
+        }
+
+        let hasStarted = false;
+        function startSequence() {
+            if (hasStarted) return;
+            hasStarted = true;
+            playDrumHit();
+
+            entryScreen.style.pointerEvents = 'none';
+            entryScreen.style.opacity = '0';
+            videoScreen.style.display = 'block';
+            void videoScreen.offsetWidth;
+            videoScreen.style.opacity = '1';
+
+            // Start video playback synchronously during user gesture
+            video.currentTime = 0;
+            video.onended = () => { showDashboard(); };
+            video.onerror = (e) => {
+                console.warn("Intro video playback error:", e);
+                showDashboard();
+            };
+
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.warn("Audio autoplay blocked by browser policy, attempting muted playback:", err);
+                    video.muted = true;
+                    video.play().catch(e => {
+                        console.error("Video failed to play entirely:", e);
+                        showDashboard();
+                    });
+                });
+            }
+
+            setTimeout(() => {
+                entryScreen.style.display = 'none';
+            }, 500);
+        }
+
+        document.addEventListener('keydown', function (event) {
+            if (entryScreen && entryScreen.style.display !== 'none') {
+                startSequence();
+            }
+        });
+
+        function showDashboard() {
+            video.pause();
+            videoScreen.style.opacity = '0';
+            setTimeout(() => {
+                videoScreen.style.display = 'none';
+                dashboardWrapper.classList.add('visible');
+                playDrumHit(); // Play distinct drum hit on load
+                drumAudio.play().catch(e => console.log('Audio playback prevented'));
+
+                // Store that intro was watched
+                fetch('/api/set_intro_watched', { method: 'POST' });
+            }, 500);
+        }
+
+        async function typeText(htmlContent) {
+            if (isTyping) return;
+            isTyping = true;
+            dialogText.innerHTML = htmlContent;
+            isTyping = false;
+        }
+
+        function selectChar(charId) {
+            playDrumHit();
+
+            selectedAvatarId = charId;
+
+            // Reset active states
+            document.querySelectorAll('.char-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + charId).classList.add('active');
+
+            let msg = "";
+            let imgUrl = "";
+
+            // Using actual real-life photos of the cast for authentic likeness
+            switch (charId) {
+                case 'bravestone':
+                    selectedAvatarName = "Dr. Smolder Bravestone";
+                    msg = "<span class='highlight'>DR. SMOLDER BRAVESTONE</span><br><br><b>Played by:</b> Dwayne Johnson<br><b>Role:</b> Fearless Explorer<br><b>Skill:</b> Heuristic Analysis<br><b>Weakness:</b> None<br><br><i>\"Don't cry. Don't cry. Don't cry.\"</i>";
+                    imgUrl = "/static/assets/real_bravestone.png";
+                    break;
+                case 'oberon':
+                    selectedAvatarName = "Prof. Sheldon Oberon";
+                    msg = "<span class='highlight'>PROF. SHELDON OBERON</span><br><br><b>Played by:</b> Jack Black<br><b>Role:</b> Cartographer & Cryptographer<br><b>Skill:</b> Sensor Probes<br><b>Weakness:</b> Endurance<br><br><i>\"I think I'm having a mild heart attack!\"</i>";
+                    imgUrl = "/static/assets/real_oberon.png";
+                    break;
+                case 'ruby':
+                    selectedAvatarName = "Ruby Roundhouse";
+                    msg = "<span class='highlight'>RUBY ROUNDHOUSE</span><br><br><b>Played by:</b> Karen Gillan<br><b>Role:</b> Killer of Men<br><b>Skill:</b> Classified Logs<br><b>Weakness:</b> Venom<br><br><i>\"Why am I wearing half a shirt and short shorts in the jungle?\"</i>";
+                    imgUrl = "/static/assets/real_ruby.png";
+                    break;
+                case 'finbar':
+                    selectedAvatarName = "Franklin Mouse Finbar";
+                    msg = "<span class='highlight'>FRANKLIN 'MOUSE' FINBAR</span><br><br><b>Played by:</b> Kevin Hart<br><b>Role:</b> Weapons Valet & Zoologist<br><b>Skill:</b> WHOIS Intel<br><b>Weakness:</b> Cake<br><br><i>\"I'm a backpack guy!\"</i>";
+                    imgUrl = "/static/assets/real_finbar.png";
+                    break;
+                case 'seaplane':
+                    selectedAvatarName = "Jefferson Seaplane McDonough";
+                    msg = "<span class='highlight'>JEFFERSON 'SEAPLANE' MCDONOUGH</span><br><br><b>Played by:</b> Nick Jonas<br><b>Role:</b> Pilot<br><b>Skill:</b> Margarita Mixing<br><b>Weakness:</b> Mosquitoes<br><br><i>\"I am a good pilot!\"</i>";
+                    imgUrl = "/static/assets/real_seaplane.jpg";
+                    break;
+            }
+
+            avatarPlaceholder.style.display = 'none';
+            avatarImg.src = imgUrl;
+            currentImgUrl = imgUrl;
+            avatarImg.style.opacity = '1';
+            confirmBtn.style.display = 'block';
+            typeText(msg);
+        }
+
+        // --- Web Shell Terminal ---
+        const socket = io();
+
+        setInterval(() => {
+            if (socket.connected) {
+                socket.emit('ping');
+            }
+        }, 10000);
+        let term;
+
+        let fitAddon = null;
+
+        function initTerminal() {
+            if (!term) {
+                term = new Terminal({
+                    cursorBlink: true,
+                    fontFamily: '"Share Tech Mono", monospace',
+                    fontSize: 15,
+                    lineHeight: 1.25,
+                    theme: {
+                        background: 'transparent',
+                        foreground: '#4ade80',
+                        cursor: '#4ade80',
+                        selectionBackground: 'rgba(212, 175, 55, 0.35)'
+                    }
+                });
+
+                if (window.FitAddon && window.FitAddon.FitAddon) {
+                    fitAddon = new FitAddon.FitAddon();
+                    term.loadAddon(fitAddon);
+                }
+
+                term.open(document.getElementById('terminal-body'));
+
+                if (fitAddon) {
+                    setTimeout(() => fitAddon.fit(), 100);
+                }
+
+                term.onData(data => {
+                    socket.emit('pty-input', { input: data });
+                });
+
+                socket.on('pty-output', data => {
+                    term.write(data.output);
+                });
+
+                socket.on('score-update', data => {
+                    document.getElementById('user-points').innerText = data.new_points;
+                    const termPoints = document.getElementById('term-user-points');
+                    if (termPoints) termPoints.innerText = data.new_points;
+                });
+
+                socket.on('flag-solved', data => {
+                    exitTerminal();
+                });
+
+                socket.on('game-win', data => {
+                    const winScreen = document.getElementById('win-screen');
+                    winScreen.style.display = 'flex';
+                    void winScreen.offsetWidth; // Trigger reflow
+                    winScreen.style.opacity = '1';
+
+                    document.getElementById('dashboard-wrapper').style.display = 'none';
+                    document.getElementById('entry-screen').style.display = 'none';
+                    document.getElementById('terminal-screen').style.display = 'none';
+
+                    setTimeout(() => {
+                        const video = document.getElementById('jumanji-video');
+                        video.src = "/static/assets/jumanji_win.mp4";
+                        video.loop = false;
+                        video.load(); // Reload media pipeline with new source
+
+                        const videoScreen = document.getElementById('video-screen');
+                        videoScreen.style.display = 'block';
+                        void videoScreen.offsetWidth; // Trigger reflow
+                        videoScreen.style.opacity = '1';
+
+                        // Fade out win screen so it crossfades into the video
+                        winScreen.style.opacity = '0';
+                        setTimeout(() => { winScreen.style.display = 'none'; }, 1000);
+
+                        video.onended = () => {
+                            window.location.href = '/logout';
+                        };
+                        video.onerror = (e) => {
+                            console.warn("Win video stream error, redirecting to logout:", e);
+                            setTimeout(() => { window.location.href = '/logout'; }, 3000);
+                        };
+
+                        const playPromise = video.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(err => {
+                                console.warn("Win video audio playback prevented, attempting muted playback:", err);
+                                video.muted = true;
+                                video.play().catch(e => {
+                                    console.error("Win video playback failed entirely:", e);
+                                    setTimeout(() => { window.location.href = '/logout'; }, 5000);
+                                });
+                            });
+                        }
+                    }, 3000);
+                });
+            } else if (fitAddon) {
+                setTimeout(() => fitAddon.fit(), 80);
+            }
+
+            setTimeout(() => {
+                term.focus();
+                if (fitAddon) fitAddon.fit();
+                socket.emit('start-pty', { avatar_id: selectedAvatarId });
+            }, 100);
+        }
+
+        window.addEventListener('resize', () => {
+            if (fitAddon && terminalScreen && terminalScreen.style.display !== 'none') {
+                fitAddon.fit();
+            }
+        });
+
+        function startTerminal() {
+            playDrumHit();
+
+            dashboardWrapper.style.transform = 'scale(2)';
+            dashboardWrapper.style.filter = 'blur(10px) brightness(2)';
+            dashboardWrapper.style.opacity = '0';
+
+            setTimeout(() => {
+                drumAudio.pause();
+                dashboardWrapper.style.display = 'none';
+                terminalScreen.style.display = 'flex';
+                void terminalScreen.offsetWidth;
+                terminalScreen.style.opacity = '1';
+                terminalScreen.style.transform = 'scale(1) translateY(0)';
+
+                const cameoImg = document.getElementById('term-avatar-cameo');
+                if (cameoImg && currentImgUrl) {
+                    cameoImg.src = currentImgUrl;
+                }
+
+                if (termAvatarName) {
+                    termAvatarName.innerText = selectedAvatarName.toUpperCase();
+                }
+
+                const loreText = document.getElementById('parchment-avatar-lore');
+                if (loreText) {
+                    const lores = {
+                        'bravestone': 'Dr. Smolder Bravestone always searches where others dare not... look beneath the surface in /opt/jungle/ruins for hidden relics.',
+                        'oberon': 'Professor Shelly Oberon\'s mind is continuously executing in the background. Inspect active background processes using ps aux | grep oberon.',
+                        'ruby': 'Ruby Roundhouse fights to a rhythm of 64 beats. Inspect ~/Documents and decode the base64 rhythm with base64 -d.',
+                        'finbar': 'Franklin "Mouse" Finbar guards his pack tightly. Inspect your elevated abilities with sudo -l to locate the zoology relic.',
+                        'seaplane': 'Jefferson "Seaplane" McDonough has broadcasted an emergency beacon. Probe active internal ports using curl http://127.0.0.1:8080.'
+                    };
+                    loreText.innerText = lores[selectedAvatarId] || 'Explore the jungle ruins and locate the relic corresponding to your active avatar.';
+                }
+
+                initTerminal();
+            }, 1000);
+        }
+
+        function exitTerminal() {
+            terminalScreen.style.opacity = '0';
+            terminalScreen.style.transform = 'scale(0.8) translateY(20px)';
+
+            setTimeout(() => {
+                terminalScreen.style.display = 'none';
+
+                dashboardWrapper.style.display = 'flex';
+                void dashboardWrapper.offsetWidth; // trigger reflow
+                dashboardWrapper.style.opacity = '1';
+                dashboardWrapper.style.transform = 'scale(1)';
+                dashboardWrapper.style.filter = 'blur(0px) brightness(1)';
+
+                drumAudio.play().catch(e => console.log('Audio playback prevented'));
+
+                if (term) {
+                    term.clear();
+                    socket.emit('stop-pty');
+                }
+            }, 1000);
+        }
+
+        // Timer Logic
+        let remainingSeconds = parseInt('{{ remaining_seconds }}', 10);
+        const timerElement = document.getElementById('countdown-timer');
+
+        function updateTimer() {
+            if (remainingSeconds <= 0) {
+                window.location.href = "{{ url_for('login') }}";
+                return;
+            }
+
+            let minutes = Math.floor(remainingSeconds / 60);
+            let seconds = remainingSeconds % 60;
+            const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            timerElement.innerText = formattedTime;
+            const termTimerElem = document.getElementById('term-timer-display');
+            if (termTimerElem) {
+                termTimerElem.innerText = formattedTime;
+            }
+            remainingSeconds--;
+        }
+
+        setInterval(updateTimer, 1000);
+        updateTimer();
+
+        // Skip intro if already watched
+        let hasSeenIntro = parseInt('{{ has_seen_intro }}', 10);
+        if (hasSeenIntro === 1) {
+            entryScreen.style.display = 'none';
+            videoScreen.style.display = 'none';
+            dashboardWrapper.classList.add('visible');
+            // We can't autoplay audio without interaction in many browsers, but we try
+            drumAudio.play().catch(e => console.log('Audio playback prevented on refresh'));
+        }
+    </script>
+</body>
+
+</html>
