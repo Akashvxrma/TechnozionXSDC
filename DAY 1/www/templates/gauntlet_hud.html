@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jumanji Gauntlet · Team Station</title>
+    <title>Jumanji Gauntlet · {{ team.team_name }} Station</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&family=Cinzel:wght@600;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
@@ -16,12 +16,16 @@
 
     <style>
         :root {
-            --bg-dark: #070b09;
+            --bg-dark: #040806;
             --jungle-green: #00ff66;
+            --emerald-glow: #10b981;
             --gold: #ffcc00;
+            --gold-burnished: #d4af37;
+            --bronze: #8c6239;
             --curse-red: #ff3344;
-            --panel-bg: rgba(10, 18, 14, 0.88);
-            --border-glow: rgba(0, 255, 102, 0.35);
+            --panel-bg: rgba(6, 14, 10, 0.90);
+            --border-glow: rgba(0, 255, 102, 0.4);
+            --border-gold: rgba(255, 204, 0, 0.45);
         }
 
         * {
@@ -38,38 +42,87 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            background-image: 
-                radial-gradient(ellipse at 50% 0%, rgba(0, 255, 102, 0.08) 0%, transparent 60%),
-                linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
-            background-size: 100% 100%, 30px 30px, 30px 30px;
+            background: url('/static/assets/gauntlet_jungle_bg.jpg') no-repeat center center fixed;
+            background-size: cover;
+            position: relative;
         }
 
-        /* Top HUD Header */
+        /* Deep Jungle Vignette Overlay */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 50% 40%, rgba(4, 10, 7, 0.82) 0%, rgba(2, 6, 4, 0.96) 100%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* CRT Scanlines Overlay */
+        .crt-overlay {
+            pointer-events: none;
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
+                        linear-gradient(90deg, rgba(0, 255, 102, 0.02), rgba(0, 0, 0, 0.08), rgba(255, 204, 0, 0.02));
+            background-size: 100% 3px, 6px 100%;
+            z-index: 999;
+        }
+
+        /* Brass Rivet Component */
+        .rivet {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ffe680, #b8860b 60%, #4a3500);
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+            display: inline-block;
+        }
+
+        /* Top HUD Header - Antique Expedition Chassis */
         header.gauntlet-header {
-            background: rgba(4, 9, 7, 0.95);
-            border-bottom: 2px solid var(--jungle-green);
-            box-shadow: 0 0 25px rgba(0, 255, 102, 0.2);
-            padding: 12px 25px;
+            position: relative;
+            z-index: 10;
+            background: linear-gradient(180deg, rgba(14, 24, 18, 0.96) 0%, rgba(6, 12, 9, 0.98) 100%);
+            border-bottom: 2px solid var(--gold-burnished);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 255, 102, 0.15);
+            padding: 10px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 15px;
-            z-index: 100;
         }
 
-        .team-badge {
+        .header-left {
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .level-tag {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.7rem;
+            color: var(--gold);
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid var(--gold);
+            padding: 5px 10px;
+            letter-spacing: 1px;
+            box-shadow: inset 0 0 8px rgba(255, 204, 0, 0.3);
+            text-shadow: 0 0 5px rgba(255, 204, 0, 0.7);
         }
 
         .team-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.95rem;
-            color: var(--gold);
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            font-family: 'Cinzel', serif;
+            font-weight: 900;
+            font-size: 1.35rem;
+            color: #fff;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5), 2px 2px 0 #000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .role-pill {
@@ -77,275 +130,605 @@
             font-size: 0.75rem;
             font-weight: 700;
             padding: 4px 12px;
-            border-radius: 4px;
-            letter-spacing: 1px;
+            border-radius: 3px;
+            letter-spacing: 1.5px;
             text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .role-navigator {
             background: rgba(0, 255, 102, 0.15);
             color: var(--jungle-green);
             border: 1px solid var(--jungle-green);
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.25);
         }
 
         .role-cartographer {
             background: rgba(255, 204, 0, 0.15);
             color: var(--gold);
             border: 1px solid var(--gold);
+            box-shadow: 0 0 10px rgba(255, 204, 0, 0.25);
         }
 
         .phase-indicator {
             font-family: 'Press Start 2P', monospace;
-            font-size: 0.75rem;
-            color: #fff;
-            padding: 6px 14px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px dashed var(--jungle-green);
+            font-size: 0.65rem;
+            color: #d1fae5;
+            padding: 5px 12px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px dashed var(--emerald-glow);
+            letter-spacing: 1px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
         .score-pill {
             font-family: 'Orbitron', sans-serif;
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             color: var(--gold);
-            font-weight: 700;
+            font-weight: 900;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 6px 14px;
+            border: 1px solid var(--border-gold);
+            border-radius: 3px;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.6);
+            letter-spacing: 1px;
+        }
+
+        .audio-toggle-btn {
+            background: rgba(0, 0, 0, 0.75);
+            border: 1px solid var(--border-gold);
+            color: var(--gold);
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .audio-toggle-btn:hover {
+            box-shadow: 0 0 10px var(--gold);
+            background: rgba(255, 204, 0, 0.15);
+        }
+
+        .nav-btn {
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--gold);
+            text-decoration: none;
+            font-size: 0.85rem;
+            border: 1px solid var(--border-gold);
+            padding: 6px 12px;
+            background: rgba(0, 0, 0, 0.6);
+            transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+
+        .nav-btn:hover {
+            box-shadow: 0 0 12px var(--gold);
+            background: rgba(255, 204, 0, 0.1);
         }
 
         /* Curse Alert Banner */
         #curse-banner {
             display: none;
-            background: rgba(255, 51, 68, 0.95);
+            position: relative;
+            z-index: 20;
+            background: linear-gradient(90deg, #b91c1c 0%, #dc2626 50%, #b91c1c 100%);
             color: #fff;
             padding: 12px 20px;
             text-align: center;
             font-family: 'Press Start 2P', monospace;
             font-size: 0.8rem;
-            letter-spacing: 1px;
-            box-shadow: 0 0 30px rgba(255, 51, 68, 0.8);
-            animation: pulse-curse 1s infinite alternate;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #f87171;
+            box-shadow: 0 0 35px rgba(239, 68, 68, 0.85);
+            animation: pulse-curse 1.2s infinite alternate;
         }
 
         @keyframes pulse-curse {
-            0% { opacity: 0.85; }
-            100% { opacity: 1; transform: scale(1.005); }
+            0% { opacity: 0.85; filter: drop-shadow(0 0 10px #ef4444); }
+            100% { opacity: 1; filter: drop-shadow(0 0 25px #ef4444); transform: scale(1.002); }
         }
 
         /* Main Workspace Grid */
         .workspace-grid {
+            position: relative;
+            z-index: 10;
             display: grid;
-            grid-template-columns: 1fr 380px;
-            gap: 20px;
-            padding: 20px;
+            grid-template-columns: 1fr 410px;
+            gap: 18px;
+            padding: 18px;
             flex: 1;
         }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 1100px) {
             .workspace-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        /* Terminal Station Container */
+        /* Station Panels - Vintage Expedition Console Frame */
         .station-panel {
             background: var(--panel-bg);
             border: 1px solid var(--border-glow);
-            box-shadow: 0 0 20px rgba(0, 255, 102, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 255, 102, 0.05);
             display: flex;
             flex-direction: column;
             overflow: hidden;
             position: relative;
+            border-radius: 4px;
         }
 
         .panel-header {
-            background: rgba(0, 0, 0, 0.6);
+            background: linear-gradient(180deg, rgba(12, 26, 18, 0.95) 0%, rgba(6, 14, 10, 0.95) 100%);
             border-bottom: 1px solid var(--border-glow);
-            padding: 10px 18px;
+            padding: 10px 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-family: 'Orbitron', sans-serif;
             font-size: 0.85rem;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
             color: var(--jungle-green);
+            text-transform: uppercase;
+        }
+
+        .panel-header-corner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         #terminal-box {
             flex: 1;
-            min-height: 480px;
-            padding: 10px;
-            background: #000;
+            min-height: 520px;
+            padding: 12px;
+            background: #040907;
+            position: relative;
         }
 
         /* Cartographer Workstation */
         .cipher-box {
-            padding: 15px;
+            padding: 14px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 14px;
             height: 100%;
             overflow-y: auto;
         }
 
         .tool-card {
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 204, 0, 0.3);
+            background: rgba(4, 10, 7, 0.85);
+            border: 1px solid var(--border-gold);
             padding: 14px;
-            border-radius: 4px;
+            border-radius: 3px;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.6);
         }
 
         .tool-title {
             font-family: 'Orbitron', sans-serif;
             font-size: 0.8rem;
             color: var(--gold);
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        /* Cartographer Interactive Radar */
+        .radar-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 12px;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 12px;
+            border: 1px solid rgba(0, 255, 102, 0.25);
+            border-radius: 4px;
+        }
+
+        .radar-scope {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid var(--jungle-green);
+            position: relative;
+            background: radial-gradient(circle, rgba(0, 255, 102, 0.1) 0%, rgba(0, 255, 102, 0.02) 70%, #000 100%);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.25), inset 0 0 10px rgba(0, 255, 102, 0.2);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .radar-sweep {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(from 0deg, rgba(0, 255, 102, 0.65) 0deg, transparent 60deg, transparent 360deg);
+            animation: radar-spin 3s linear infinite;
+        }
+
+        @keyframes radar-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .radar-reticle {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(0, 255, 102, 0.25) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 102, 0.25) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: center center;
+        }
+
+        .beacon-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .beacon-tile {
+            background: rgba(0, 0, 0, 0.7);
+            border-left: 3px solid var(--gold);
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            border-radius: 0 3px 3px 0;
+        }
+
+        .beacon-copy-btn {
+            background: rgba(255, 204, 0, 0.15);
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            padding: 3px 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .beacon-copy-btn:hover {
+            background: var(--gold);
+            color: #000;
         }
 
         textarea.scratchpad {
             width: 100%;
-            height: 70px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #444;
+            height: 65px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255, 204, 0, 0.3);
             color: #a7f3d0;
             padding: 8px;
             font-family: 'Share Tech Mono', monospace;
             font-size: 0.85rem;
             resize: none;
+            outline: none;
         }
 
-        button.tool-btn {
-            background: var(--jungle-green);
+        textarea.scratchpad:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 8px rgba(255, 204, 0, 0.3);
+        }
+
+        .tool-btn {
+            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
             color: #000;
-            border: none;
-            padding: 6px 12px;
+            border: 1px solid #34d399;
+            padding: 6px 14px;
             font-family: 'Press Start 2P', monospace;
             font-size: 0.65rem;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 5px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
+
+        .tool-btn:hover {
+            box-shadow: 0 0 12px var(--jungle-green);
+            filter: brightness(1.15);
+            transform: translateY(-1px);
+        }
+
+        .tool-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* Relic Showcase Grid (2x2 Gallery) */
+        .relic-showcase-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .relic-card {
+            position: relative;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 4px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .relic-img-wrap {
+            width: 72px;
+            height: 72px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 6px;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .relic-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: all 0.4s ease;
+        }
+
+        .relic-name {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 3px;
+        }
+
+        .relic-pts {
+            font-size: 0.7rem;
+            color: var(--gold);
+        }
+
+        /* Locked vs Secured States */
+        .relic-locked {
+            filter: grayscale(85%) opacity(0.65);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .relic-locked .relic-badge {
+            background: rgba(60, 60, 60, 0.7);
+            color: #999;
+            border: 1px solid #555;
+        }
+
+        .relic-secured {
+            filter: none;
+            border-color: var(--jungle-green);
+            background: linear-gradient(180deg, rgba(0, 255, 102, 0.08) 0%, rgba(0, 0, 0, 0.85) 100%);
+            box-shadow: 0 0 18px rgba(0, 255, 102, 0.3), inset 0 0 10px rgba(0, 255, 102, 0.15);
+        }
+
+        .relic-secured .relic-img-wrap {
+            border-color: var(--jungle-green);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.4);
+        }
+
+        .relic-secured .relic-badge {
+            background: rgba(0, 255, 102, 0.2);
+            color: var(--jungle-green);
+            border: 1px solid var(--jungle-green);
+            text-shadow: 0 0 6px rgba(0, 255, 102, 0.6);
+        }
+
+        .relic-badge {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.55rem;
+            padding: 3px 6px;
+            margin-top: 4px;
+            border-radius: 2px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Curse Tarot Cards Drawer */
+        .curse-deck {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 6px 2px;
+        }
+
+        .tarot-card {
+            width: 110px;
+            flex-shrink: 0;
+            background: #000;
+            border: 1px solid rgba(255, 51, 68, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+            transition: all 0.3s ease;
+        }
+
+        .tarot-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 0 20px rgba(255, 51, 68, 0.6);
+            border-color: var(--curse-red);
+        }
+
+        .tarot-thumb {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            border-bottom: 1px solid rgba(255, 51, 68, 0.4);
+        }
+
+        .tarot-info {
+            padding: 6px;
+            text-align: center;
+        }
+
+        .tarot-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .curse-cast-btn {
+            width: 100%;
+            background: linear-gradient(180deg, #dc2626 0%, #991b1b 100%);
+            color: #fff;
+            border: 1px solid #f87171;
+            padding: 4px 0;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.55rem;
+            cursor: pointer;
             transition: all 0.2s;
         }
 
-        button.tool-btn:hover {
-            box-shadow: 0 0 10px var(--jungle-green);
+        .curse-cast-btn:hover {
+            box-shadow: 0 0 10px var(--curse-red);
+            filter: brightness(1.2);
         }
 
-        /* Curse Drawer */
-        .curse-inventory {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .curse-card {
-            background: rgba(255, 51, 68, 0.1);
-            border: 1px dashed var(--curse-red);
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .curse-btn {
-            background: var(--curse-red);
-            color: #fff;
-            border: none;
-            padding: 5px 10px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.6rem;
-            cursor: pointer;
-        }
-
-        .curse-btn:hover {
-            box-shadow: 0 0 12px var(--curse-red);
-        }
-
-        /* Relic Submission Form */
-        .submit-section {
-            background: rgba(4, 9, 7, 0.95);
-            border-top: 2px solid var(--jungle-green);
-            padding: 15px 25px;
+        /* Relic Submission Form - Ceremonial Altar Footer */
+        footer.submit-section {
+            position: relative;
+            z-index: 10;
+            background: linear-gradient(180deg, rgba(14, 24, 18, 0.98) 0%, rgba(4, 9, 7, 0.98) 100%);
+            border-top: 2px solid var(--gold-burnished);
+            box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 204, 0, 0.15);
+            padding: 14px 24px;
             display: flex;
             gap: 15px;
             align-items: center;
             flex-wrap: wrap;
         }
 
+        .altar-label {
+            font-family: 'Cinzel', serif;
+            font-weight: 800;
+            font-size: 0.95rem;
+            color: var(--gold);
+            letter-spacing: 2px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
+        }
+
         .flag-input {
             flex: 1;
             min-width: 280px;
-            background: #000;
-            border: 1px solid var(--jungle-green);
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid var(--border-gold);
             color: var(--jungle-green);
-            padding: 10px 15px;
+            padding: 10px 16px;
             font-family: 'Share Tech Mono', monospace;
-            font-size: 1rem;
+            font-size: 1.05rem;
             outline: none;
+            letter-spacing: 1px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.9);
+            border-radius: 2px;
+        }
+
+        .flag-input:focus {
+            border-color: var(--jungle-green);
+            box-shadow: 0 0 12px rgba(0, 255, 102, 0.35);
         }
 
         .btn-submit {
-            background: var(--gold);
+            background: linear-gradient(180deg, #ffd700 0%, #b8860b 100%);
             color: #000;
             font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            padding: 12px 25px;
-            border: none;
+            font-size: 0.75rem;
+            font-weight: bold;
+            padding: 12px 24px;
+            border: 1px solid #ffe680;
             cursor: pointer;
             transition: all 0.2s;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
+            letter-spacing: 1px;
+            border-radius: 2px;
         }
 
         .btn-submit:hover {
-            box-shadow: 0 0 15px var(--gold);
+            box-shadow: 0 0 20px var(--gold);
+            filter: brightness(1.15);
+            transform: translateY(-1px);
         }
 
-        /* Relic Status Pills */
-        .relic-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        .btn-submit:active {
+            transform: translateY(1px);
+        }
+
+        #submit-feedback {
+            font-family: 'Orbitron', sans-serif;
             font-size: 0.85rem;
-        }
-
-        .relic-secured {
-            color: var(--jungle-green);
-            font-weight: bold;
-        }
-
-        .relic-locked {
-            color: #666;
+            font-weight: 700;
+            letter-spacing: 1px;
+            min-width: 200px;
         }
     </style>
 </head>
 
 <body>
+    <!-- CRT Ambient Overlay -->
+    <div class="crt-overlay"></div>
+
+    <!-- Hidden Ambient Drum Audio Loop -->
+    <audio id="jumanji-drum-audio" src="/static/assets/drum.mp3" loop preload="auto"></audio>
+
     <!-- Top HUD Header -->
     <header class="gauntlet-header">
-        <div class="team-badge">
-            <span style="font-family: 'Press Start 2P', monospace; font-size: 0.75rem; color: var(--gold); border: 1px solid var(--gold); padding: 4px 8px;">DAY 2 · LEVEL 2</span>
-            <span class="team-title">{{ team.team_name }}</span>
+        <div class="header-left">
+            <span class="level-tag"><span class="rivet"></span> DAY 2 · LEVEL 2 <span class="rivet"></span></span>
+            <div class="team-title">
+                <span>⚡ {{ team.team_name }}</span>
+            </div>
             <span class="role-pill {% if team.role == 'navigator' %}role-navigator{% else %}role-cartographer{% endif %}">
-                ROLE: {{ team.role }}
+                ROLE: {{ team.role | upper }}
             </span>
-            <span class="phase-indicator" id="phase-badge">{{ current_phase | upper }}</span>
+            <span class="phase-indicator" id="phase-badge">STAGE: {{ current_phase | upper }}</span>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 20px;">
+        <div class="header-right">
+            <button id="drum-toggle-btn" class="audio-toggle-btn" onclick="toggleDrums()">
+                <span id="drum-icon">🥁</span> <span id="drum-text">DRUMS: OFF</span>
+            </button>
             <div class="score-pill">
                 TOTAL: <span id="team-total-score">{{ (team.phase1_score or 0) + (team.duel_score or 0) + (team.shrine_score or 0) + (team.lagoon_score or 0) }}</span> PTS
             </div>
-            <a href="{{ url_for('gauntlet_bracket') }}" target="_blank" style="color: var(--gold); text-decoration: none; font-size: 0.8rem; border: 1px solid var(--gold); padding: 5px 10px;">
-                [ LIVE BRACKET ]
+            <a href="{{ url_for('gauntlet_bracket') }}" target="_blank" class="nav-btn">
+                [ LIVE ARENA ]
             </a>
-            <a href="{{ url_for('hub') }}" style="color: #888; text-decoration: none; font-size: 0.8rem;">[ HUB ]</a>
+            <a href="{{ url_for('hub') }}" class="nav-btn">[ HUB ]</a>
         </div>
     </header>
 
     <!-- Curse Alert Banner -->
     <div id="curse-banner">
-        ⚠️ ALERT: YOUR TEAM IS UNDER THE <span id="curse-name-text">QUICKSAND</span> CURSE!
+        ☠ DANGER: YOUR SQUAD IS UNDER THE <span id="curse-name-text">QUICKSAND</span> CURSE! TERMINAL DEPLOYMENT SEVERELY IMPEDED! ☠
     </div>
 
     <!-- Main Workspace -->
@@ -353,8 +736,11 @@
         <!-- Station Left: Terminal or Cartographer Center -->
         <section class="station-panel">
             <div class="panel-header">
-                <span>{% if team.role == 'navigator' %}NAVIGATOR TERMINAL INTERFACE{% else %}CARTOGRAPHER SATELLITE RADAR & CABLE LOGS{% endif %}</span>
-                <span id="conn-status" style="font-size: 0.75rem; color: var(--jungle-green);">● LINKED</span>
+                <div class="panel-header-corner">
+                    <span class="rivet"></span>
+                    <span>{% if team.role == 'navigator' %}NAVIGATOR EXPEDITION TERMINAL // LINK-01{% else %}CARTOGRAPHER SATELLITE RADAR & CABLE LOGS{% endif %}</span>
+                </div>
+                <span id="conn-status" style="font-size: 0.75rem; color: var(--jungle-green); font-weight: 700;">● FIELD LINK ACTIVE</span>
             </div>
 
             {% if team.role == 'navigator' %}
@@ -362,105 +748,181 @@
             {% else %}
             <!-- Cartographer Radar & Telemetry Stream -->
             <div class="cipher-box">
-                <div class="tool-card">
-                    <div class="tool-title">
-                        <span>SATELLITE TELEMETRY FEED (CARTOGRAPHER INTEL)</span>
-                        <span style="color: #888;">LIVE FREQ</span>
+                <!-- Radar Sweep Display -->
+                <div class="radar-container">
+                    <div class="radar-scope">
+                        <div class="radar-reticle"></div>
+                        <div class="radar-sweep"></div>
                     </div>
-                    <p style="font-size: 0.8rem; color: #a7f3d0; margin-bottom: 10px;">
-                        The Cartographer holds the matching key halves needed to combine with the Navigator's terminal discoveries.
-                    </p>
-                    <div style="background: #000; padding: 10px; border-left: 3px solid var(--gold); font-size: 0.8rem;">
-                        <div>[BEACON 1]: Compass Telemetry Hash: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('compass', 'SCANNING...') }}</span></div>
-                        <div>[BEACON 2]: Obsidian Blade Seal: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('blade', 'SCANNING...') }}</span></div>
-                        <div>[BEACON 3]: Jaguar Totem Hash: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('jaguar', 'SCANNING...') }}</span></div>
-                        <div>[BEACON 4]: Golden Idol Key: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('idol', 'SCANNING...') }}</span></div>
+                    <div>
+                        <div style="font-family: 'Orbitron', sans-serif; font-size: 0.85rem; color: var(--gold); font-weight: 700; margin-bottom: 4px;">
+                            SATELLITE FREQUENCY BEACON SCANNER
+                        </div>
+                        <p style="font-size: 0.8rem; color: #a7f3d0; line-height: 1.4;">
+                            You hold the cryptographic halves to the Jumanji Seals. Communicate your telemetry keys to the Navigator to recombine split tokens!
+                        </p>
                     </div>
                 </div>
 
+                <!-- Telemetry Beacon Grid -->
                 <div class="tool-card">
-                    <div class="tool-title">DECODER WORKBENCH (BASE64 / ROT13 / HEX)</div>
-                    <textarea id="decode-input" class="scratchpad" placeholder="Paste encoded cipher text here..."></textarea>
-                    <div style="display: flex; gap: 8px;">
+                    <div class="tool-title">
+                        <span>EXPEDITION SATELLITE KEYS (CARTOGRAPHER HALVES)</span>
+                        <span style="font-size: 0.65rem; color: var(--jungle-green);">LIVE TELEMETRY</span>
+                    </div>
+                    <div class="beacon-grid">
+                        <div class="beacon-tile">
+                            <div>[BEACON 1] Sun Compass: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('compass', 'SCANNING...') }}</span></div>
+                            <button class="beacon-copy-btn" onclick="copyToClipboard('{{ cart_keys.get('compass', '') }}')">COPY</button>
+                        </div>
+                        <div class="beacon-tile">
+                            <div>[BEACON 2] Obsidian Blade: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('blade', 'SCANNING...') }}</span></div>
+                            <button class="beacon-copy-btn" onclick="copyToClipboard('{{ cart_keys.get('blade', '') }}')">COPY</button>
+                        </div>
+                        <div class="beacon-tile">
+                            <div>[BEACON 3] Jaguar Fang: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('jaguar', 'SCANNING...') }}</span></div>
+                            <button class="beacon-copy-btn" onclick="copyToClipboard('{{ cart_keys.get('jaguar', '') }}')">COPY</button>
+                        </div>
+                        <div class="beacon-tile">
+                            <div>[BEACON 4] Golden Idol: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('idol', 'SCANNING...') }}</span></div>
+                            <button class="beacon-copy-btn" onclick="copyToClipboard('{{ cart_keys.get('idol', '') }}')">COPY</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ancient Decoder Workbench -->
+                <div class="tool-card">
+                    <div class="tool-title">ANCIENT CIPHER WORKBENCH (BASE64 / ROT13 / HEX)</div>
+                    <textarea id="decode-input" class="scratchpad" placeholder="Paste encoded ancient cipher text here..."></textarea>
+                    <div style="display: flex; gap: 8px; margin-top: 6px;">
                         <button class="tool-btn" onclick="decodeB64()">BASE64</button>
                         <button class="tool-btn" onclick="decodeRot13()">ROT13</button>
                         <button class="tool-btn" onclick="decodeHex()">HEX $\rightarrow$ ASCII</button>
                     </div>
-                    <textarea id="decode-output" class="scratchpad" style="margin-top: 8px;" placeholder="Decoded output..." readonly></textarea>
+                    <textarea id="decode-output" class="scratchpad" style="margin-top: 8px;" placeholder="Decoded output stream..." readonly></textarea>
                 </div>
             </div>
             {% endif %}
         </section>
 
-        <!-- Station Right: Relic Progress & Curse Drawer -->
+        <!-- Station Right: Sacred Relics & Curse Drawer -->
         <aside class="station-panel">
             <div class="panel-header">
-                <span>GAUNTLET OBJECTIVES</span>
-                <span style="font-size: 0.75rem;">REPAIR THE JUMANJI SEAL</span>
+                <div class="panel-header-corner">
+                    <span class="rivet"></span>
+                    <span>SACRED RELIC VAULT</span>
+                </div>
+                <span style="font-size: 0.7rem; color: var(--gold);">REPAIR THE SEAL</span>
             </div>
 
             <div class="cipher-box">
-                <!-- Relic Checklist -->
+                <!-- 2x2 Relic Cards Gallery -->
                 <div class="tool-card">
-                    <div class="tool-title">PHASE RELICS</div>
-                    <div id="relics-list">
-                        {% for r_id, r_info in active_relics.items() %}
-                        <div class="relic-item">
-                            <span>{{ r_info.name }} (+{{ r_info.points }} pts)</span>
-                            <span class="{% if r_id in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
-                                {% if r_id in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}
-                            </span>
+                    <div class="tool-title">
+                        <span>PHASE RELIC TARGETS</span>
+                        <span style="font-size: 0.65rem; color: #888;">4 ANCIENT PIECES</span>
+                    </div>
+
+                    <div class="relic-showcase-grid">
+                        <!-- Relic 1: Sun Compass -->
+                        <div class="relic-card {% if 'compass' in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
+                            <div class="relic-img-wrap">
+                                <img src="/static/assets/relic_sun_compass.jpg" alt="Sun Compass" class="relic-img">
+                            </div>
+                            <div class="relic-name">Sun Compass</div>
+                            <div class="relic-pts">+25 PTS</div>
+                            <span class="relic-badge">{% if 'compass' in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}</span>
                         </div>
-                        {% endfor %}
+
+                        <!-- Relic 2: Obsidian Blade -->
+                        <div class="relic-card {% if 'blade' in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
+                            <div class="relic-img-wrap">
+                                <img src="/static/assets/relic_obsidian_blade.jpg" alt="Obsidian Blade" class="relic-img">
+                            </div>
+                            <div class="relic-name">Obsidian Blade</div>
+                            <div class="relic-pts">+35 PTS</div>
+                            <span class="relic-badge">{% if 'blade' in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}</span>
+                        </div>
+
+                        <!-- Relic 3: Jaguar Fang -->
+                        <div class="relic-card {% if 'jaguar' in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
+                            <div class="relic-img-wrap">
+                                <img src="/static/assets/relic_jaguar_fang.jpg" alt="Jaguar Fang" class="relic-img">
+                            </div>
+                            <div class="relic-name">Jaguar Fang</div>
+                            <div class="relic-pts">+40 PTS</div>
+                            <span class="relic-badge">{% if 'jaguar' in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}</span>
+                        </div>
+
+                        <!-- Relic 4: Golden Idol -->
+                        <div class="relic-card {% if 'idol' in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
+                            <div class="relic-img-wrap">
+                                <img src="/static/assets/relic_golden_idol.jpg" alt="Golden Idol" class="relic-img">
+                            </div>
+                            <div class="relic-name">Golden Idol</div>
+                            <div class="relic-pts">+50 PTS</div>
+                            <span class="relic-badge">{% if 'idol' in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}</span>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Curse Card Inventory -->
-                <div class="tool-card" style="border-color: rgba(255, 51, 68, 0.4);">
+                <!-- Mystical Curse Tarot Cards Drawer -->
+                <div class="tool-card" style="border-color: rgba(255, 51, 68, 0.45);">
                     <div class="tool-title" style="color: var(--curse-red);">
-                        <span>CURSE CARDS</span>
-                        <span id="curse-count">({{ curse_inventory | length }} READY)</span>
+                        <span>TRIBAL CURSE TAROT DECK</span>
+                        <span id="curse-count" style="font-size: 0.65rem;">({{ curse_inventory | length }} CARDS READY)</span>
                     </div>
-                    <p style="font-size: 0.75rem; color: #888; margin-bottom: 8px;">
-                        Earned by capturing relics. Unleash upon your opponent to disrupt their progress.
+                    <p style="font-size: 0.72rem; color: #a1a1aa; margin-bottom: 8px; line-height: 1.3;">
+                        Awarded upon securing relics. Unleash these ancient plagues upon your active rival to freeze or distort their terminal!
                     </p>
-                    <div class="curse-inventory">
+
+                    <div class="curse-deck">
                         {% for c in curse_inventory %}
-                        <div class="curse-card">
-                            <div>
-                                <div style="font-size: 0.8rem; font-weight: bold; color: #fff;">{{ c.curse_type | upper }}</div>
-                                <div style="font-size: 0.7rem; color: #aaa;">Target: Active Rival</div>
+                        <div class="tarot-card">
+                            {% if c.curse_type == 'quicksand' %}
+                            <img src="/static/assets/curse_quicksand_card.jpg" alt="Quicksand" class="tarot-thumb">
+                            {% elif c.curse_type == 'monsoon' %}
+                            <img src="/static/assets/curse_monsoon_card.jpg" alt="Monsoon" class="tarot-thumb">
+                            {% else %}
+                            <img src="/static/assets/curse_stampede_card.jpg" alt="Stampede" class="tarot-thumb">
+                            {% endif %}
+                            <div class="tarot-info">
+                                <div class="tarot-title">{{ c.curse_type | upper }}</div>
+                                <button class="curse-cast-btn" onclick="castCurse('{{ c.curse_type }}')">DEPLOY</button>
                             </div>
-                            <button class="curse-btn" onclick="castCurse('{{ c.curse_type }}')">CAST</button>
                         </div>
                         {% else %}
-                        <div style="font-size: 0.75rem; color: #666; text-align: center; padding: 10px;">
-                            No curse cards in inventory. Capture a relic in Duels to earn cards!
+                        <div style="font-size: 0.75rem; color: #71717a; text-align: center; padding: 12px 6px; width: 100%; border: 1px dashed rgba(255, 51, 68, 0.2);">
+                            No curse cards in hand. Recombine relic split-keys to earn dark tribal curses!
                         </div>
                         {% endfor %}
                     </div>
                 </div>
 
-                <!-- Team Info -->
+                <!-- Team Squad Telemetry -->
                 <div class="tool-card">
-                    <div class="tool-title">TEAM ROSTER</div>
-                    <div style="font-size: 0.8rem;">
-                        <div>Access Code: <code style="color: var(--gold);">{{ team.access_code }}</code></div>
-                        <div>Pod: <span style="color: var(--jungle-green);">{{ team.pod_id | upper }}</span></div>
+                    <div class="tool-title">
+                        <span>SQUAD EXPEDITION TELEMETRY</span>
+                        <span class="rivet"></span>
+                    </div>
+                    <div style="font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px;">
+                        <div>Access Token: <code style="color: var(--gold); font-weight: bold;">{{ team.access_code }}</code></div>
+                        <div>Battle Pod: <span style="color: var(--jungle-green); font-weight: bold;">{{ team.pod_id | upper }}</span></div>
+                        <div>Partner Link: <span style="color: var(--emerald-glow);">SYNCHRONIZED (DUO ACTIVE)</span></div>
                     </div>
                 </div>
             </div>
         </aside>
     </main>
 
-    <!-- Relic Submission Bar -->
+    <!-- Ceremonial Relic Altar (Submission Bar) -->
     <footer class="submit-section">
-        <label style="font-family: 'Press Start 2P', monospace; font-size: 0.75rem; color: var(--gold);">
-            RELIC TOKEN:
+        <label class="altar-label">
+            <span class="rivet"></span> SACRED OFFERING:
         </label>
-        <input type="text" id="flag-submit-input" class="flag-input" placeholder="JUMANJI{...} or NAV_... CART_..." autocomplete="off">
-        <button class="btn-submit" onclick="submitRelicFlag()">TRANSMIT RELIC</button>
-        <div id="submit-feedback" style="font-size: 0.85rem; font-weight: bold; margin-left: 10px;"></div>
+        <input type="text" id="flag-submit-input" class="flag-input" placeholder="Enter JUMANJI{...} or recombined NAV_... CART_... tokens" autocomplete="off">
+        <button class="btn-submit" onclick="submitRelicFlag()">TRANSMIT RELIC SEAL</button>
+        <div id="submit-feedback"></div>
     </footer>
 
     <script>
@@ -471,6 +933,47 @@
         let term, fitAddon;
         let isFrozen = false;
 
+        // Subtle Web Audio API tactile sound synthesizer
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playChirp(freq = 600, duration = 0.05, type = 'sine') {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {}
+        }
+
+        // Ambient Drum Toggle
+        let drumsPlaying = false;
+        function toggleDrums() {
+            const audio = document.getElementById('jumanji-drum-audio');
+            const text = document.getElementById('drum-text');
+            const icon = document.getElementById('drum-icon');
+
+            if (!drumsPlaying) {
+                audio.play().then(() => {
+                    drumsPlaying = true;
+                    text.textContent = 'DRUMS: ON';
+                    icon.style.filter = 'drop-shadow(0 0 8px #ffcc00)';
+                }).catch(e => {
+                    console.warn("Drum audio autoplay blocked, requires gesture:", e);
+                });
+            } else {
+                audio.pause();
+                drumsPlaying = false;
+                text.textContent = 'DRUMS: OFF';
+                icon.style.filter = 'none';
+            }
+        }
+
         // Initialize xterm if Navigator
         if (USER_ROLE === 'navigator') {
             term = new Terminal({
@@ -480,7 +983,8 @@
                 theme: {
                     background: '#040907',
                     foreground: '#00ff66',
-                    cursor: '#ffcc00'
+                    cursor: '#ffcc00',
+                    selection: 'rgba(0, 255, 102, 0.35)'
                 }
             });
             fitAddon = new FitAddon.FitAddon();
@@ -493,6 +997,7 @@
 
                 term.onData(data => {
                     if (isFrozen) {
+                        playChirp(180, 0.1, 'sawtooth');
                         return; // Quicksand curse active
                     }
                     socket.emit('pty-input', { input: data });
@@ -510,13 +1015,16 @@
         // Socket.IO Events
         socket.on('connect', () => {
             const statusEl = document.getElementById('conn-status');
-            if (statusEl) statusEl.textContent = '● LINKED';
+            if (statusEl) {
+                statusEl.textContent = '● FIELD LINK ACTIVE';
+                statusEl.style.color = 'var(--jungle-green)';
+            }
         });
 
         socket.on('disconnect', () => {
             const statusEl = document.getElementById('conn-status');
             if (statusEl) {
-                statusEl.textContent = '○ RECONNECTING...';
+                statusEl.textContent = '○ LINK DISRUPTED...';
                 statusEl.style.color = '#ff3344';
             }
         });
@@ -524,6 +1032,7 @@
         // Curse Alert handler
         socket.on('curse-alert', data => {
             if (data.to_team_id === TEAM_ID) {
+                playChirp(150, 0.4, 'sawtooth');
                 const banner = document.getElementById('curse-banner');
                 const nameEl = document.getElementById('curse-name-text');
                 banner.style.display = 'block';
@@ -531,11 +1040,11 @@
 
                 if (data.curse_type === 'quicksand' && term) {
                     isFrozen = true;
-                    term.write("\r\n\x1b[1;31m[!] QUICKSAND CURSE TRIGGERED! TERMINAL INPUT FROZEN!\x1b[0m\r\n");
+                    term.write("\r\n\x1b[1;31m[☠] ANCIENT QUICKSAND CURSE TRIGGERED! CONTROLS HARD-FROZEN!\x1b[0m\r\n");
                     setTimeout(() => {
                         isFrozen = false;
                         banner.style.display = 'none';
-                        term.write("\r\n\x1b[1;32m[+] QUICKSAND DISSIPATED. CONTROLS RESTORED.\x1b[0m\r\n");
+                        term.write("\r\n\x1b[1;32m[+] QUICKSAND DISSIPATED. EXPEDITION CONTROLS RESTORED.\x1b[0m\r\n");
                     }, (data.duration || 45) * 1000);
                 } else {
                     setTimeout(() => { banner.style.display = 'none'; }, (data.duration || 45) * 1000);
@@ -550,7 +1059,8 @@
             const val = input.value.trim();
             if (!val) return;
 
-            feedback.textContent = 'TRANSMITTING...';
+            playChirp(550, 0.08);
+            feedback.textContent = 'TRANSMITTING SEAL TO SANCTUARY...';
             feedback.style.color = '#ffcc00';
 
             try {
@@ -562,28 +1072,32 @@
                 const data = await res.json();
 
                 if (data.status === 'success') {
-                    feedback.textContent = `✓ RELIC SECURED! +${data.points_awarded} PTS!`;
+                    playChirp(880, 0.25, 'triangle');
+                    feedback.textContent = `✓ SACRED RELIC SECURED! +${data.points_awarded} PTS!`;
                     feedback.style.color = '#00ff66';
                     input.value = '';
                     const totalEl = document.getElementById('team-total-score');
                     if (totalEl) totalEl.textContent = data.total_points;
                     setTimeout(() => { location.reload(); }, 1200);
                 } else if (data.status === 'split_key_required') {
+                    playChirp(350, 0.15, 'sawtooth');
                     feedback.textContent = `⚠ ${data.message}`;
                     feedback.style.color = '#ffcc00';
                 } else {
-                    feedback.textContent = `✗ ${data.error || 'INVALID RELIC FLAG'}`;
+                    playChirp(200, 0.2, 'sawtooth');
+                    feedback.textContent = `✗ ${data.error || 'INVALID SACRED SEAL'}`;
                     feedback.style.color = '#ff3344';
                 }
             } catch (e) {
-                feedback.textContent = 'NETWORK TRANSMISSION ERROR';
+                feedback.textContent = 'EXPEDITION NETWORK LINK ERROR';
                 feedback.style.color = '#ff3344';
             }
         }
 
         // Curse Card Caster
         async function castCurse(curseType) {
-            if (!confirm(`Deploy ${curseType.toUpperCase()} curse on your active opponent?`)) return;
+            playChirp(400, 0.1);
+            if (!confirm(`Deploy the ancient ${curseType.toUpperCase()} curse against your active rival?`)) return;
             try {
                 const res = await fetch('/gauntlet/curse/cast', {
                     method: 'POST',
@@ -592,27 +1106,38 @@
                 });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    alert(`⚡ ${curseType.toUpperCase()} CURSE DEPLOYED AGAINST RIVAL!`);
+                    playChirp(700, 0.2, 'sawtooth');
+                    alert(`☠ ${curseType.toUpperCase()} CURSE CAST UPON RIVAL SQUAD!`);
                     location.reload();
                 } else {
-                    alert(`Error: ${data.error || 'Could not deploy curse'}`);
+                    alert(`Curse Failed: ${data.error || 'Sanctuary denied spell'}`);
                 }
             } catch (e) {
-                alert('Connection error casting curse');
+                alert('Sanctuary network error deploying curse.');
             }
         }
 
-        // Decoding Helpers for Cartographer
+        // Cartographer Helpers
+        function copyToClipboard(text) {
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                playChirp(750, 0.05);
+                alert("Copied Key to Clipboard: " + text);
+            });
+        }
+
         function decodeB64() {
+            playChirp(600, 0.03);
             const inp = document.getElementById('decode-input').value.trim();
             try {
                 document.getElementById('decode-output').value = atob(inp);
             } catch (e) {
-                document.getElementById('decode-output').value = 'Invalid Base64 string.';
+                document.getElementById('decode-output').value = 'Invalid Base64 sequence.';
             }
         }
 
         function decodeRot13() {
+            playChirp(600, 0.03);
             const inp = document.getElementById('decode-input').value;
             document.getElementById('decode-output').value = inp.replace(/[a-zA-Z]/g, function (c) {
                 return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26);
@@ -620,6 +1145,7 @@
         }
 
         function decodeHex() {
+            playChirp(600, 0.03);
             const inp = document.getElementById('decode-input').value.trim().replace(/\s+/g, '');
             let str = '';
             for (let i = 0; i < inp.length; i += 2) {
