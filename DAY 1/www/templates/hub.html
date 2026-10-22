@@ -282,19 +282,25 @@
 
         <div class="player-bar">
             <div>CODENAME: <span class="player-name">{{ user.username | upper }}</span></div>
-            <div>STATUS: <span class="player-badge">R2: {{ user.status | upper }} | R3: {{ user.round3_status | upper }}</span></div>
-            <div>OVERALL EXPEDITION SCORE: <span style="color: var(--gold); font-weight: bold;">{{ (user.points or 0) + (user.round3_points or 0) }} PTS</span></div>
+            <div>STATUS: <span class="player-badge">DAY 1 LEVEL 1: {{ user.status | upper }} | DAY 1 LEVEL 2: {{ (user.level2_status or user.round3_status) | upper }}</span></div>
+            <div>OVERALL EXPEDITION SCORE: <span style="color: var(--gold); font-weight: bold;">{{ (user.points or 0) + (user.level2_points or user.round3_points or 0) }} / 350 PTS</span></div>
         </div>
 
+        {% if not day1_visible and not day2_visible %}
+        <p class="round-desc" style="text-align: center; margin-bottom: 30px;">No expedition is open right now. Stand by for the host.</p>
+        {% endif %}
+
+        {% if day1_visible %}
+        <h2 class="round-tag" style="text-align: left; margin-bottom: 15px;">DAY 1</h2>
         <div class="rounds-grid">
-            <!-- ROUND 2 CARD -->
-            <div class="round-card {% if can_play_r2 or user.points >= 2950 %}unlocked{% else %}locked{% endif %}">
+            <!-- DAY 1 LEVEL 1 CARD -->
+            <div class="round-card {% if can_play_l1 or user.points >= 150 %}unlocked{% else %}locked{% endif %}">
                 <div>
                     <div class="card-header">
-                        <span class="round-tag">ROUND 2</span>
-                        {% if user.points >= 2950 %}
+                        <span class="round-tag">DAY 1 · LEVEL 1</span>
+                        {% if user.points >= 150 %}
                         <span class="status-pill status-completed">ESCAPED (100%)</span>
-                        {% elif not r2_unlocked %}
+                        {% elif not level1_unlocked %}
                         <span class="status-pill status-locked" style="background: rgba(100,100,100,0.2); border-color: #666; color: #888;">LOCKED BY HOST</span>
                         {% elif user.status == 'suspended' %}
                         <span class="status-pill status-locked">TIME EXPIRED</span>
@@ -311,35 +317,35 @@
                     <div class="card-stats">
                         <div class="stat-row">
                             <span style="color: #888;">Score Target:</span>
-                            <span style="color: var(--retro-green);">{{ user.points }} / 2950 PTS</span>
+                            <span style="color: var(--retro-green);">{{ user.points }} / 150 PTS</span>
                         </div>
                         <div class="stat-row">
-                            <span style="color: #888;">Round Access:</span>
-                            <span>{% if r2_unlocked %}HOST ACCESSIBLE{% else %}MAINFRAME LOCK{% endif %}</span>
+                            <span style="color: #888;">Level Access:</span>
+                            <span>{% if level1_unlocked %}HOST ACCESSIBLE{% else %}MAINFRAME LOCK{% endif %}</span>
                         </div>
                     </div>
-                    {% if can_play_r2 %}
-                    <a href="{{ url_for('dashboard') }}" class="action-btn btn-enter">ENTER JUNGLE (R2)</a>
-                    {% elif user.points >= 2950 %}
-                    <span class="action-btn btn-disabled">ROUND COMPLETED</span>
+                    {% if can_play_l1 %}
+                    <a href="{{ url_for('level1') }}" class="action-btn btn-enter">ENTER JUNGLE (LEVEL 1)</a>
+                    {% elif user.points >= 150 %}
+                    <span class="action-btn btn-disabled">LEVEL 1 COMPLETED</span>
                     {% elif user.status == 'suspended' %}
                     <span class="action-btn btn-disabled" style="border-color: var(--alert-red); color: var(--alert-red);">TIME EXPIRED</span>
                     {% else %}
-                    <span class="action-btn btn-disabled">ROUND LOCKED BY HOST</span>
+                    <span class="action-btn btn-disabled">LEVEL LOCKED BY HOST</span>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- ROUND 3 CARD -->
-            <div class="round-card {% if can_play_r3 or (user.round3_points or 0) >= 2500 %}unlocked{% else %}locked{% endif %}">
+            <!-- DAY 1 LEVEL 2 CARD -->
+            <div class="round-card {% if can_play_l2 or (user.level2_points or user.round3_points or 0) >= 200 %}unlocked{% else %}locked{% endif %}">
                 <div>
                     <div class="card-header">
-                        <span class="round-tag">ROUND 3</span>
-                        {% if (user.round3_points or 0) >= 2500 %}
+                        <span class="round-tag">DAY 1 · LEVEL 2</span>
+                        {% if (user.level2_points or user.round3_points or 0) >= 200 %}
                         <span class="status-pill status-completed">CONQUERED (100%)</span>
-                        {% elif not r3_unlocked %}
+                        {% elif not level2_unlocked %}
                         <span class="status-pill status-locked" style="background: rgba(100,100,100,0.2); border-color: #666; color: #888;">OFFLINE / LOCKED</span>
-                        {% elif user.round3_status == 'suspended' %}
+                        {% elif (user.level2_status or user.round3_status) == 'suspended' %}
                         <span class="status-pill status-locked">TIME EXPIRED</span>
                         {% else %}
                         <span class="status-pill status-unlocked">MAINFRAME LIVE</span>
@@ -354,25 +360,48 @@
                     <div class="card-stats">
                         <div class="stat-row">
                             <span style="color: #888;">Override Target:</span>
-                            <span style="color: var(--retro-green);">{{ user.round3_points or 0 }} / 2500 PTS</span>
+                            <span style="color: var(--retro-green);">{{ user.level2_points or user.round3_points or 0 }} / 200 PTS</span>
                         </div>
                         <div class="stat-row">
-                            <span style="color: #888;">Round Access:</span>
-                            <span>{% if r3_unlocked %}MAINFRAME LIVE{% else %}OFFLINE / LOCKED{% endif %}</span>
+                            <span style="color: #888;">Level Access:</span>
+                            <span>{% if level2_unlocked %}MAINFRAME LIVE{% else %}OFFLINE / LOCKED{% endif %}</span>
                         </div>
                     </div>
-                    {% if can_play_r3 %}
-                    <a href="{{ url_for('round3') }}" class="action-btn btn-enter" style="background: var(--gold); color: #000;">ACCESS MAINFRAME (R3)</a>
-                    {% elif (user.round3_points or 0) >= 2500 %}
+                    {% if can_play_l2 %}
+                    <a href="{{ url_for('level2') }}" class="action-btn btn-enter" style="background: var(--gold); color: #000;">ACCESS MAINFRAME (LEVEL 2)</a>
+                    {% elif (user.level2_points or user.round3_points or 0) >= 200 %}
                     <span class="action-btn btn-disabled">MAINFRAME OVERRIDDEN</span>
-                    {% elif user.round3_status == 'suspended' %}
+                    {% elif (user.level2_status or user.round3_status) == 'suspended' %}
                     <span class="action-btn btn-disabled" style="border-color: var(--alert-red); color: var(--alert-red);">TIME EXPIRED</span>
                     {% else %}
-                    <span class="action-btn btn-disabled">ROUND LOCKED BY HOST</span>
+                    <span class="action-btn btn-disabled">LEVEL LOCKED BY HOST</span>
                     {% endif %}
                 </div>
             </div>
         </div>
+        {% endif %}
+
+        {% if day2_visible %}
+        <h2 class="round-tag" style="text-align: left; margin-bottom: 15px;">DAY 2</h2>
+        <div class="rounds-grid">
+            <!-- DAY 2 LEVEL 2: THE JUMANJI GAUNTLET -->
+            <div class="round-card unlocked">
+                <div>
+                    <div class="card-header">
+                        <span class="round-tag">DAY 2 · LEVEL 2</span>
+                        <span class="status-pill status-unlocked">TOURNAMENT LIVE</span>
+                    </div>
+                    <h3 style="color: #fff; margin-bottom: 10px; font-size: 1.2rem;">THE JUMANJI GAUNTLET</h3>
+                    <p class="round-desc">
+                        120-minute team-vs-team cyber championship. Split-key relics, live curse cards, and King-of-the-Hill territory control.
+                    </p>
+                </div>
+                <div>
+                    <a href="{{ url_for('day2_level2') }}" class="action-btn btn-enter" style="background: var(--retro-green); color: #000; text-align: center; text-decoration: none;">ENTER GAUNTLET STATION</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
 
         <div class="footer-nav">
             {% if session.get('role') == 'admin' %}

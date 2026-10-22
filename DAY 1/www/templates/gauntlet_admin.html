@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumanji Gauntlet · Tournament Director Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #080d0a;
+            --jungle-green: #00ff66;
+            --gold: #ffcc00;
+            --curse-red: #ff3344;
+            --panel-bg: rgba(12, 22, 17, 0.95);
+            --border-glow: rgba(0, 255, 102, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #d1fae5;
+            font-family: 'Share Tech Mono', monospace;
+            padding: 25px;
+            min-height: 100vh;
+        }
+
+        header.admin-bar {
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.2rem;
+            color: var(--gold);
+        }
+
+        .phase-pill {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            background: rgba(255, 204, 0, 0.15);
+            border: 1px solid var(--gold);
+            padding: 6px 15px;
+            color: var(--gold);
+        }
+
+        .panel-box {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            padding: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.1);
+        }
+
+        .panel-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.85rem;
+            color: var(--jungle-green);
+            margin-bottom: 15px;
+            border-bottom: 1px dashed var(--border-glow);
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .btn {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.7rem;
+            padding: 10px 18px;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+
+        .btn-green {
+            background: var(--jungle-green);
+            color: #000;
+        }
+
+        .btn-gold {
+            background: var(--gold);
+            color: #000;
+        }
+
+        .btn-red {
+            background: var(--curse-red);
+            color: #fff;
+        }
+
+        .btn:hover {
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        table.admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 10px;
+        }
+
+        table.admin-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: #888;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        table.admin-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body>
+    <header class="admin-bar">
+        <div>
+            <span class="title">GAUNTLET MISSION CONTROL</span>
+            <span class="phase-pill" style="margin-left: 15px;">STAGE: {{ current_phase | upper }}</span>
+        </div>
+        <div>
+            <a href="{{ url_for('gauntlet_bracket') }}" target="_blank" class="btn btn-gold" style="text-decoration: none;">[ OPEN PROJECTOR ARENA ]</a>
+            <a href="{{ url_for('admin') }}" class="btn btn-green" style="text-decoration: none;">[ DAY 1 ADMIN ]</a>
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div style="background: rgba(0, 255, 102, 0.15); border: 1px solid var(--jungle-green); padding: 12px; margin-bottom: 20px; font-weight: bold;">
+        {% for msg in messages %}{{ msg }}{% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- 1. Tournament Phase Advancement Controls -->
+    <div class="panel-box">
+        <div class="panel-title">PHASE ORCHESTRATION & STEPPER</div>
+        <p style="font-size: 0.85rem; color: #888; margin-bottom: 15px;">
+            Advance the tournament through its 4 timed phases. Advancing automatically calculates scores, pairs winners, and relegates squads to Losers' Lagoon.
+        </p>
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline-block;">
+            <input type="hidden" name="action" value="set_phase">
+            <input type="hidden" name="target_phase" value="phase1_pods">
+            <button type="submit" class="btn btn-green">1. START JUNGLE PODS</button>
+        </form>
+
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline-block;">
+            <input type="hidden" name="action" value="set_phase">
+            <input type="hidden" name="target_phase" value="phase2_duels">
+            <button type="submit" class="btn btn-gold">2. ADVANCE TO DUELS (TOP 8)</button>
+        </form>
+
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline-block;">
+            <input type="hidden" name="action" value="set_phase">
+            <input type="hidden" name="target_phase" value="phase3_shrine">
+            <button type="submit" class="btn btn-gold">3. LAUNCH SHRINE KOTH (TOP 4)</button>
+        </form>
+
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline-block;">
+            <input type="hidden" name="action" value="set_phase">
+            <input type="hidden" name="target_phase" value="phase4_final">
+            <button type="submit" class="btn btn-green">4. START FINAL ROLL (DUO)</button>
+        </form>
+
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline-block;">
+            <input type="hidden" name="action" value="reset_gauntlet">
+            <button type="submit" class="btn btn-red" onclick="return confirm('Reset all Gauntlet tournament scores and bracket progression?');">RESET TOURNAMENT</button>
+        </form>
+    </div>
+
+    <!-- 2. Shrine King of the Hill Control -->
+    <div class="panel-box">
+        <div class="panel-title">SHRINE KING-OF-THE-HILL OVERRIDE</div>
+        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="action" value="set_shrine_ruler">
+            <label style="font-size: 0.85rem;">Force Crown Team:</label>
+            <select name="team_id" style="background: #000; color: #fff; padding: 8px; border: 1px solid var(--gold);">
+                {% for t in teams %}
+                <option value="{{ t.id }}" {% if t.id|string == active_shrine_team_id|string %}selected{% endif %}>
+                    {{ t.team_name }} ({{ t.access_code }})
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-gold" style="margin: 0;">SET THRONE RULER</button>
+        </form>
+    </div>
+
+    <!-- 3. Active Curses Inspector -->
+    <div class="panel-box">
+        <div class="panel-title">ACTIVE CURSES MONITOR</div>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>CURSE</th>
+                    <th>TARGET TEAM</th>
+                    <th>APPLIED AT</th>
+                    <th>EXPIRES AT</th>
+                    <th>ACTION</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in active_curses %}
+                <tr>
+                    <td>#{{ c.id }}</td>
+                    <td style="color: var(--curse-red); font-weight: bold;">{{ c.curse_type | upper }}</td>
+                    <td>{{ c.target_name }}</td>
+                    <td>{{ c.applied_at }}</td>
+                    <td>{{ c.expires_at }}</td>
+                    <td>
+                        <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="dismiss_curse">
+                            <input type="hidden" name="curse_id" value="{{ c.id }}">
+                            <button type="submit" class="btn btn-red" style="padding: 4px 8px; font-size: 0.6rem;">DISMISS</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; color: #666; padding: 10px;">No active curses in play.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 4. Team Roster & Scores -->
+    <div class="panel-box">
+        <div class="panel-title">
+            <span>TOURNAMENT ROSTER (16 SQUADS)</span>
+            <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" style="display: inline;">
+                <input type="hidden" name="action" value="seed_teams">
+                <button type="submit" class="btn btn-green" style="margin: 0; padding: 4px 10px; font-size: 0.65rem;">RE-SEED ROSTER</button>
+            </form>
+        </div>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>TEAM NAME</th>
+                    <th>ACCESS CODE</th>
+                    <th>POD</th>
+                    <th>PHASE</th>
+                    <th>POD PTS</th>
+                    <th>DUEL PTS</th>
+                    <th>SHRINE PTS</th>
+                    <th>TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in teams %}
+                <tr>
+                    <td>#{{ t.id }}</td>
+                    <td style="font-weight: bold; color: #fff;">{{ t.team_name }}</td>
+                    <td><code>{{ t.access_code }}</code></td>
+                    <td style="color: var(--jungle-green);">{{ t.pod_id | upper }}</td>
+                    <td>{{ t.phase | upper }}</td>
+                    <td>{{ t.phase1_score or 0 }}</td>
+                    <td>{{ t.duel_score or 0 }}</td>
+                    <td>{{ t.shrine_score or 0 }}</td>
+                    <td style="color: var(--gold); font-weight: bold;">
+                        {{ (t.phase1_score or 0) + (t.duel_score or 0) + (t.shrine_score or 0) + (t.lagoon_score or 0) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

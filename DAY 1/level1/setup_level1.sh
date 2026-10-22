@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# setup_round2.sh
+# setup_level1.sh
 # Injected vars: PLAYER_ID, PLAYER_USERNAME, CTF_TOKEN
 SECRET="8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
 

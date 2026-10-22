@@ -8,8 +8,8 @@ This guide provides end-to-end instructions for deploying, configuring, and oper
 
 The platform is an interactive, multi-stage cybersecurity competition environment featuring:
 - **Central Expedition Command Hub (`/hub`)**: Gateway routing players between game rounds, with live timers and status cards.
-- **Round 2: Cybersec Reconnaissance (`/dashboard`)**: Web terminal connected via SocketIO PTY to isolated Docker containers running the `jumanji-round2:latest` image. Players solve 5 avatar challenges (Bravestone, Ruby, Finbar, Oberon, Seaplane) for **2,950 points**.
-- **Round 3: Mainframe Core Breach (`/round3`)**: Higher-tier challenge running `jumanji-round3:latest`. Players perform database extraction (User Override, **1,000 pts**) and exploit a custom SUID binary `lift_curse` using the `CHANT=JUMANJI` environment variable to claim Root Override (**1,500 pts**, total **2,500 pts**).
+- **Round 2: Cybersec Reconnaissance (`/dashboard`)**: Web terminal connected via SocketIO PTY to isolated Docker containers running the `jumanji-round2:latest` image. Players solve 5 avatar challenges (Bravestone 20, Ruby 30, Finbar 25, Oberon 25, Seaplane 50) for **150 points**.
+- **Round 3: Mainframe Core Breach (`/round3`)**: Higher-tier challenge running `jumanji-round3:latest`. Players perform database extraction (User Override, **80 pts**) and exploit a custom SUID binary `lift_curse` using the `CHANT=JUMANJI` environment variable to claim Root Override (**120 pts**, total **200 pts**, combined **350 pts**).
 - **Independent Round Isolation**: Rounds 2 and 3 operate on completely independent 60-minute timers, independent suspension statuses, and isolated Docker container lifecycles.
 - **Admin Control Center (`/admin`)**: Live global leaderboard, round locking/unlocking, per-user unsuspension, and timer resets.
 - **Google OAuth 2.0 Integration**: One-click Google sign-in using wildcard IP resolution via `nip.io`.
@@ -21,7 +21,7 @@ The platform is an interactive, multi-stage cybersecurity competition environmen
                                 v
                +----------------------------------+
                |     Flask + SocketIO Server      |
-               |       (round_2_sdc_games/www)    |
+               |          (DAY 1/www)             |
                +-----------------+----------------+
                                  |
          +-----------------------+-----------------------+
@@ -45,7 +45,7 @@ TechnozionXSDC/
 ├── SETUP_AND_DEPLOYMENT_GUIDE.md    <-- This comprehensive documentation
 ├── verify_all.py                    <-- Automated 35-check end-to-end verification suite
 ├── verify_all.sh                    <-- 1-click test suite runner
-└── round_2_sdc_games/
+└── DAY 1/
     ├── round2/                      <-- Round 2 Docker environment
     │   ├── Dockerfile.r2            <-- Round 2 container specification
     │   ├── complete                 <-- Player flag submission CLI tool
@@ -102,7 +102,7 @@ cd "/path/to/TechnozionXSDC "
 
 #### Step 2: Set Up Python Virtual Environment
 ```bash
-cd round_2_sdc_games/www
+cd "DAY 1/www"
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
@@ -115,10 +115,10 @@ Build both Round 2 and Round 3 isolated images:
 
 ```bash
 # 1. Build Round 2 image
-docker build -t jumanji-round2:latest -f round_2_sdc_games/round2/Dockerfile.r2 round_2_sdc_games/round2/
+docker build -t jumanji-round2:latest -f "DAY 1/round2/Dockerfile.r2" "DAY 1/round2/"
 
 # 2. Build Round 3 image
-docker build -t jumanji-round3:latest -f round_2_sdc_games/round3/Dockerfile.r3 round_2_sdc_games/round3/
+docker build -t jumanji-round3:latest -f "DAY 1/round3/Dockerfile.r3" "DAY 1/round3/"
 ```
 
 Verify that both images are present:
@@ -149,27 +149,28 @@ The platform supports seamless Google Sign-In for players. Google OAuth requires
   hostname -I | awk '{print $1}'
   ```
 
-*Example IP:* `172.20.183.90`
+*Example IP:* `192.168.1.50` (or your venue Wi-Fi IP)
 
 #### 2. Configure Google Cloud Console
 1. Go to [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials).
 2. Select your project and edit your **OAuth 2.0 Client ID** (Web application).
 3. Under **Authorized JavaScript origins**, add:
    - `http://localhost:8080`
-   - `http://<YOUR_IP>.nip.io:8080` (e.g. `http://172.20.183.90.nip.io:8080`)
+   - `http://<YOUR_IP>.nip.io:8080`
 4. Under **Authorized redirect URIs**, add:
    - `http://localhost:8080/auth/callback`
-   - `http://<YOUR_IP>.nip.io:8080/auth/callback` (e.g. `http://172.20.183.90.nip.io:8080/auth/callback`)
+   - `http://<YOUR_IP>.nip.io:8080/auth/callback`
 5. Click **Save**.
 
-#### 3. Update `app.py` Configuration (if IP changed)
-In `round_2_sdc_games/www/app.py`, check lines 22–24:
-```python
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'YOUR_CLIENT_ID.apps.googleusercontent.com')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'YOUR_CLIENT_SECRET')
-GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://172.20.183.90.nip.io:8080/auth/callback')
+#### 3. Update Environment Configuration
+In `DAY 1/www/.env` (or via environment variables):
+```env
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
+GOOGLE_REDIRECT_URI=http://<YOUR_IP>.nip.io:8080/auth/callback
+CYBERSEC_SHARED_SECRET=your_shared_secret_key
+SDC_GAMES_API_URL=http://<SERVER_1_IP>:4000
 ```
-*(Or simply supply them as environment variables without modifying the file).*
 
 ---
 
@@ -194,7 +195,7 @@ ALL VERIFICATION CHECKS PASSED WITH 100% SUCCESS!
 Launch the Flask + SocketIO application:
 
 ```bash
-cd round_2_sdc_games/www
+cd "DAY 1/www"
 source venv/bin/activate
 python3 app.py
 ```
@@ -211,7 +212,7 @@ If the computer already has the repository, Docker images, and virtual environme
 
 ### 4.1. Fast 1-Line Launch
 ```bash
-cd "round_2_sdc_games/www" && source venv/bin/activate && python3 app.py
+cd "DAY 1/www" && source venv/bin/activate && python3 app.py
 ```
 
 ---
@@ -223,7 +224,7 @@ If you change Wi-Fi networks or mobile hotspots on the day of the event:
    ```bash
    ipconfig getifaddr en0
    ```
-2. **Update `GOOGLE_REDIRECT_URI` in `round_2_sdc_games/www/app.py`**:
+2. **Update `GOOGLE_REDIRECT_URI` in `DAY 1/www/app.py`**:
    Replace the old IP with your new IP in line 24:
    ```python
    GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://<NEW_IP>.nip.io:8080/auth/callback')
@@ -273,10 +274,10 @@ lsof -ti :8080 | xargs kill -9
 ### Issue 2: Google OAuth "Error 400: redirect_uri_mismatch"
 **Cause**: The redirect URI requested by `app.py` does not match the exact URI registered in Google Cloud Console.
 **Fix**:
-1. Look at the error details in the Google error page. Note the `redirect_uri` parameter (e.g. `http://172.20.183.90.nip.io:8080/auth/callback`).
+1. Look at the error details in the Google error page. Note the `redirect_uri` parameter (e.g. `http://<YOUR_IP>.nip.io:8080/auth/callback`).
 2. Copy this exact string.
 3. Paste it under **Authorized redirect URIs** in your Google Cloud Console OAuth 2.0 Client credentials.
-4. Ensure `GOOGLE_REDIRECT_URI` in `round_2_sdc_games/www/app.py` matches it identically.
+4. Ensure `GOOGLE_REDIRECT_URI` in `DAY 1/www/.env` matches it identically.
 
 ---
 
@@ -293,7 +294,7 @@ docker ps -a --filter "name=jumanji_" -q | xargs -r docker rm -f
 If you wish to wipe test players and start fresh before the event:
 ```bash
 # Keep table schema but clear users and submissions (preserves admin)
-sqlite3 round_2_sdc_games/www/jumanji_auth.db "DELETE FROM users WHERE role != 'admin'; DELETE FROM solved_challenges;"
+sqlite3 "DAY 1/www/jumanji_auth.db" "DELETE FROM users WHERE role != 'admin'; DELETE FROM solved_challenges;"
 ```
 
 ---
@@ -318,6 +319,6 @@ complete JUMANJI{...}
 - [ ] Both Docker images are built: `docker images | grep jumanji`.
 - [ ] Machine local IP identified and configured in `app.py` and Google Cloud Console.
 - [ ] Full verification suite executed and passing: `./verify_all.sh` (35/35 checks).
-- [ ] Server running: `cd round_2_sdc_games/www && source venv/bin/activate && python3 app.py`.
+- [ ] Server running: `cd "DAY 1/www" && source venv/bin/activate && python3 app.py`.
 - [ ] Admin credentials tested: login to `/admin`.
 - [ ] Participants connected to `http://<YOUR_IP>.nip.io:8080`.

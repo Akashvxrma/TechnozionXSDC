@@ -1,17 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JUMANJI | Admin Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --retro-green: #39ff14;
             --retro-yellow: #fefe33;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             background-color: #000;
@@ -59,7 +65,8 @@
             margin-bottom: 30px;
         }
 
-        th, td {
+        th,
+        td {
             padding: 15px;
             text-align: left;
             border-bottom: 1px solid var(--retro-green);
@@ -140,9 +147,14 @@
             margin-bottom: 20px;
         }
 
-        .status-suspended { color: #ff0000; }
-        .status-active { color: var(--retro-green); }
-        
+        .status-suspended {
+            color: #ff0000;
+        }
+
+        .status-active {
+            color: var(--retro-green);
+        }
+
         /* Tab Styles */
         .tab-bar {
             display: flex;
@@ -152,7 +164,7 @@
             border-bottom: 2px solid #333;
             padding-bottom: 10px;
         }
-        
+
         .tab-btn {
             background: none;
             border: none;
@@ -163,44 +175,51 @@
             padding: 10px 20px;
             transition: all 0.3s;
         }
-        
+
         .tab-btn:hover {
             color: var(--retro-yellow);
         }
-        
+
         .tab-btn.active {
             color: var(--retro-green);
             border-bottom: 3px solid var(--retro-green);
             text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
             animation: fadeIn 0.5s;
         }
-        
+
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
-        
+
         .table-container {
             max-height: 500px;
             overflow-y: auto;
             border: 2px solid var(--retro-green);
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
         }
-        
+
         .table-container::-webkit-scrollbar {
             width: 8px;
         }
+
         .table-container::-webkit-scrollbar-track {
             background: #000;
         }
+
         .table-container::-webkit-scrollbar-thumb {
             background: var(--retro-green);
         }
@@ -209,13 +228,16 @@
         .modal-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: rgba(0, 0, 0, 0.85);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
-        
+
         .modal-content {
             background: #051005;
             border: 2px solid var(--retro-green);
@@ -225,7 +247,7 @@
             position: relative;
             box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
         }
-        
+
         .close-btn {
             position: absolute;
             top: 15px;
@@ -237,7 +259,7 @@
             cursor: pointer;
             font-size: 1.2rem;
         }
-        
+
         .close-btn:hover {
             color: #ff0000;
         }
@@ -249,74 +271,158 @@
             text-decoration-thickness: 2px;
             text-underline-offset: 4px;
         }
+
         .clickable-username:hover {
             color: #fff;
             text-decoration-color: #fff;
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <div class="jumanji-title">POINTS DASHBOARD</div>
-        <p style="margin-top: 10px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem;">ADMINISTRATION OVERRIDE</p>
+        <p style="margin-top: 10px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem;">ADMINISTRATION
+            OVERRIDE</p>
     </div>
 
     <div class="dashboard-container">
         {% with messages = get_flashed_messages() %}
-          {% if messages %}
-            <div class="flash-messages">
-              {% for message in messages %}
-                <p>{{ message }}</p>
-              {% endfor %}
-            </div>
-          {% endif %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for message in messages %}
+            <p>{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% endwith %}
 
         <div class="tab-bar">
             <button class="tab-btn active" onclick="openTab('tab-overview')">GLOBAL OVERVIEW</button>
-            <button class="tab-btn" onclick="openTab('tab-round2')">ROUND 2 COMMAND</button>
-            <button class="tab-btn" onclick="openTab('tab-round3')">ROUND 3 COMMAND</button>
+            <button class="tab-btn" onclick="openTab('tab-level1')">LEVEL 1 COMMAND</button>
+            <button class="tab-btn" onclick="openTab('tab-level2')">LEVEL 2 COMMAND</button>
         </div>
 
         <!-- TAB 1: GLOBAL OVERVIEW -->
         <div id="tab-overview" class="tab-content active">
-            <div style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
+            <div
+                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
+                <div
+                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
                     <div style="color: var(--retro-yellow); margin-bottom: 10px;">PLAYERS ONLINE</div>
                     <div style="font-size: 2rem; margin-top: 20px;">{{ stats.online }}</div>
                 </div>
-                <div style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
+                <div
+                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
                     <div style="color: var(--retro-yellow); margin-bottom: 10px;">PLAYERS OFFLINE</div>
                     <div style="font-size: 2rem; margin-top: 20px;">{{ stats.offline }}</div>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 2: ROUND 2 COMMAND -->
-        <div id="tab-round2" class="tab-content">
-            <div style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">R2 ESCAPED</div>
+        <!-- TAB 2: LEVEL 1 COMMAND -->
+        <div id="tab-level1" class="tab-content">
+            <div
+                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
+                <div
+                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
+                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">L1 ESCAPED</div>
                     <div style="font-size: 1.5rem;">{{ stats.completed }}</div>
                 </div>
                 <div style="flex: 1; border: 2px solid #ff0000; padding: 15px; background: rgba(255,0,0,0.1);">
-                    <div style="color: #ff0000; margin-bottom: 10px;">R2 SUSPENDED</div>
+                    <div style="color: #ff0000; margin-bottom: 10px;">L1 SUSPENDED</div>
                     <div style="font-size: 1.5rem;">{{ stats.suspended }}</div>
                 </div>
             </div>
 
-            <div class="{% if round2_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}" style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
-                <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">ROUND 2 CONTROL</h3>
-                <p style="margin-bottom: 15px;">Status: <span class="{% if round2_unlocked %}text-unlocked{% else %}text-locked{% endif %}" style="font-weight: bold;">{% if round2_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span></p>
+            <!-- SDC GAMES INTEGRATION HUB -->
+            <div style="border: 2px solid #00d2ff; padding: 20px; background: rgba(0, 30, 50, 0.7); margin-bottom: 30px; box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);">
+                <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: #00d2ff; margin-bottom: 12px; text-shadow: 0 0 8px #00d2ff;">
+                    🛡️ SDC GAMES INTEGRATION HUB
+                </h3>
+                <p style="color: #b0e0ff; margin-bottom: 15px; font-size: 0.95rem;">
+                    Single Sign-On & Real-Time Automated Score Sync Active. Export official RFC 4180 CSVs anytime.
+                </p>
+                <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                    <form action="{{ url_for('sync_sdc_roster') }}" method="POST" style="display: inline;">
+                        <button type="submit" class="update-btn" style="background: #00d2ff; color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer; box-shadow: 0 0 10px rgba(0,210,255,0.5);">
+                            🔄 SYNC SDC ROSTER
+                        </button>
+                    </form>
+                    <a href="{{ url_for('export_scores_l1') }}" style="text-decoration: none;">
+                        <button type="button" class="update-btn" style="background: var(--retro-yellow); color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer;">
+                            📥 EXPORT LEVEL 1 CSV
+                        </button>
+                    </a>
+                    <a href="{{ url_for('export_scores_l2') }}" style="text-decoration: none;">
+                        <button type="button" class="update-btn" style="background: var(--retro-green); color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer;">
+                            📥 EXPORT LEVEL 2 CSV
+                        </button>
+                    </a>
+                </div>
+            </div>
+
+            <!-- DAY VISIBILITY CONTROL -->
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
+                <div class="{% if day1_visible %}panel-unlocked{% else %}panel-locked{% endif %}"
+                    style="flex: 1; min-width: 240px; border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5);">
+                    <h3
+                        style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
+                        DAY 1 VISIBILITY</h3>
+                    <p style="margin-bottom: 15px;">Player hub: <span
+                            class="{% if day1_visible %}text-unlocked{% else %}text-locked{% endif %}"
+                            style="font-weight: bold;">{% if day1_visible %}VISIBLE{% else %}HIDDEN{% endif %}</span>
+                    </p>
+                    <form action="{{ url_for('admin') }}" method="POST">
+                        <input type="hidden" name="action" value="toggle_day1">
+                        <button type="submit"
+                            class="update-btn {% if day1_visible %}btn-unlocked{% else %}btn-locked{% endif %}"
+                            style="padding: 10px 20px; font-size: 1rem; color: #000;">
+                            {% if day1_visible %}HIDE DAY 1{% else %}UNHIDE DAY 1{% endif %}
+                        </button>
+                    </form>
+                </div>
+                <div class="{% if day2_visible %}panel-unlocked{% else %}panel-locked{% endif %}"
+                    style="flex: 1; min-width: 240px; border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5);">
+                    <h3
+                        style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
+                        DAY 2 VISIBILITY</h3>
+                    <p style="margin-bottom: 15px;">Player hub: <span
+                            class="{% if day2_visible %}text-unlocked{% else %}text-locked{% endif %}"
+                            style="font-weight: bold;">{% if day2_visible %}VISIBLE{% else %}HIDDEN{% endif %}</span>
+                    </p>
+                    <form action="{{ url_for('admin') }}" method="POST">
+                        <input type="hidden" name="action" value="toggle_day2">
+                        <button type="submit"
+                            class="update-btn {% if day2_visible %}btn-unlocked{% else %}btn-locked{% endif %}"
+                            style="padding: 10px 20px; font-size: 1rem; color: #000;">
+                            {% if day2_visible %}HIDE DAY 2{% else %}UNHIDE DAY 2{% endif %}
+                        </button>
+                    </form>
+                    <a href="{{ url_for('gauntlet_admin') }}" style="display: inline-block; margin-top: 15px; color: var(--retro-yellow); font-size: 0.75rem; font-family: 'Press Start 2P', monospace; text-decoration: none;">[ GAUNTLET MISSION CONTROL ]</a>
+                </div>
+            </div>
+
+            <div class="{% if level1_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}"
+                style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
+                <h3
+                    style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
+                    DAY 1 · LEVEL 1 CONTROL</h3>
+                <p style="margin-bottom: 15px;">Status: <span
+                        class="{% if level1_unlocked %}text-unlocked{% else %}text-locked{% endif %}"
+                        style="font-weight: bold;">{% if level1_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span>
+                </p>
                 <form action="{{ url_for('admin') }}" method="POST">
-                    <input type="hidden" name="action" value="toggle_round2">
-                    <button type="submit" class="update-btn {% if round2_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}" style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                        {% if round2_unlocked %}LOCK ROUND 2{% else %}UNLOCK ROUND 2{% endif %}
+                    <input type="hidden" name="action" value="toggle_level1">
+                    <button type="submit"
+                        class="update-btn {% if level1_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}"
+                        style="padding: 10px 20px; font-size: 1rem; color: #000;">
+                        {% if level1_unlocked %}LOCK LEVEL 1{% else %}UNLOCK LEVEL 1{% endif %}
                     </button>
                 </form>
             </div>
 
-            <h2 class="leaderboard-title">ROUND 2 LEADERBOARD</h2>
+            <h2 class="leaderboard-title">DAY 1 · LEVEL 1 LEADERBOARD</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -324,22 +430,28 @@
                             <th>ID</th>
                             <th>PLAYER</th>
                             <th>ROLE</th>
-                            <th>R2 STATUS</th>
-                            <th>R2 POINTS</th>
+                            <th>L1 STATUS</th>
+                            <th>L1 POINTS</th>
                             <th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for user in users_r2 %}
+                        {% for user in (users_l1 or users_r2) %}
                         <tr>
                             <td>{{ user.id }}</td>
-                            <td class="clickable-username" style="text-transform: uppercase;" data-user-id="{{ user.id }}" data-username="{{ user.username }}" onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}</td>
+                            <td class="clickable-username" style="text-transform: uppercase;"
+                                data-user-id="{{ user.id }}" data-username="{{ user.username }}"
+                                onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}
+                            </td>
                             <td>{{ user.role }}</td>
-                            <td class="{% if user.status == 'suspended' %}status-suspended{% else %}status-active{% endif %}">{{ user.status | upper }}</td>
+                            <td
+                                class="{% if user.status == 'suspended' %}status-suspended{% else %}status-active{% endif %}">
+                                {{ user.status | upper }}</td>
                             <td>
                                 <form action="{{ url_for('admin') }}" method="POST" style="display: flex; gap: 10px;">
                                     <input type="hidden" name="action" value="update">
                                     <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="level" value="1">
                                     <input type="hidden" name="round" value="2">
                                     <input type="number" name="points" value="{{ user.points }}" class="points-input">
                                     <button type="submit" class="update-btn">UPDATE</button>
@@ -349,20 +461,25 @@
                                     <form action="{{ url_for('admin') }}" method="POST" style="display: inline;">
                                         <input type="hidden" name="action" value="toggle_status">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="level" value="1">
                                         <input type="hidden" name="round" value="2">
-                                        <button type="submit" class="update-btn btn-status-toggle {% if user.status == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
+                                        <button type="submit"
+                                            class="update-btn btn-status-toggle {% if user.status == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
                                             {% if user.status == 'suspended' %}UNSUSPEND{% else %}SUSPEND{% endif %}
                                         </button>
                                     </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;" onsubmit="return confirm('Reset 60m Round 2 timer for {{ user.username }}?');">
+                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
+                                        onsubmit="return confirm('Reset 60m Level 1 timer for {{ user.username }}?');">
                                         <input type="hidden" name="action" value="reset_timer">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="level" value="1">
                                         <input type="hidden" name="round" value="2">
                                         <button type="submit" class="update-btn btn-timer-reset">
                                             RESET TIMER
                                         </button>
                                     </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;" onsubmit="return confirm('Disqualify and delete user {{ user.username }}?');">
+                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
+                                        onsubmit="return confirm('Disqualify and delete user {{ user.username }}?');">
                                         <input type="hidden" name="action" value="delete">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <button type="submit" class="update-btn btn-delete">DEL</button>
@@ -377,31 +494,41 @@
             </div>
         </div>
 
-        <!-- TAB 3: ROUND 3 COMMAND -->
-        <div id="tab-round3" class="tab-content">
-            <div style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">R3 ESCAPED</div>
+        <!-- TAB 3: LEVEL 2 COMMAND -->
+        <div id="tab-level2" class="tab-content">
+            <div
+                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
+                <div
+                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
+                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">L2 ESCAPED</div>
                     <div style="font-size: 1.5rem;">{{ stats.r3_completed }}</div>
                 </div>
                 <div style="flex: 1; border: 2px solid #ff0000; padding: 15px; background: rgba(255,0,0,0.1);">
-                    <div style="color: #ff0000; margin-bottom: 10px;">R3 SUSPENDED</div>
+                    <div style="color: #ff0000; margin-bottom: 10px;">L2 SUSPENDED</div>
                     <div style="font-size: 1.5rem;">{{ stats.r3_suspended }}</div>
                 </div>
             </div>
 
-            <div class="{% if round3_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}" style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
-                <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">ROUND 3 CONTROL</h3>
-                <p style="margin-bottom: 15px;">Status: <span class="{% if round3_unlocked %}text-unlocked{% else %}text-locked{% endif %}" style="font-weight: bold;">{% if round3_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span></p>
+            <div class="{% if level2_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}"
+                style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
+                <h3
+                    style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
+                    DAY 1 · LEVEL 2 CONTROL</h3>
+                <p style="margin-bottom: 15px;">Status: <span
+                        class="{% if level2_unlocked %}text-unlocked{% else %}text-locked{% endif %}"
+                        style="font-weight: bold;">{% if level2_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span>
+                </p>
                 <form action="{{ url_for('admin') }}" method="POST">
-                    <input type="hidden" name="action" value="toggle_round3">
-                    <button type="submit" class="update-btn {% if round3_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}" style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                        {% if round3_unlocked %}LOCK ROUND 3{% else %}UNLOCK ROUND 3{% endif %}
+                    <input type="hidden" name="action" value="toggle_level2">
+                    <button type="submit"
+                        class="update-btn {% if level2_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}"
+                        style="padding: 10px 20px; font-size: 1rem; color: #000;">
+                        {% if level2_unlocked %}LOCK LEVEL 2{% else %}UNLOCK LEVEL 2{% endif %}
                     </button>
                 </form>
             </div>
 
-            <h2 class="leaderboard-title">ROUND 3 LEADERBOARD</h2>
+            <h2 class="leaderboard-title">DAY 1 · LEVEL 2 LEADERBOARD</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -409,24 +536,31 @@
                             <th>ID</th>
                             <th>PLAYER</th>
                             <th>ROLE</th>
-                            <th>R3 STATUS</th>
-                            <th>R3 POINTS</th>
+                            <th>L2 STATUS</th>
+                            <th>L2 POINTS</th>
                             <th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for user in users_r3 %}
+                        {% for user in (users_l2 or users_r3) %}
                         <tr>
                             <td>{{ user.id }}</td>
-                            <td class="clickable-username" style="text-transform: uppercase;" data-user-id="{{ user.id }}" data-username="{{ user.username }}" onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}</td>
+                            <td class="clickable-username" style="text-transform: uppercase;"
+                                data-user-id="{{ user.id }}" data-username="{{ user.username }}"
+                                onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}
+                            </td>
                             <td>{{ user.role }}</td>
-                            <td class="{% if user.round3_status == 'suspended' %}status-suspended{% else %}status-active{% endif %}">{{ user.round3_status | upper }}</td>
+                            <td
+                                class="{% if (user.level2_status or user.round3_status) == 'suspended' %}status-suspended{% else %}status-active{% endif %}">
+                                {{ (user.level2_status or user.round3_status) | upper }}</td>
                             <td>
                                 <form action="{{ url_for('admin') }}" method="POST" style="display: flex; gap: 10px;">
                                     <input type="hidden" name="action" value="update">
                                     <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="level" value="2">
                                     <input type="hidden" name="round" value="3">
-                                    <input type="number" name="points" value="{{ user.round3_points }}" class="points-input">
+                                    <input type="number" name="points" value="{{ user.level2_points or user.round3_points }}"
+                                        class="points-input">
                                     <button type="submit" class="update-btn">UPDATE</button>
                                 </form>
                                 {% if user.role != 'admin' %}
@@ -434,14 +568,18 @@
                                     <form action="{{ url_for('admin') }}" method="POST" style="display: inline;">
                                         <input type="hidden" name="action" value="toggle_status">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="level" value="2">
                                         <input type="hidden" name="round" value="3">
-                                        <button type="submit" class="update-btn btn-status-toggle {% if user.round3_status == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
-                                            {% if user.round3_status == 'suspended' %}UNSUSPEND{% else %}SUSPEND{% endif %}
+                                        <button type="submit"
+                                            class="update-btn btn-status-toggle {% if (user.level2_status or user.round3_status) == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
+                                            {% if (user.level2_status or user.round3_status) == 'suspended' %}UNSUSPEND{% else %}SUSPEND{% endif %}
                                         </button>
                                     </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;" onsubmit="return confirm('Reset 60m Round 3 timer for {{ user.username }}?');">
+                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
+                                        onsubmit="return confirm('Reset 60m Level 2 timer for {{ user.username }}?');">
                                         <input type="hidden" name="action" value="reset_timer">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
+                                        <input type="hidden" name="level" value="2">
                                         <input type="hidden" name="round" value="3">
                                         <button type="submit" class="update-btn btn-timer-reset">
                                             RESET TIMER
@@ -467,7 +605,8 @@
     <div id="flagsModal" class="modal-overlay">
         <div class="modal-content">
             <button class="close-btn" onclick="closeFlagsModal()">X</button>
-            <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1.2rem; color: var(--retro-yellow); margin-bottom: 20px;" id="modalTitle">PLAYER FLAGS</h3>
+            <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1.2rem; color: var(--retro-yellow); margin-bottom: 20px;"
+                id="modalTitle">PLAYER FLAGS</h3>
             <div class="table-container" style="max-height: 300px;">
                 <table style="margin-top: 0;">
                     <thead>
@@ -497,21 +636,21 @@
 
             const activeBtn = Array.from(buttons).find(btn => btn.getAttribute('onclick').includes(tabId));
             if (activeBtn) activeBtn.classList.add('active');
-            
+
             localStorage.setItem('activeAdminTab', tabId);
         }
-        
+
         function showFlagsModal(userId, username) {
             const modal = document.getElementById('flagsModal');
             const title = document.getElementById('modalTitle');
             const tableBody = document.getElementById('flagsTableBody');
             const loading = document.getElementById('modalLoading');
-            
+
             title.innerText = username.toUpperCase() + " FLAGS";
             tableBody.innerHTML = '';
             loading.style.display = 'block';
             modal.style.display = 'flex';
-            
+
             fetch('/api/admin/user/' + userId + '/flags')
                 .then(response => response.json())
                 .then(data => {
@@ -535,17 +674,20 @@
                     tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:red;">Error fetching data.</td></tr>';
                 });
         }
-        
+
         function closeFlagsModal() {
             document.getElementById('flagsModal').style.display = 'none';
         }
-        
+
         window.onload = () => {
-            const savedTab = localStorage.getItem('activeAdminTab');
-            if (savedTab) {
+            let savedTab = localStorage.getItem('activeAdminTab');
+            if (savedTab === 'tab-round2') savedTab = 'tab-level1';
+            if (savedTab === 'tab-round3') savedTab = 'tab-level2';
+            if (savedTab && document.getElementById(savedTab)) {
                 openTab(savedTab);
             }
         };
     </script>
 </body>
+
 </html>

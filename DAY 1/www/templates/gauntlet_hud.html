@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumanji Gauntlet · Team Station</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #070b09;
+            --jungle-green: #00ff66;
+            --gold: #ffcc00;
+            --curse-red: #ff3344;
+            --panel-bg: rgba(10, 18, 14, 0.88);
+            --border-glow: rgba(0, 255, 102, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #d8f3dc;
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(ellipse at 50% 0%, rgba(0, 255, 102, 0.08) 0%, transparent 60%),
+                linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+        }
+
+        /* Top HUD Header */
+        header.gauntlet-header {
+            background: rgba(4, 9, 7, 0.95);
+            border-bottom: 2px solid var(--jungle-green);
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.2);
+            padding: 12px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .team-badge {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .team-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.95rem;
+            color: var(--gold);
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+
+        .role-pill {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .role-navigator {
+            background: rgba(0, 255, 102, 0.15);
+            color: var(--jungle-green);
+            border: 1px solid var(--jungle-green);
+        }
+
+        .role-cartographer {
+            background: rgba(255, 204, 0, 0.15);
+            color: var(--gold);
+            border: 1px solid var(--gold);
+        }
+
+        .phase-indicator {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.75rem;
+            color: #fff;
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px dashed var(--jungle-green);
+        }
+
+        .score-pill {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            color: var(--gold);
+            font-weight: 700;
+        }
+
+        /* Curse Alert Banner */
+        #curse-banner {
+            display: none;
+            background: rgba(255, 51, 68, 0.95);
+            color: #fff;
+            padding: 12px 20px;
+            text-align: center;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            box-shadow: 0 0 30px rgba(255, 51, 68, 0.8);
+            animation: pulse-curse 1s infinite alternate;
+        }
+
+        @keyframes pulse-curse {
+            0% { opacity: 0.85; }
+            100% { opacity: 1; transform: scale(1.005); }
+        }
+
+        /* Main Workspace Grid */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 20px;
+            padding: 20px;
+            flex: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .workspace-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Terminal Station Container */
+        .station-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-glow);
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            background: rgba(0, 0, 0, 0.6);
+            border-bottom: 1px solid var(--border-glow);
+            padding: 10px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            color: var(--jungle-green);
+        }
+
+        #terminal-box {
+            flex: 1;
+            min-height: 480px;
+            padding: 10px;
+            background: #000;
+        }
+
+        /* Cartographer Workstation */
+        .cipher-box {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .tool-card {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 204, 0, 0.3);
+            padding: 14px;
+            border-radius: 4px;
+        }
+
+        .tool-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            color: var(--gold);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        textarea.scratchpad {
+            width: 100%;
+            height: 70px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            color: #a7f3d0;
+            padding: 8px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            resize: none;
+        }
+
+        button.tool-btn {
+            background: var(--jungle-green);
+            color: #000;
+            border: none;
+            padding: 6px 12px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.65rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 5px;
+            transition: all 0.2s;
+        }
+
+        button.tool-btn:hover {
+            box-shadow: 0 0 10px var(--jungle-green);
+        }
+
+        /* Curse Drawer */
+        .curse-inventory {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .curse-card {
+            background: rgba(255, 51, 68, 0.1);
+            border: 1px dashed var(--curse-red);
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .curse-btn {
+            background: var(--curse-red);
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            cursor: pointer;
+        }
+
+        .curse-btn:hover {
+            box-shadow: 0 0 12px var(--curse-red);
+        }
+
+        /* Relic Submission Form */
+        .submit-section {
+            background: rgba(4, 9, 7, 0.95);
+            border-top: 2px solid var(--jungle-green);
+            padding: 15px 25px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .flag-input {
+            flex: 1;
+            min-width: 280px;
+            background: #000;
+            border: 1px solid var(--jungle-green);
+            color: var(--jungle-green);
+            padding: 10px 15px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        .btn-submit {
+            background: var(--gold);
+            color: #000;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.8rem;
+            padding: 12px 25px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-submit:hover {
+            box-shadow: 0 0 15px var(--gold);
+        }
+
+        /* Relic Status Pills */
+        .relic-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+
+        .relic-secured {
+            color: var(--jungle-green);
+            font-weight: bold;
+        }
+
+        .relic-locked {
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Top HUD Header -->
+    <header class="gauntlet-header">
+        <div class="team-badge">
+            <span style="font-family: 'Press Start 2P', monospace; font-size: 0.75rem; color: var(--gold); border: 1px solid var(--gold); padding: 4px 8px;">DAY 2 · LEVEL 2</span>
+            <span class="team-title">{{ team.team_name }}</span>
+            <span class="role-pill {% if team.role == 'navigator' %}role-navigator{% else %}role-cartographer{% endif %}">
+                ROLE: {{ team.role }}
+            </span>
+            <span class="phase-indicator" id="phase-badge">{{ current_phase | upper }}</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="score-pill">
+                TOTAL: <span id="team-total-score">{{ (team.phase1_score or 0) + (team.duel_score or 0) + (team.shrine_score or 0) + (team.lagoon_score or 0) }}</span> PTS
+            </div>
+            <a href="{{ url_for('gauntlet_bracket') }}" target="_blank" style="color: var(--gold); text-decoration: none; font-size: 0.8rem; border: 1px solid var(--gold); padding: 5px 10px;">
+                [ LIVE BRACKET ]
+            </a>
+            <a href="{{ url_for('hub') }}" style="color: #888; text-decoration: none; font-size: 0.8rem;">[ HUB ]</a>
+        </div>
+    </header>
+
+    <!-- Curse Alert Banner -->
+    <div id="curse-banner">
+        ⚠️ ALERT: YOUR TEAM IS UNDER THE <span id="curse-name-text">QUICKSAND</span> CURSE!
+    </div>
+
+    <!-- Main Workspace -->
+    <main class="workspace-grid">
+        <!-- Station Left: Terminal or Cartographer Center -->
+        <section class="station-panel">
+            <div class="panel-header">
+                <span>{% if team.role == 'navigator' %}NAVIGATOR TERMINAL INTERFACE{% else %}CARTOGRAPHER SATELLITE RADAR & CABLE LOGS{% endif %}</span>
+                <span id="conn-status" style="font-size: 0.75rem; color: var(--jungle-green);">● LINKED</span>
+            </div>
+
+            {% if team.role == 'navigator' %}
+            <div id="terminal-box"></div>
+            {% else %}
+            <!-- Cartographer Radar & Telemetry Stream -->
+            <div class="cipher-box">
+                <div class="tool-card">
+                    <div class="tool-title">
+                        <span>SATELLITE TELEMETRY FEED (CARTOGRAPHER INTEL)</span>
+                        <span style="color: #888;">LIVE FREQ</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #a7f3d0; margin-bottom: 10px;">
+                        The Cartographer holds the matching key halves needed to combine with the Navigator's terminal discoveries.
+                    </p>
+                    <div style="background: #000; padding: 10px; border-left: 3px solid var(--gold); font-size: 0.8rem;">
+                        <div>[BEACON 1]: Compass Telemetry Hash: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('compass', 'SCANNING...') }}</span></div>
+                        <div>[BEACON 2]: Obsidian Blade Seal: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('blade', 'SCANNING...') }}</span></div>
+                        <div>[BEACON 3]: Jaguar Totem Hash: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('jaguar', 'SCANNING...') }}</span></div>
+                        <div>[BEACON 4]: Golden Idol Key: <span style="color: var(--gold); font-weight: bold;">{{ cart_keys.get('idol', 'SCANNING...') }}</span></div>
+                    </div>
+                </div>
+
+                <div class="tool-card">
+                    <div class="tool-title">DECODER WORKBENCH (BASE64 / ROT13 / HEX)</div>
+                    <textarea id="decode-input" class="scratchpad" placeholder="Paste encoded cipher text here..."></textarea>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="tool-btn" onclick="decodeB64()">BASE64</button>
+                        <button class="tool-btn" onclick="decodeRot13()">ROT13</button>
+                        <button class="tool-btn" onclick="decodeHex()">HEX $\rightarrow$ ASCII</button>
+                    </div>
+                    <textarea id="decode-output" class="scratchpad" style="margin-top: 8px;" placeholder="Decoded output..." readonly></textarea>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Station Right: Relic Progress & Curse Drawer -->
+        <aside class="station-panel">
+            <div class="panel-header">
+                <span>GAUNTLET OBJECTIVES</span>
+                <span style="font-size: 0.75rem;">REPAIR THE JUMANJI SEAL</span>
+            </div>
+
+            <div class="cipher-box">
+                <!-- Relic Checklist -->
+                <div class="tool-card">
+                    <div class="tool-title">PHASE RELICS</div>
+                    <div id="relics-list">
+                        {% for r_id, r_info in active_relics.items() %}
+                        <div class="relic-item">
+                            <span>{{ r_info.name }} (+{{ r_info.points }} pts)</span>
+                            <span class="{% if r_id in solved_ids %}relic-secured{% else %}relic-locked{% endif %}">
+                                {% if r_id in solved_ids %}✓ SECURED{% else %}○ LOCKED{% endif %}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Curse Card Inventory -->
+                <div class="tool-card" style="border-color: rgba(255, 51, 68, 0.4);">
+                    <div class="tool-title" style="color: var(--curse-red);">
+                        <span>CURSE CARDS</span>
+                        <span id="curse-count">({{ curse_inventory | length }} READY)</span>
+                    </div>
+                    <p style="font-size: 0.75rem; color: #888; margin-bottom: 8px;">
+                        Earned by capturing relics. Unleash upon your opponent to disrupt their progress.
+                    </p>
+                    <div class="curse-inventory">
+                        {% for c in curse_inventory %}
+                        <div class="curse-card">
+                            <div>
+                                <div style="font-size: 0.8rem; font-weight: bold; color: #fff;">{{ c.curse_type | upper }}</div>
+                                <div style="font-size: 0.7rem; color: #aaa;">Target: Active Rival</div>
+                            </div>
+                            <button class="curse-btn" onclick="castCurse('{{ c.curse_type }}')">CAST</button>
+                        </div>
+                        {% else %}
+                        <div style="font-size: 0.75rem; color: #666; text-align: center; padding: 10px;">
+                            No curse cards in inventory. Capture a relic in Duels to earn cards!
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Team Info -->
+                <div class="tool-card">
+                    <div class="tool-title">TEAM ROSTER</div>
+                    <div style="font-size: 0.8rem;">
+                        <div>Access Code: <code style="color: var(--gold);">{{ team.access_code }}</code></div>
+                        <div>Pod: <span style="color: var(--jungle-green);">{{ team.pod_id | upper }}</span></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Relic Submission Bar -->
+    <footer class="submit-section">
+        <label style="font-family: 'Press Start 2P', monospace; font-size: 0.75rem; color: var(--gold);">
+            RELIC TOKEN:
+        </label>
+        <input type="text" id="flag-submit-input" class="flag-input" placeholder="JUMANJI{...} or NAV_... CART_..." autocomplete="off">
+        <button class="btn-submit" onclick="submitRelicFlag()">TRANSMIT RELIC</button>
+        <div id="submit-feedback" style="font-size: 0.85rem; font-weight: bold; margin-left: 10px;"></div>
+    </footer>
+
+    <script>
+        const socket = io();
+        const TEAM_ID = {{ team.id }};
+        const USER_ROLE = "{{ team.role }}";
+
+        let term, fitAddon;
+        let isFrozen = false;
+
+        // Initialize xterm if Navigator
+        if (USER_ROLE === 'navigator') {
+            term = new Terminal({
+                cursorBlink: true,
+                fontSize: 14,
+                fontFamily: "'Share Tech Mono', monospace",
+                theme: {
+                    background: '#040907',
+                    foreground: '#00ff66',
+                    cursor: '#ffcc00'
+                }
+            });
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            const box = document.getElementById('terminal-box');
+            if (box) {
+                term.open(box);
+                fitAddon.fit();
+                window.addEventListener('resize', () => fitAddon.fit());
+
+                term.onData(data => {
+                    if (isFrozen) {
+                        return; // Quicksand curse active
+                    }
+                    socket.emit('pty-input', { input: data });
+                });
+
+                // Start terminal session with gauntlet avatar
+                socket.emit('start-pty', { avatar_id: 'gauntlet' });
+
+                socket.on('pty-output', data => {
+                    term.write(data.output);
+                });
+            }
+        }
+
+        // Socket.IO Events
+        socket.on('connect', () => {
+            const statusEl = document.getElementById('conn-status');
+            if (statusEl) statusEl.textContent = '● LINKED';
+        });
+
+        socket.on('disconnect', () => {
+            const statusEl = document.getElementById('conn-status');
+            if (statusEl) {
+                statusEl.textContent = '○ RECONNECTING...';
+                statusEl.style.color = '#ff3344';
+            }
+        });
+
+        // Curse Alert handler
+        socket.on('curse-alert', data => {
+            if (data.to_team_id === TEAM_ID) {
+                const banner = document.getElementById('curse-banner');
+                const nameEl = document.getElementById('curse-name-text');
+                banner.style.display = 'block';
+                nameEl.textContent = data.curse_type.toUpperCase();
+
+                if (data.curse_type === 'quicksand' && term) {
+                    isFrozen = true;
+                    term.write("\r\n\x1b[1;31m[!] QUICKSAND CURSE TRIGGERED! TERMINAL INPUT FROZEN!\x1b[0m\r\n");
+                    setTimeout(() => {
+                        isFrozen = false;
+                        banner.style.display = 'none';
+                        term.write("\r\n\x1b[1;32m[+] QUICKSAND DISSIPATED. CONTROLS RESTORED.\x1b[0m\r\n");
+                    }, (data.duration || 45) * 1000);
+                } else {
+                    setTimeout(() => { banner.style.display = 'none'; }, (data.duration || 45) * 1000);
+                }
+            }
+        });
+
+        // Relic Submission
+        async function submitRelicFlag() {
+            const input = document.getElementById('flag-submit-input');
+            const feedback = document.getElementById('submit-feedback');
+            const val = input.value.trim();
+            if (!val) return;
+
+            feedback.textContent = 'TRANSMITTING...';
+            feedback.style.color = '#ffcc00';
+
+            try {
+                const res = await fetch('/gauntlet/relic/solve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ flag: val, team_id: TEAM_ID })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    feedback.textContent = `✓ RELIC SECURED! +${data.points_awarded} PTS!`;
+                    feedback.style.color = '#00ff66';
+                    input.value = '';
+                    const totalEl = document.getElementById('team-total-score');
+                    if (totalEl) totalEl.textContent = data.total_points;
+                    setTimeout(() => { location.reload(); }, 1200);
+                } else if (data.status === 'split_key_required') {
+                    feedback.textContent = `⚠ ${data.message}`;
+                    feedback.style.color = '#ffcc00';
+                } else {
+                    feedback.textContent = `✗ ${data.error || 'INVALID RELIC FLAG'}`;
+                    feedback.style.color = '#ff3344';
+                }
+            } catch (e) {
+                feedback.textContent = 'NETWORK TRANSMISSION ERROR';
+                feedback.style.color = '#ff3344';
+            }
+        }
+
+        // Curse Card Caster
+        async function castCurse(curseType) {
+            if (!confirm(`Deploy ${curseType.toUpperCase()} curse on your active opponent?`)) return;
+            try {
+                const res = await fetch('/gauntlet/curse/cast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ team_id: TEAM_ID, curse_type: curseType })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert(`⚡ ${curseType.toUpperCase()} CURSE DEPLOYED AGAINST RIVAL!`);
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.error || 'Could not deploy curse'}`);
+                }
+            } catch (e) {
+                alert('Connection error casting curse');
+            }
+        }
+
+        // Decoding Helpers for Cartographer
+        function decodeB64() {
+            const inp = document.getElementById('decode-input').value.trim();
+            try {
+                document.getElementById('decode-output').value = atob(inp);
+            } catch (e) {
+                document.getElementById('decode-output').value = 'Invalid Base64 string.';
+            }
+        }
+
+        function decodeRot13() {
+            const inp = document.getElementById('decode-input').value;
+            document.getElementById('decode-output').value = inp.replace(/[a-zA-Z]/g, function (c) {
+                return String.fromCharCode((c <= "Z" ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26);
+            });
+        }
+
+        function decodeHex() {
+            const inp = document.getElementById('decode-input').value.trim().replace(/\s+/g, '');
+            let str = '';
+            for (let i = 0; i < inp.length; i += 2) {
+                str += String.fromCharCode(parseInt(inp.substr(i, 2), 16));
+            }
+            document.getElementById('decode-output').value = str;
+        }
+
+        // Enter key in submit input triggers transmission
+        document.getElementById('flag-submit-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitRelicFlag();
+        });
+    </script>
+</body>
+
+</html>

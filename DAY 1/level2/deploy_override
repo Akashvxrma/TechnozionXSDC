@@ -7,5 +7,5 @@ fi
 TOKEN="${CTF_TOKEN:-$(cat /etc/ctf_token 2>/dev/null)}"
 
 curl -s -X POST -H "Content-Type: application/json" \
-  -d "{\"avatar_id\":\"round3\", \"flag\":\"$1\", \"token\":\"$TOKEN\"}" \
+  -d "{\"avatar_id\":\"level2\", \"flag\":\"$1\", \"token\":\"$TOKEN\"}" \
   http://host.docker.internal:8080/api/score | jq -r '. | if .status == "success" then "OVERRIDE ACCEPTED. MAINFRAME COMPROMISED. +" + (.points_awarded|tostring) + " POINTS." elif .status == "already_solved" then "OVERRIDE ALREADY DEPLOYED." else "ERROR: " + .error end'

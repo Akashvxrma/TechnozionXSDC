@@ -698,7 +698,7 @@
 
 <body>
 
-    <div id="intro-screen" style="display: none;" onclick="startR3Sequence()">
+    <div id="intro-screen" style="display: none;" onclick="startLevel2Sequence()">
         <div class="intro-title">JUMANJI X SDC GAMES</div>
         <div class="start-prompt">PRESS ANY KEY OR CLICK TO START</div>
     </div>
@@ -718,7 +718,7 @@
     <div id="flash-message"></div>
 
     <div class="header">
-        <div class="jumanji-title">THE DEEP JUNGLE</div>
+        <div class="jumanji-title">THE DEEP JUNGLE · DAY 1 LEVEL 2</div>
 
         <div class="header-controls">
             <div class="status-box">
@@ -736,7 +736,7 @@
         <div class="terminal-wrapper">
             <!-- Top Antique Brass Header Plaque -->
             <div class="terminal-header">
-                <span class="terminal-header-title">✦ JUMANJI MAINFRAME RELIC // THE DEEP JUNGLE CORE ✦</span>
+                <span class="terminal-header-title">✦ JUMANJI MAINFRAME // DAY 1 · LEVEL 2 CORE ✦</span>
                 <div class="radio-beacon-badge">
                     <span class="pulse-dot"></span>
                     <span>RADIO BEACON // LISTENING (nigel_comms.sh)</span>
@@ -771,7 +771,7 @@
                     <div class="stage-box">
                         <div class="stage-tag">
                             <span>STAGE 1: USER OVERRIDE</span>
-                            <span style="color: #d4af37;">+1,000 PTS</span>
+                            <span style="color: #d4af37;">+80 PTS</span>
                         </div>
                         <div class="stage-desc">Query the mainframe SQLite records in
                             <code>/var/jumanji_mainframe</code> to extract the override token.</div>
@@ -781,7 +781,7 @@
                     <div class="stage-box root-tier">
                         <div class="stage-tag">
                             <span>STAGE 2: ROOT ESCALATION</span>
-                            <span style="color: #b91c1c;">+1,500 PTS</span>
+                            <span style="color: #b91c1c;">+120 PTS</span>
                         </div>
                         <div class="stage-desc">Exploit the ancient SUID binary <code>/usr/local/bin/lift_curse</code>
                             with the sacred chant to claim root authority.</div>
@@ -796,7 +796,7 @@
                     </div>
 
                     <div class="temple-guide-footer">
-                        <span>TOTAL REWARD: 2,500 POINTS // ESCALATE TO ROOT</span>
+                        <span>TOTAL REWARD: 200 POINTS // ESCALATE TO ROOT</span>
                     </div>
                 </aside>
             </div>
@@ -852,16 +852,16 @@
             }, 100);
 
             if (socket.connected) {
-                socket.emit('start-pty', { avatar_id: 'round3' });
+                socket.emit('start-pty', { avatar_id: 'level2' });
             } else {
                 socket.on('connect', () => {
-                    socket.emit('start-pty', { avatar_id: 'round3' });
+                    socket.emit('start-pty', { avatar_id: 'level2' });
                 });
             }
         }
 
         // Intro sequence logic
-        const hasSeenIntro = parseInt('{{ has_seen_r3_intro | default(0) }}', 10) || 0;
+        const hasSeenIntro = parseInt('{{ has_seen_l2_intro | default(0) }}', 10) || 0;
 
         let isIntroActive = false;
 
@@ -874,13 +874,13 @@
             initGame();
         }
 
-        function startR3Sequence() {
+        function startLevel2Sequence() {
             if (!isIntroActive) return;
             isIntroActive = false; // Prevent multiple triggers
             document.getElementById('intro-screen').style.display = 'none';
 
             // Fire API immediately so refresh doesn't replay the intro screen
-            fetch('/api/start_r3', { method: 'POST' });
+            fetch('/api/start_level2', { method: 'POST' });
 
             const vidScreen = document.getElementById('intro-video-screen');
             vidScreen.style.display = 'block';
@@ -902,17 +902,17 @@
 
             vid.onended = finishIntro;
             vid.onerror = (e) => {
-                console.warn("R3 intro stream error:", e);
+                console.warn("Level 2 intro stream error:", e);
                 finishIntro();
             };
 
             const playPromise = vid.play();
             if (playPromise !== undefined) {
                 playPromise.catch(err => {
-                    console.warn("R3 intro audio playback prevented, attempting muted playback:", err);
+                    console.warn("Level 2 intro audio playback prevented, attempting muted playback:", err);
                     vid.muted = true;
                     vid.play().catch(e => {
-                        console.error("R3 video playback failed entirely:", e);
+                        console.error("Level 2 video playback failed entirely:", e);
                         finishIntro();
                     });
                 });
@@ -920,7 +920,7 @@
         }
 
         document.addEventListener('keydown', (e) => {
-            if (isIntroActive) startR3Sequence();
+            if (isIntroActive) startLevel2Sequence();
         });
 
         // --- Flag Submission Logic ---

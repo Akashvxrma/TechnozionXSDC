@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# setup_round3.sh
+# setup_level2.sh
 # Injected vars: PLAYER_ID, PLAYER_USERNAME, CTF_TOKEN
 SECRET="8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
 
@@ -23,8 +23,8 @@ generate_override() {
 }
 
 # 1. Mainframe Database Setup (Database Enum Challenge)
-mkdir -p /round3
-cd /round3 || exit 1
+mkdir -p /level2
+cd /level2 || exit 1
 rm -f mainframe.db
 sqlite3 mainframe.db "CREATE TABLE overrides (id INTEGER PRIMARY KEY, target TEXT, code TEXT);"
 sqlite3 mainframe.db "INSERT INTO overrides (target, code) VALUES ('admin_access', '$(generate_override user)');"
@@ -44,7 +44,7 @@ chmod 444 .env
 echo "$(generate_override root)" > /root/core_override.txt
 chmod 400 /root/core_override.txt
 
-chown -R recon_user:recon_user /round3
+chown -R recon_user:recon_user /level2
 
 echo "==================================================="
 echo "    Welcome to the Simulation Core, $PLAYER_USERNAME!"

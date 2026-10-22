@@ -36,3 +36,6 @@ CREDENTIALS_AND_SECRETS.txt
 # Logs & Temporary Files
 *.log
 *.tmp
+
+# SDC Games separate repository
+sdc-games/

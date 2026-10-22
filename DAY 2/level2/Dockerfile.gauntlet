@@ -1,0 +1,31 @@
+FROM debian:bookworm-slim
+
+# Install necessary tools for Day 2 Level 2: The Jumanji Gauntlet
+RUN apt-get update && apt-get install -y \
+    curl dnsutils grep coreutils jq bash python3 \
+    nfs-common ftp openssh-client sudo net-tools procps \
+    sqlite3 gcc make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create tournament users
+RUN useradd -m -s /bin/bash recon_user
+RUN useradd -m -s /bin/bash shrine_guardian
+
+# Setup directories
+RUN mkdir -p /gauntlet /shrine /opt/jungle
+RUN chown -R recon_user:recon_user /gauntlet /home/recon_user
+RUN chmod 777 /shrine
+
+# Setup Sudo privileges for Gauntlet
+RUN echo "recon_user ALL=(root) SETENV: NOPASSWD: ALL" > /etc/sudoers.d/recon_user
+RUN echo 'Defaults:recon_user env_keep += "CTF_TOKEN TEAM_ID TEAM_NAME TEAM_ROLE MATCH_ID GAUNTLET_PHASE"' >> /etc/sudoers.d/recon_user
+RUN echo "Defaults:recon_user !authenticate" >> /etc/sudoers.d/recon_user
+RUN chmod 0440 /etc/sudoers.d/recon_user
+
+# Copy Gauntlet scripts
+COPY setup_gauntlet.sh /usr/local/bin/setup_gauntlet.sh
+COPY setup_shrine.sh /usr/local/bin/setup_shrine.sh
+RUN chmod +x /usr/local/bin/setup_gauntlet.sh /usr/local/bin/setup_shrine.sh
+
+WORKDIR /gauntlet
+CMD ["/bin/bash", "-c", "tail -f /dev/null"]

@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumanji Gauntlet · Projector Live Arena</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+        :root {
+            --bg-dark: #050a07;
+            --jungle-green: #00ff66;
+            --gold: #ffcc00;
+            --curse-red: #ff3344;
+            --cyan: #00e5ff;
+            --panel-bg: rgba(9, 18, 14, 0.92);
+            --border-glow: rgba(0, 255, 102, 0.4);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e2f1e7;
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 20%, rgba(0, 255, 102, 0.08) 0%, transparent 70%),
+                linear-gradient(rgba(0, 255, 102, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 102, 0.04) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        /* Projector Banner */
+        header.arena-header {
+            background: rgba(3, 8, 5, 0.98);
+            border-bottom: 3px solid var(--jungle-green);
+            box-shadow: 0 0 35px rgba(0, 255, 102, 0.3);
+            padding: 16px 35px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .arena-title {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.4rem;
+            color: var(--gold);
+            text-shadow: 0 0 15px rgba(255, 204, 0, 0.6);
+            letter-spacing: 2px;
+        }
+
+        .phase-badge-large {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 900;
+            padding: 8px 20px;
+            background: rgba(0, 255, 102, 0.15);
+            border: 2px solid var(--jungle-green);
+            color: var(--jungle-green);
+            letter-spacing: 2px;
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
+        }
+
+        /* Curse Broadcast Ticker */
+        .ticker-bar {
+            background: rgba(255, 51, 68, 0.2);
+            border-top: 1px solid var(--curse-red);
+            border-bottom: 1px solid var(--curse-red);
+            padding: 8px 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: #ff8591;
+            overflow: hidden;
+        }
+
+        .ticker-label {
+            background: var(--curse-red);
+            color: #fff;
+            padding: 2px 8px;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.65rem;
+            font-weight: bold;
+        }
+
+        /* Tournament Arena Grid */
+        .arena-grid {
+            padding: 25px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 25px;
+            flex: 1;
+        }
+
+        .bracket-card {
+            background: var(--panel-bg);
+            border: 2px solid var(--border-glow);
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.15);
+            padding: 20px;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card-heading {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.85rem;
+            color: var(--gold);
+            border-bottom: 1px dashed var(--border-glow);
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Leaderboard Tables */
+        table.live-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        table.live-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: #888;
+            font-size: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        table.live-table td {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .row-qualifying {
+            background: rgba(0, 255, 102, 0.08);
+            border-left: 3px solid var(--jungle-green);
+        }
+
+        /* Duel Matchup Cards */
+        .duel-match {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #333;
+            padding: 12px;
+            margin-bottom: 12px;
+            border-radius: 4px;
+        }
+
+        .duel-vs {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .race-bar-wrap {
+            height: 10px;
+            background: #222;
+            border-radius: 5px;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .race-fill-a {
+            background: var(--jungle-green);
+            height: 100%;
+            transition: width 0.4s ease;
+        }
+
+        .race-fill-b {
+            background: var(--cyan);
+            height: 100%;
+            transition: width 0.4s ease;
+        }
+
+        /* Shrine King-of-the-Hill Radar */
+        .shrine-radar-box {
+            text-align: center;
+            padding: 25px 15px;
+            background: radial-gradient(circle, rgba(255, 204, 0, 0.12) 0%, transparent 70%);
+            border: 2px dashed var(--gold);
+            margin-top: 10px;
+        }
+
+        .shrine-ruler-name {
+            font-family: 'Press Start 2P', monospace;
+            font-size: 1.3rem;
+            color: var(--gold);
+            margin: 15px 0;
+            text-shadow: 0 0 20px rgba(255, 204, 0, 0.7);
+        }
+
+        .shrine-ticks-count {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Top Arena Banner -->
+    <header class="arena-header">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <span class="arena-title">JUMANJI GAUNTLET</span>
+            <span class="phase-badge-large" id="live-phase">{{ current_phase | upper }}</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 25px;">
+            <div style="font-family: 'Orbitron', sans-serif; font-size: 1.1rem; color: var(--gold);">
+                HOST STATUS: <span style="color: var(--jungle-green);">ONLINE</span>
+            </div>
+            <a href="{{ url_for('hub') }}" style="color: #888; text-decoration: none; font-size: 0.85rem;">[ PLAYER HUB ]</a>
+        </div>
+    </header>
+
+    <!-- Curse Broadcast Ticker -->
+    <div class="ticker-bar">
+        <span class="ticker-label">CURSE TICKER</span>
+        <marquee id="curse-marquee" scrollamount="6">
+            ⚡ LIVE TOURNAMENT SYNCHRONIZED · THE JUMANJI GAUNTLET IS ACTIVE ACROSS ALL 4 JUNGLE PODS!
+        </marquee>
+    </div>
+
+    <!-- Arena Live Display Grid -->
+    <main class="arena-grid">
+        <!-- 1. Jungle Pods Standings (Phase 1) -->
+        <div class="bracket-card">
+            <div class="card-heading">
+                <span>PHASE 1: JUNGLE PODS</span>
+                <span style="font-size: 0.7rem; color: var(--jungle-green);">TOP 2 ADVANCE</span>
+            </div>
+            <p style="font-size: 0.8rem; color: #888;">
+                16 Teams grouped into 4 Pods. The top two teams from each pod advance to the Mirror Duels.
+            </p>
+            <table class="live-table">
+                <thead>
+                    <tr>
+                        <th>TEAM</th>
+                        <th>POD</th>
+                        <th>SCORE</th>
+                        <th>STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="pods-table-body">
+                    {% for t in teams %}
+                    <tr class="{% if loop.index <= 8 and current_phase == 'phase1_pods' %}row-qualifying{% endif %}">
+                        <td style="font-weight: bold; color: #fff;">{{ t.team_name }}</td>
+                        <td style="color: #aaa;">{{ t.pod_id | replace('pod_', '') | upper }}</td>
+                        <td style="color: var(--gold); font-weight: bold;">{{ t.phase1_score or 0 }} PTS</td>
+                        <td>
+                            {% if t.phase == 'phase2_duels' %}
+                            <span style="color: var(--jungle-green); font-weight: bold;">ADVANCED</span>
+                            {% elif t.phase == 'lagoon' %}
+                            <span style="color: #888;">LAGOON</span>
+                            {% else %}
+                            <span style="color: #aaa;">COMPETING</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 2. Mirror Temple Duels (Phase 2 Quarterfinals) -->
+        <div class="bracket-card">
+            <div class="card-heading">
+                <span>PHASE 2: TEMPLE DUELS</span>
+                <span style="font-size: 0.7rem; color: var(--gold);">RACE TO 3 RELICS</span>
+            </div>
+            <div id="duels-container">
+                {% for m in matches %}
+                <div class="duel-match">
+                    <div class="duel-vs">
+                        <span style="color: var(--jungle-green);">{{ m.team_a_name }} ({{ m.score_a }})</span>
+                        <span style="color: #888; font-size: 0.75rem;">VS</span>
+                        <span style="color: var(--cyan);">{{ m.team_b_name }} ({{ m.score_b }})</span>
+                    </div>
+                    <div class="race-bar-wrap">
+                        <div class="race-fill-a" style="width: {{ (m.score_a / 3 * 100) | round }}%;"></div>
+                        <div class="race-fill-b" style="width: {{ (m.score_b / 3 * 100) | round }}%;"></div>
+                    </div>
+                </div>
+                {% else %}
+                <div style="text-align: center; color: #666; padding: 25px; font-size: 0.85rem;">
+                    Mirror Duels will commence upon conclusion of Phase 1.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 3. Shrine King-of-the-Hill (Phase 3) -->
+        <div class="bracket-card">
+            <div class="card-heading">
+                <span>PHASE 3: SHRINE KING-OF-THE-HILL</span>
+                <span style="font-size: 0.7rem; color: var(--gold);">+10 PTS / TICK</span>
+            </div>
+            <div class="shrine-radar-box">
+                <div style="font-size: 0.8rem; color: #aaa; letter-spacing: 1px;">CURRENT RULER OF THE SHRINE</div>
+                <div class="shrine-ruler-name" id="shrine-ruler">
+                    {{ active_shrine_ruler or 'UNCLAIMED THRONE' }}
+                </div>
+                <div class="shrine-ticks-count">
+                    TOTAL TICKS HELD: <span id="shrine-ticks" style="color: var(--gold); font-weight: bold;">{{ shrine_ticks_count or 0 }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Losers' Lagoon Ladder -->
+        <div class="bracket-card">
+            <div class="card-heading">
+                <span>LOSERS' LAGOON (RANKS 5–16)</span>
+                <span style="font-size: 0.7rem; color: var(--cyan);">CONTINUOUS PLAY</span>
+            </div>
+            <p style="font-size: 0.8rem; color: #888;">
+                Eliminated squads continue hunting auxiliary relics to secure places 5 through 16.
+            </p>
+            <table class="live-table">
+                <thead>
+                    <tr>
+                        <th>RANK</th>
+                        <th>TEAM</th>
+                        <th>LAGOON PTS</th>
+                    </tr>
+                </thead>
+                <tbody id="lagoon-table-body">
+                    {% for t in lagoon_teams %}
+                    <tr>
+                        <td style="color: #888;">#{{ loop.index + 4 }}</td>
+                        <td style="font-weight: bold;">{{ t.team_name }}</td>
+                        <td style="color: var(--cyan);">{{ t.lagoon_score or 0 }} PTS</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: #666; padding: 15px;">
+                            No teams in Lagoon yet. Phase 1 underway.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('[Projector] Connected to live Gauntlet stream');
+        });
+
+        // Listen for tournament score & match updates
+        socket.on('gauntlet-sync', data => {
+            console.log('[Projector] Gauntlet state update received:', data);
+            location.reload();
+        });
+
+        // Listen for live curse events to update ticker
+        socket.on('curse-alert', data => {
+            const marquee = document.getElementById('curse-marquee');
+            if (marquee) {
+                marquee.innerHTML = `⚡ ALERT: A CURSE (${data.curse_type.toUpperCase()}) WAS UNLEASHED IN THE TEMPLE!`;
+            }
+        });
+
+        // Listen for King-of-the-Hill updates
+        socket.on('shrine-pulse', data => {
+            const rulerEl = document.getElementById('shrine-ruler');
+            const ticksEl = document.getElementById('shrine-ticks');
+            if (rulerEl && data.team_name) rulerEl.textContent = data.team_name;
+            if (ticksEl && data.shrine_score) ticksEl.textContent = data.shrine_score;
+        });
+
+        // Auto reload fallback every 20 seconds to guarantee fresh data
+        setInterval(() => {
+            fetch(window.location.href, { method: 'HEAD' })
+                .then(() => location.reload())
+                .catch(() => {});
+        }, 20000);
+    </script>
+</body>
+
+</html>
