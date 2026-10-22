@@ -176,8 +176,17 @@ def init_db():
             value TEXT
         )
     ''')
-    conn.execute("UPDATE global_settings SET key = 'level1_unlocked' WHERE key = 'round2_unlocked'")
-    conn.execute("UPDATE global_settings SET key = 'level2_unlocked' WHERE key = 'round3_unlocked'")
+    has_l1 = conn.execute("SELECT 1 FROM global_settings WHERE key = 'level1_unlocked'").fetchone()
+    if not has_l1:
+        conn.execute("UPDATE global_settings SET key = 'level1_unlocked' WHERE key = 'round2_unlocked'")
+    else:
+        conn.execute("DELETE FROM global_settings WHERE key = 'round2_unlocked'")
+
+    has_l2 = conn.execute("SELECT 1 FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+    if not has_l2:
+        conn.execute("UPDATE global_settings SET key = 'level2_unlocked' WHERE key = 'round3_unlocked'")
+    else:
+        conn.execute("DELETE FROM global_settings WHERE key = 'round3_unlocked'")
 
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level1_unlocked', '1')")
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level2_unlocked', '0')")
