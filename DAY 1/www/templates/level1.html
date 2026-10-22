@@ -1235,11 +1235,11 @@
                         setTimeout(() => { winScreen.style.display = 'none'; }, 1000);
 
                         video.onended = () => {
-                            window.location.href = '/logout';
+                            window.location.href = '/hub';
                         };
                         video.onerror = (e) => {
-                            console.warn("Win video stream error, redirecting to logout:", e);
-                            setTimeout(() => { window.location.href = '/logout'; }, 3000);
+                            console.warn("Win video stream error, redirecting to hub:", e);
+                            setTimeout(() => { window.location.href = '/hub'; }, 3000);
                         };
 
                         const playPromise = video.play();
@@ -1249,7 +1249,7 @@
                                 video.muted = true;
                                 video.play().catch(e => {
                                     console.error("Win video playback failed entirely:", e);
-                                    setTimeout(() => { window.location.href = '/logout'; }, 5000);
+                                    setTimeout(() => { window.location.href = '/hub'; }, 3000);
                                 });
                             });
                         }

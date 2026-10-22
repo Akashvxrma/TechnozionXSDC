@@ -1456,7 +1456,7 @@ def start_pty(data):
         t_role = team.get('role', 'navigator')
         
         container_name = f"jumanji_day2_level2_{session_id}_{sid}"
-        image_name = "jumanji-level2:latest" if current_ph in ['phase3_shrine', 'phase4_final'] else "jumanji-level1:latest"
+        image_name = "jumanji-gauntlet:latest"
         gauntlet_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'DAY 2', 'level2')
         docker_mounts = ["-v", f"{gauntlet_dir}:/gauntlet_src:ro"]
         docker_extra_env = [
@@ -1465,7 +1465,7 @@ def start_pty(data):
             "-e", f"TEAM_ROLE={t_role}",
             "-e", f"PHASE={current_ph}"
         ]
-        init_cmd = f"sudo -E bash /gauntlet_src/setup_gauntlet.sh && echo -e \"PS1='{username}@{t_name.lower().replace(' ', '-')}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
+        init_cmd = f"if [ -f /gauntlet_src/setup_gauntlet.sh ]; then sudo -E bash /gauntlet_src/setup_gauntlet.sh; else sudo -E /usr/local/bin/setup_gauntlet.sh; fi && echo -e \"PS1='{username}@{t_name.lower().replace(' ', '-')}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
         working_dir = "/gauntlet"
     elif is_level2:
         container_name = f"jumanji_day1_level2_{session_id}_{sid}"

@@ -948,7 +948,7 @@
             setTimeout(() => location.reload(), 2000);
         });
 
-        socket.on('game-win-r3', data => {
+        function handleVictory() {
             const winScreen = document.getElementById('win-screen');
             winScreen.style.display = 'flex';
             void winScreen.offsetWidth; // Trigger reflow
@@ -972,11 +972,11 @@
                 setTimeout(() => { winScreen.style.display = 'none'; }, 1000);
 
                 video.onended = () => {
-                    window.location.href = '/logout';
+                    window.location.href = '/hub';
                 };
                 video.onerror = (e) => {
-                    console.warn("R3 win video stream error, redirecting:", e);
-                    setTimeout(() => { window.location.href = '/logout'; }, 3000);
+                    console.warn("Level 2 win video stream error, redirecting to hub:", e);
+                    setTimeout(() => { window.location.href = '/hub'; }, 3000);
                 };
 
                 let playPromise = video.play();
@@ -985,12 +985,15 @@
                         console.warn("Autoplay with sound prevented, trying muted:", error);
                         video.muted = true;
                         video.play().catch(e => {
-                            window.location.href = '/logout';
+                            window.location.href = '/hub';
                         });
                     });
                 }
             }, 3000);
-        });
+        }
+
+        socket.on('game-win-level2', handleVictory);
+        socket.on('game-win-r3', handleVictory);
 
         // Cleanup when leaving page
         window.addEventListener('beforeunload', () => {
