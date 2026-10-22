@@ -8,232 +8,185 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&family=Orbitron:wght@500;700;900&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
 
     <style>
-        :root {
-            --bg-dark: #040806;
-            --jungle-green: #00ff66;
-            --emerald-glow: #10b981;
-            --gold: #ffcc00;
-            --gold-burnished: #d4af37;
-            --curse-red: #ff3344;
-            --cyan: #00e5ff;
-            --panel-bg: rgba(6, 14, 10, 0.92);
-            --border-glow: rgba(0, 255, 102, 0.4);
-            --border-gold: rgba(255, 204, 0, 0.45);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: #e2f1e7;
-            font-family: 'Share Tech Mono', monospace;
+        body.arena {
+            --scene: url('/static/assets/gauntlet_jungle_bg.jpg');
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            background: url('/static/assets/gauntlet_jungle_bg.jpg') no-repeat center center fixed;
-            background-size: cover;
-            position: relative;
         }
 
-        /* Deep Jungle Vignette Overlay */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: radial-gradient(circle at 50% 40%, rgba(4, 10, 7, 0.78) 0%, rgba(2, 6, 4, 0.95) 100%);
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        /* CRT Scanlines Overlay */
-        .crt-overlay {
-            pointer-events: none;
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%),
-                        linear-gradient(90deg, rgba(0, 255, 102, 0.02), rgba(0, 0, 0, 0.08), rgba(255, 204, 0, 0.02));
-            background-size: 100% 3px, 6px 100%;
-            z-index: 999;
-        }
-
-        .rivet {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #ffe680, #b8860b 60%, #4a3500);
-            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
-            display: inline-block;
-        }
-
-        /* Projector Banner - Temple Colosseum */
-        header.arena-header {
-            position: relative;
-            z-index: 10;
-            background: linear-gradient(180deg, rgba(14, 24, 18, 0.98) 0%, rgba(6, 12, 9, 0.98) 100%);
-            border-bottom: 2px solid var(--gold-burnished);
-            box-shadow: 0 4px 35px rgba(0, 0, 0, 0.9), 0 0 25px rgba(0, 255, 102, 0.2);
-            padding: 14px 35px;
+        /* Top Arena Banner */
+        header.arena-topbar {
+            margin: 14px 16px 0;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 16px;
+            z-index: 20;
         }
 
         .arena-title-wrap {
             display: flex;
             align-items: center;
-            gap: 18px;
+            gap: 14px;
+            flex-wrap: wrap;
         }
 
         .arena-title {
-            font-family: 'Cinzel', serif;
-            font-weight: 900;
-            font-size: 1.8rem;
-            color: var(--gold);
-            text-shadow: 0 0 20px rgba(255, 204, 0, 0.6), 2px 2px 0 #000;
-            letter-spacing: 3px;
+            font-size: clamp(var(--step-2), 4vw, var(--step-4));
+            line-height: 1;
         }
 
-        .phase-badge-large {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 900;
-            padding: 6px 18px;
-            background: rgba(0, 255, 102, 0.15);
-            border: 1px solid var(--jungle-green);
-            color: var(--jungle-green);
-            letter-spacing: 2px;
-            box-shadow: 0 0 15px rgba(0, 255, 102, 0.3);
-            border-radius: 3px;
-        }
-
-        .audio-toggle-btn {
-            background: rgba(0, 0, 0, 0.75);
-            border: 1px solid var(--border-gold);
-            color: var(--gold);
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.65rem;
-            padding: 8px 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .audio-toggle-btn:hover {
-            box-shadow: 0 0 12px var(--gold);
-            background: rgba(255, 204, 0, 0.15);
-        }
-
-        /* Curse Broadcast Ticker */
-        .ticker-bar {
+        /* Modern Continuous Curse Ticker (replaces deprecated marquee) */
+        .ticker-wrap {
             position: relative;
-            z-index: 10;
-            background: rgba(220, 38, 38, 0.25);
-            border-top: 1px solid var(--curse-red);
-            border-bottom: 1px solid var(--curse-red);
-            padding: 8px 25px;
+            z-index: 15;
+            margin: 12px 16px 0;
+            background: linear-gradient(90deg, rgba(153, 27, 27, 0.92) 0%, rgba(220, 38, 38, 0.92) 50%, rgba(153, 27, 27, 0.92) 100%);
+            border: 1px solid var(--curse);
+            border-radius: 4px;
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.45);
             display: flex;
             align-items: center;
-            gap: 15px;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.85rem;
-            color: #fca5a5;
             overflow: hidden;
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+            height: 38px;
         }
 
-        .ticker-label {
-            background: var(--curse-red);
+        .ticker-badge {
+            background: #450a0a;
+            color: #fca5a5;
+            font-family: var(--font-hud);
+            font-size: var(--step--1);
+            font-weight: 900;
+            padding: 0 16px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            letter-spacing: 0.1em;
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+            z-index: 2;
+        }
+
+        .ticker-track {
+            flex: 1;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+        }
+
+        .ticker-content {
+            display: inline-block;
+            padding-left: 100%;
+            animation: ticker-slide 28s linear infinite;
+            font-family: var(--font-log);
+            font-size: var(--step-0);
             color: #fff;
-            padding: 3px 8px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.65rem;
-            font-weight: bold;
-            letter-spacing: 1px;
-            border-radius: 2px;
+            letter-spacing: 0.04em;
+        }
+
+        @keyframes ticker-slide {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
         }
 
         /* Tournament Arena Grid */
         .arena-grid {
             position: relative;
             z-index: 10;
-            padding: 24px;
+            padding: 16px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-            gap: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 16px;
             flex: 1;
         }
 
-        .bracket-card {
-            background: var(--panel-bg);
-            border: 1px solid var(--border-gold);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), inset 0 0 20px rgba(255, 204, 0, 0.05);
-            padding: 20px;
-            border-radius: 4px;
+        .arena-card {
+            padding: 18px;
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            gap: 14px;
         }
 
-        .card-heading {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--gold);
-            border-bottom: 1px dashed var(--border-gold);
-            padding-bottom: 10px;
+        .card-head {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            letter-spacing: 1.5px;
+            border-bottom: 1px solid rgba(184, 134, 11, 0.35);
+            padding-bottom: 10px;
+        }
+
+        .card-title {
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-1);
+            color: var(--gold-warm);
+            letter-spacing: 0.06em;
+        }
+
+        .card-desc {
+            font-size: var(--step--1);
+            color: var(--text-dim);
+            line-height: 1.4;
+        }
+
+        /* Table Styling */
+        .live-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--step--1);
+        }
+
+        .live-table th {
+            text-align: left;
+            padding: 8px 10px;
+            color: var(--text-faint);
+            font-family: var(--font-hud);
+            font-size: var(--step--2);
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid rgba(184, 134, 11, 0.3);
             text-transform: uppercase;
         }
 
-        /* Leaderboard Tables */
-        table.live-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95rem;
-        }
-
-        table.live-table th {
-            text-align: left;
-            padding: 8px 10px;
-            color: #888;
-            font-size: 0.75rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            font-family: 'Orbitron', sans-serif;
-        }
-
-        table.live-table td {
-            padding: 10px;
+        .live-table td {
+            padding: 9px 10px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
         }
 
         .row-qualifying {
             background: rgba(0, 255, 102, 0.08);
-            border-left: 3px solid var(--jungle-green);
+            border-left: 3px solid var(--emerald);
         }
 
-        /* Duel Matchup Cards */
-        .duel-match {
+        .pod-tag {
+            font-family: var(--font-hud);
+            font-size: var(--step--2);
+            padding: 2px 6px;
+            border-radius: 3px;
             background: rgba(0, 0, 0, 0.6);
-            border: 1px solid #333;
-            padding: 12px;
-            margin-bottom: 12px;
-            border-radius: 4px;
+            border: 1px solid rgba(184, 134, 11, 0.4);
+            color: var(--gold-warm);
+        }
+
+        /* Duel Match Cards */
+        .duel-match {
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(184, 134, 11, 0.35);
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
         }
 
         .duel-vs {
@@ -241,242 +194,291 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
-            font-weight: bold;
+            font-family: var(--font-hud);
+            font-weight: 700;
+            font-size: var(--step--1);
         }
 
-        .race-bar-wrap {
-            height: 10px;
-            background: #222;
-            border-radius: 5px;
+        /* Glowing Energy Duel Conduits */
+        .race-conduit {
+            height: 12px;
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
             overflow: hidden;
             display: flex;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.9);
         }
 
         .race-fill-a {
-            background: var(--jungle-green);
+            background: linear-gradient(90deg, #059669, #00ff66);
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
             height: 100%;
-            transition: width 0.4s ease;
+            transition: width 0.5s ease;
         }
 
         .race-fill-b {
-            background: var(--cyan);
+            background: linear-gradient(90deg, #06b6d4, #00e5ff);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
             height: 100%;
-            transition: width 0.4s ease;
+            transition: width 0.5s ease;
         }
 
-        /* Shrine King-of-the-Hill Radar */
-        .shrine-radar-box {
+        .duel-footer {
+            display: flex;
+            justify-content: space-between;
+            font-size: var(--step--2);
+            margin-top: 6px;
+            color: var(--text-dim);
+            font-family: var(--font-hud);
+        }
+
+        /* Shrine Throne Centerpiece */
+        .shrine-pedestal {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            background: radial-gradient(circle at center, rgba(255, 204, 0, 0.1) 0%, rgba(0, 0, 0, 0.6) 75%);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            border-radius: 6px;
             text-align: center;
-            padding: 25px 15px;
-            background: radial-gradient(circle, rgba(255, 204, 0, 0.15) 0%, transparent 75%);
-            border: 2px dashed var(--gold);
-            margin-top: 10px;
-            border-radius: 4px;
-            box-shadow: 0 0 25px rgba(255, 204, 0, 0.2);
+            gap: 14px;
+            position: relative;
         }
 
-        .shrine-ruler-name {
-            font-family: 'Cinzel', serif;
+        .shrine-pedestal .orb {
+            --orb-size: 150px;
+            box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.8), 0 0 50px rgba(255, 204, 0, 0.35);
+        }
+
+        .shrine-ruler-title {
+            font-family: var(--font-carved);
             font-weight: 900;
-            font-size: 1.6rem;
-            color: var(--gold);
-            margin: 15px 0;
-            text-shadow: 0 0 20px rgba(255, 204, 0, 0.7);
-            letter-spacing: 2px;
+            font-size: var(--step-2);
+            color: var(--gold-warm);
+            letter-spacing: 0.08em;
+            text-shadow: var(--glow-gold);
         }
 
-        .shrine-ticks-count {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.1rem;
+        .shrine-ticks-badge {
+            font-family: var(--font-hud);
+            font-size: var(--step-0);
             color: #fff;
+            padding: 6px 14px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            border-radius: 999px;
         }
     </style>
 </head>
 
-<body>
+<body class="arena scene">
     <!-- CRT Ambient Overlay -->
-    <div class="crt-overlay"></div>
-
-    <!-- Hidden Ambient Drum Audio Loop -->
-    <audio id="jumanji-drum-audio" src="/static/assets/drum.mp3" loop preload="auto"></audio>
+    <div class="crt-overlay" aria-hidden="true"></div>
 
     <!-- Top Arena Banner -->
-    <header class="arena-header">
+    <header class="arena-topbar chassis">
+        <span class="rivet rivet--tl" aria-hidden="true"></span>
+        <span class="rivet rivet--tr" aria-hidden="true"></span>
+        <span class="rivet rivet--bl" aria-hidden="true"></span>
+        <span class="rivet rivet--br" aria-hidden="true"></span>
+
         <div class="arena-title-wrap">
-            <span class="rivet"></span>
-            <span class="arena-title">JUMANJI GAUNTLET</span>
-            <span class="phase-badge-large" id="live-phase">STAGE: {{ current_phase | upper }}</span>
-            <span class="rivet"></span>
+            <span class="plate">PROJECTOR ARENA</span>
+            <h1 class="carved arena-title">Jumanji Gauntlet</h1>
+            <span class="pill pill--emerald" id="live-phase"><span class="beat"></span> STAGE: {{ current_phase | upper }}</span>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 20px;">
-            <button id="drum-toggle-btn" class="audio-toggle-btn" onclick="toggleDrums()">
-                <span id="drum-icon">🥁</span> <span id="drum-text">DRUMS: OFF</span>
-            </button>
-            <div style="font-family: 'Orbitron', sans-serif; font-size: 1.05rem; color: var(--gold);">
-                HOST STATUS: <span style="color: var(--jungle-green); font-weight: 700;">ONLINE</span>
-            </div>
-            <a href="{{ url_for('hub') }}" style="color: var(--gold); text-decoration: none; font-size: 0.85rem; border: 1px solid var(--border-gold); padding: 6px 12px; background: rgba(0, 0, 0, 0.6);">[ PLAYER HUB ]</a>
+        <div class="row gap-2 wrap">
+            <span class="pill pill--ley">● LIVE SYNC</span>
+            <a href="{{ url_for('hub') }}" class="btn btn--ghost">Player Hub</a>
+            <a href="{{ url_for('admin') }}" class="btn btn--ghost">Host Console</a>
         </div>
     </header>
 
-    <!-- Curse Broadcast Ticker -->
-    <div class="ticker-bar">
-        <span class="ticker-label">CURSE TICKER</span>
-        <marquee id="curse-marquee" scrollamount="6">
-            ⚡ LIVE TOURNAMENT SYNCHRONIZED · THE JUMANJI GAUNTLET IS ACTIVE ACROSS ALL 4 JUNGLE PODS!
-        </marquee>
+    <!-- Continuous Curse Ticker -->
+    <div class="ticker-wrap" role="marquee">
+        <div class="ticker-badge">
+            <span>☠</span>
+            <span>CURSE TICKER</span>
+        </div>
+        <div class="ticker-track">
+            <div id="ticker-text" class="ticker-content">
+                ⚡ LIVE TOURNAMENT SYNCHRONIZED · THE JUMANJI GAUNTLET IS ACTIVE ACROSS ALL 4 JUNGLE PODS · SUBMIT RECOMBINED SPLIT-KEYS AT THE SANCTUARY ALTAR!
+            </div>
+        </div>
     </div>
 
     <!-- Arena Live Display Grid -->
     <main class="arena-grid">
         <!-- 1. Jungle Pods Standings (Phase 1) -->
-        <div class="bracket-card">
-            <div class="card-heading">
-                <span>PHASE 1: JUNGLE PODS</span>
-                <span style="font-size: 0.75rem; color: var(--jungle-green);">TOP 2 ADVANCE</span>
+        <section class="arena-card chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--tr" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <span class="rivet rivet--br" aria-hidden="true"></span>
+
+            <div class="card-head">
+                <h2 class="card-title">PHASE 1: JUNGLE PODS</h2>
+                <span class="pill pill--sm pill--emerald">TOP 2 ADVANCE</span>
             </div>
-            <p style="font-size: 0.8rem; color: #888;">
+            <p class="card-desc">
                 16 Teams divided into 4 sacred Pods. Top 2 squads from each Pod advance into the Quarterfinal Duels.
             </p>
+
             <table class="live-table">
                 <thead>
                     <tr>
-                        <th>RANK</th>
-                        <th>TEAM</th>
-                        <th>POD</th>
-                        <th>SCORE</th>
+                        <th>Rank</th>
+                        <th>Squad Name</th>
+                        <th>Pod</th>
+                        <th>Points</th>
                     </tr>
                 </thead>
                 <tbody id="pod-standings-body">
                     {% for t in teams %}
-                    <tr class="{% if loop.index <= 8 %}row-qualifying{% endif %}">
-                        <td style="color: var(--gold); font-weight: bold;">#{{ loop.index }}</td>
-                        <td style="font-weight: bold;">{{ t.team_name }}</td>
-                        <td style="color: #aaa;">{{ t.pod_id | upper }}</td>
-                        <td style="color: var(--jungle-green); font-weight: bold;">{{ t.phase1_score or 0 }} PTS</td>
+                    {% set pod_leaders = (teams | selectattr('pod_id', 'equalto', t.pod_id) | sort(attribute='phase1_score', reverse=True) | list)[:2] %}
+                    <tr class="{% if t in pod_leaders %}row-qualifying{% endif %}">
+                        <td style="font-weight: bold; color: var(--gold-warm);">#{{ loop.index }}</td>
+                        <td style="font-weight: bold; color: #fff;">{{ t.team_name }}</td>
+                        <td><span class="pod-tag">{{ t.pod_id | upper }}</span></td>
+                        <td class="numeral" style="color: var(--emerald); font-weight: bold;">{{ t.phase1_score or 0 }} PTS</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
+        </section>
 
         <!-- 2. Quarterfinal Duels (Phase 2) -->
-        <div class="bracket-card">
-            <div class="card-heading">
-                <span>PHASE 2: DIRECT DUELS</span>
-                <span style="font-size: 0.75rem; color: var(--cyan);">HEAD-TO-HEAD</span>
+        <section class="arena-card chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--tr" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <span class="rivet rivet--br" aria-hidden="true"></span>
+
+            <div class="card-head">
+                <h2 class="card-title">Phase 2: Direct Duels</h2>
+                <span class="pill pill--sm pill--ley">HEAD-TO-HEAD</span>
             </div>
-            <p style="font-size: 0.8rem; color: #888;">
-                Sudden-death bracket matches with real-time curses allowed.
+            <p class="card-desc">
+                Sudden-death bracket matches with real-time tribal curses allowed.
             </p>
+
             <div id="duels-list">
-                {% for d in duels %}
+                {% for d in matches %}
                 <div class="duel-match">
                     <div class="duel-vs">
-                        <span style="color: var(--jungle-green);">{{ d.t1_name }}</span>
-                        <span style="color: #ff3344; font-size: 0.8rem;">VS</span>
-                        <span style="color: var(--cyan);">{{ d.t2_name }}</span>
+                        <span style="color: var(--emerald);">{{ d.team_a_name }}</span>
+                        <span class="pill pill--sm pill--curse">VS</span>
+                        <span style="color: var(--ley);">{{ d.team_b_name }}</span>
                     </div>
-                    <div class="race-bar-wrap">
-                        {% set total_duel = (d.t1_score or 0) + (d.t2_score or 0) %}
-                        {% set pct_a = ((d.t1_score or 0) / (total_duel if total_duel > 0 else 1) * 100) | int %}
+
+                    {% set total_duel = (d.score_a or 0) + (d.score_b or 0) %}
+                    {% set pct_a = ((d.score_a or 0) / (total_duel if total_duel > 0 else 1) * 100) | int %}
+                    <div class="race-conduit" title="{{ pct_a }}% vs {{ 100 - pct_a }}%">
                         <div class="race-fill-a" style="width: {{ pct_a }}%;"></div>
                         <div class="race-fill-b" style="width: {{ 100 - pct_a }}%;"></div>
                     </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-top: 4px; color: #aaa;">
-                        <span>{{ d.t1_score or 0 }} PTS</span>
-                        <span style="color: var(--gold);">{{ d.status | upper }}</span>
-                        <span>{{ d.t2_score or 0 }} PTS</span>
+
+                    <div class="duel-footer">
+                        <span class="numeral">{{ d.score_a or 0 }} PTS</span>
+                        <span style="color: var(--gold-warm);">{{ d.status | upper }}</span>
+                        <span class="numeral">{{ d.score_b or 0 }} PTS</span>
                     </div>
                 </div>
                 {% else %}
-                <div style="font-size: 0.8rem; color: #666; text-align: center; padding: 25px;">
-                    Duels will be seeded upon conclusion of Phase 1: Jungle Pods.
+                <div style="font-size: var(--step--1); color: var(--text-faint); text-align: center; padding: 28px 12px; border: 1px dashed rgba(184, 134, 11, 0.3); border-radius: 4px;">
+                    Duels will be seeded automatically upon conclusion of Phase 1: Jungle Pods.
                 </div>
                 {% endfor %}
             </div>
-        </div>
+        </section>
 
         <!-- 3. Shrine of the Jaguar (Phase 3 King-of-the-Hill) -->
-        <div class="bracket-card">
-            <div class="card-heading">
-                <span>PHASE 3: SHRINE THRONE</span>
-                <span style="font-size: 0.75rem; color: var(--gold);">KING OF THE HILL</span>
+        <section class="arena-card chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--tr" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <span class="rivet rivet--br" aria-hidden="true"></span>
+
+            <div class="card-head">
+                <h2 class="card-title">Phase 3: Shrine Throne</h2>
+                <span class="pill pill--sm pill--gold">KING OF THE HILL</span>
             </div>
-            <p style="font-size: 0.8rem; color: #888;">
-                The 4 Semifinal squads battle for continuous control of the Sacred Altar. +10 PTS per periodic holding tick!
+            <p class="card-desc">
+                The 4 Semifinal squads battle for control of the Sacred Altar. +10 PTS per periodic holding tick!
             </p>
-            <div class="shrine-radar-box">
-                <div style="font-size: 0.75rem; letter-spacing: 2px; color: #aaa;">CURRENT SHRINE RULER</div>
-                <div class="shrine-ruler-name" id="shrine-ruler">{{ shrine_holder or 'UNCLAIMED' }}</div>
-                <div class="shrine-ticks-count">
-                    Throne Points Generated: <span id="shrine-ticks" style="color: var(--gold); font-weight: bold;">{{ shrine_points or 0 }}</span> PTS
+
+            <div class="shrine-pedestal">
+                <!-- Centerpiece Emerald Scrying Orb -->
+                <div id="shrine-orb" class="orb" aria-hidden="true">
+                    <span class="orb__text carved" style="font-size: 0.9rem;">SACRED SHRINE</span>
+                </div>
+
+                <div>
+                    <div style="font-family: var(--font-hud); font-size: var(--step--2); color: var(--text-dim); letter-spacing: 0.15em; margin-bottom: 4px;">
+                        CURRENT SHRINE RULER
+                    </div>
+                    <div class="shrine-ruler-title" id="shrine-ruler">
+                        {{ active_shrine_ruler or 'UNCLAIMED' }}
+                    </div>
+                </div>
+
+                <div class="shrine-ticks-badge">
+                    Holding Ticks: <span id="shrine-ticks" class="numeral" style="color: var(--gold-warm); font-weight: bold;">{{ shrine_ticks_count or 0 }}</span>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <!-- 4. Losers' Lagoon (Consolation Bracket) -->
-        <div class="bracket-card">
-            <div class="card-heading">
-                <span>LOSERS' LAGOON</span>
-                <span style="font-size: 0.75rem; color: var(--curse-red);">SURVIVAL PIT</span>
+        <!-- 4. Losers' Lagoon (Survival Pit) -->
+        <section class="arena-card chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--tr" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <span class="rivet rivet--br" aria-hidden="true"></span>
+
+            <div class="card-head">
+                <h2 class="card-title">Losers' Lagoon</h2>
+                <span class="pill pill--sm pill--curse">SURVIVAL PIT</span>
             </div>
-            <p style="font-size: 0.8rem; color: #888;">
-                Eliminated squads compete in parallel challenges for podium spots 5-16.
+            <p class="card-desc">
+                Eliminated squads compete in parallel challenges for tournament podium spots 5 through 16.
             </p>
+
             <table class="live-table">
                 <thead>
                     <tr>
-                        <th>RANK</th>
-                        <th>TEAM</th>
-                        <th>LAGOON SCORE</th>
+                        <th>Rank</th>
+                        <th>Squad Name</th>
+                        <th>Lagoon Score</th>
                     </tr>
                 </thead>
                 <tbody id="lagoon-standings-body">
                     {% for t in lagoon_teams %}
                     <tr>
-                        <td style="color: #888;">#{{ loop.index + 4 }}</td>
-                        <td style="font-weight: bold;">{{ t.team_name }}</td>
-                        <td style="color: var(--cyan);">{{ t.lagoon_score or 0 }} PTS</td>
+                        <td class="dim numeral">#{{ loop.index + 4 }}</td>
+                        <td style="font-weight: bold; color: #fff;">{{ t.team_name }}</td>
+                        <td class="numeral" style="color: var(--ley); font-weight: bold;">{{ t.lagoon_score or 0 }} PTS</td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="3" style="text-align: center; color: #666; padding: 15px;">
+                        <td colspan="3" style="text-align: center; color: var(--text-faint); padding: 22px;">
                             No teams in Lagoon yet. Phase 1 underway.
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </div>
+        </section>
     </main>
+
+    <!-- In-page Toast Notifications Container -->
+    <div class="toast-stack" id="toast-stack"></div>
 
     <script>
         const socket = io();
-
-        // Ambient Drum Toggle
-        let drumsPlaying = false;
-        function toggleDrums() {
-            const audio = document.getElementById('jumanji-drum-audio');
-            const text = document.getElementById('drum-text');
-            const icon = document.getElementById('drum-icon');
-
-            if (!drumsPlaying) {
-                audio.play().then(() => {
-                    drumsPlaying = true;
-                    text.textContent = 'DRUMS: ON';
-                    icon.style.filter = 'drop-shadow(0 0 8px #ffcc00)';
-                }).catch(e => {
-                    console.warn("Drum audio autoplay blocked, requires gesture:", e);
-                });
-            } else {
-                audio.pause();
-                drumsPlaying = false;
-                text.textContent = 'DRUMS: OFF';
-                icon.style.filter = 'none';
-            }
-        }
 
         socket.on('connect', () => {
             console.log('[Projector] Connected to live Gauntlet stream');
@@ -485,31 +487,45 @@
         // Listen for tournament score & match updates
         socket.on('gauntlet-sync', data => {
             console.log('[Projector] Gauntlet state update received:', data);
+            JX.sfx.chirp(800, 0.1);
             location.reload();
         });
 
         // Listen for live curse events to update ticker
         socket.on('curse-alert', data => {
-            const marquee = document.getElementById('curse-marquee');
-            if (marquee) {
-                marquee.innerHTML = `⚡ ALERT: A CURSE (${data.curse_type.toUpperCase()}) WAS UNLEASHED IN THE TEMPLE!`;
+            JX.sfx.curse();
+            const tickerText = document.getElementById('ticker-text');
+            if (tickerText) {
+                tickerText.textContent = `⚡ [CURSE ALERT] AN ANCIENT CURSE (${data.curse_type.toUpperCase()}) WAS UNLEASHED IN THE TEMPLE! ACTIVE DISRUPTION IN EFFECT!`;
             }
+            JX.toast(`☠ CURSE UNLEASHED: ${data.curse_type.toUpperCase()} deployed!`, 'curse');
         });
 
         // Listen for King-of-the-Hill updates
         socket.on('shrine-pulse', data => {
+            JX.sfx.transmit();
             const rulerEl = document.getElementById('shrine-ruler');
             const ticksEl = document.getElementById('shrine-ticks');
-            if (rulerEl && data.team_name) rulerEl.textContent = data.team_name;
-            if (ticksEl && data.shrine_score) ticksEl.textContent = data.shrine_score;
+            const orb = document.getElementById('shrine-orb');
+
+            if (rulerEl && data.team_name) {
+                rulerEl.textContent = data.team_name;
+            }
+            if (ticksEl && data.shrine_score !== undefined) {
+                ticksEl.textContent = (parseInt(ticksEl.textContent, 10) || 0) + 1;
+            }
+            if (orb) {
+                orb.style.filter = 'brightness(1.4)';
+                setTimeout(() => { orb.style.filter = ''; }, 600);
+            }
         });
 
-        // Auto reload fallback every 20 seconds to guarantee fresh data
+        // Auto reload fallback every 30 seconds to guarantee fresh data
         setInterval(() => {
             fetch(window.location.href, { method: 'HEAD' })
                 .then(() => location.reload())
                 .catch(() => {});
-        }, 20000);
+        }, 30000);
     </script>
 </body>
 

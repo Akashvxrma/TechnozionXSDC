@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jumanji · Day 1 Level 3 Core</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
+
+    <style>
+        body.l2 {
+            --scene: url('/static/assets/jumanji_expedition_desk.jpg');
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Screen state engine - parity with Level 1 */
+        .screen {
+            position: fixed;
+            inset: 0;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.8s;
+        }
+
+        .screen.is-shown {
+            display: flex;
+        }
+
+        .screen.is-visible {
+            opacity: 1;
+        }
+
+        /* ---------- 1. Entry Screen ---------- */
+        #entry-screen {
+            z-index: 3000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 28px;
+            text-align: center;
+            cursor: pointer;
+            background: radial-gradient(ellipse at center, #06170d 0%, #000 75%);
+        }
+
+        .entry__title {
+            font-size: clamp(3rem, 12vw, 7.5rem);
+            line-height: 0.95;
+            color: var(--gold-warm);
+        }
+
+        .entry__sub {
+            font-family: var(--font-carved);
+            font-weight: 700;
+            color: var(--text-dim);
+            letter-spacing: 0.1em;
+            max-width: 58ch;
+            padding: 0 16px;
+        }
+
+        .entry__press {
+            color: var(--emerald);
+            text-shadow: var(--glow-emerald);
+            font-family: var(--font-hud);
+            font-size: var(--step-0);
+            letter-spacing: 0.12em;
+            animation: slow-blink 2.2s ease-in-out infinite;
+        }
+
+        @keyframes slow-blink {
+            50% { opacity: 0.25; }
+        }
+
+        /* ---------- 2. Video Screen ---------- */
+        #video-screen {
+            z-index: 2000;
+            background: #000;
+            cursor: pointer;
+        }
+
+        #video-screen video {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+        }
+
+        /* ---------- 3. Win Screen ---------- */
+        #win-screen {
+            z-index: 3100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            text-align: center;
+            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)),
+                        url('/static/assets/jumanji_expedition_desk.jpg') center / cover;
+        }
+
+        .win__title {
+            font-size: clamp(2.2rem, 7vw, 4.5rem);
+            color: var(--gold-warm);
+        }
+
+        /* ---------- 4. Station Layout ---------- */
+        #station-screen {
+            z-index: 1000;
+            height: 100vh;
+            flex-direction: column;
+        }
+
+        .topbar {
+            margin: 14px 16px 0;
+            padding: 10px 14px 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .topbar__titles {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .topbar__title {
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-1);
+            color: var(--gold-warm);
+            line-height: 1.1;
+        }
+
+        .topbar__sub {
+            font-size: var(--step--1);
+            color: var(--text-dim);
+        }
+
+        .gauge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+            min-width: 88px;
+        }
+
+        .gauge__label {
+            font-size: var(--step--2);
+            color: var(--text-dim);
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .gauge__value {
+            font-size: var(--step-1);
+            line-height: 1.2;
+        }
+
+        .gauge__value--amber {
+            color: #ffb020;
+            text-shadow: 0 0 10px rgba(255, 176, 32, 0.6);
+        }
+
+        .gauge__value--amber.is-low {
+            color: var(--curse);
+            text-shadow: var(--glow-curse);
+            animation: slow-blink 1s steps(2) infinite;
+        }
+
+        .gauge__value--gold {
+            color: var(--gold-warm);
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+
+        /* Workstation Layout */
+        .workstation {
+            flex: 1;
+            min-height: 520px;
+            height: calc(100vh - 90px);
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 390px;
+            gap: 16px;
+            padding: 16px;
+        }
+
+        .workstation .bezel {
+            height: 100%;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .workstation .crt-glass {
+            flex: 1;
+            height: 100%;
+            min-height: 0;
+            position: relative;
+        }
+
+        .bezel-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(184, 134, 11, 0.4);
+            font-size: var(--step--1);
+        }
+
+        .bezel-bar__title {
+            font-family: var(--font-hud);
+            font-size: var(--step--1);
+            color: var(--gold-warm);
+            letter-spacing: 0.08em;
+        }
+
+        /* Guide Drawer */
+        .guide-drawer {
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 100%;
+            box-shadow: inset 0 1px 0 rgba(255, 210, 150, 0.25), var(--shadow-heavy);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            position: relative;
+        }
+
+        .guide-page {
+            flex: 1;
+            overflow-y: auto;
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border-radius: 4px;
+        }
+
+        .guide-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 2px dashed rgba(107, 78, 44, 0.4);
+            padding-bottom: 12px;
+        }
+
+        .guide-icon {
+            font-size: 1.8rem;
+            filter: drop-shadow(0 2px 4px rgba(43, 29, 16, 0.3));
+        }
+
+        .guide-title {
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-1);
+            color: var(--ink);
+            line-height: 1.15;
+        }
+
+        .guide-sub {
+            font-size: var(--step--1);
+            color: var(--ink-soft);
+            letter-spacing: 0.06em;
+        }
+
+        /* Protocol Stage Cards */
+        .stage-box {
+            position: relative;
+            background: rgba(43, 29, 16, 0.06);
+            border: 1px solid rgba(107, 78, 44, 0.35);
+            border-radius: 4px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), 0 2px 4px rgba(43, 29, 16, 0.12);
+        }
+
+        .stage-box.is-solved {
+            background: rgba(0, 128, 40, 0.08);
+            border-color: rgba(5, 150, 105, 0.6);
+        }
+
+        .stage-box.is-root {
+            background: rgba(180, 20, 20, 0.06);
+            border-color: rgba(185, 28, 28, 0.45);
+        }
+
+        .stage-box.is-root.is-solved {
+            background: rgba(0, 128, 40, 0.08);
+            border-color: rgba(5, 150, 105, 0.6);
+        }
+
+        .stage-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stage-name {
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step--1);
+            color: var(--ink);
+            letter-spacing: 0.06em;
+        }
+
+        .stage-box.is-root .stage-name {
+            color: #8f1d1d;
+        }
+
+        .stage-reward {
+            font-family: var(--font-hud);
+            font-weight: 700;
+            font-size: var(--step--1);
+            color: #8c6239;
+        }
+
+        .stage-box.is-root .stage-reward {
+            color: #b91c1c;
+        }
+
+        .stage-desc {
+            font-size: var(--step--1);
+            line-height: 1.45;
+            color: #3d2b17;
+        }
+
+        .stage-cmd-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+        }
+
+        .stage-cmd {
+            flex: 1;
+            font-family: var(--font-log);
+            font-size: 0.82rem;
+            font-weight: bold;
+            color: #123d14;
+            background: rgba(43, 29, 16, 0.1);
+            padding: 5px 8px;
+            border-radius: 3px;
+            border-left: 3px solid #1a571c;
+            word-break: break-all;
+        }
+
+        .stage-box.is-root .stage-cmd {
+            color: #7f1d1d;
+            border-left-color: #b91c1c;
+            background: rgba(185, 28, 28, 0.08);
+        }
+
+        .stage-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .action-chip {
+            padding: 4px 8px;
+            font-family: var(--font-carved);
+            font-weight: 700;
+            font-size: var(--step--2);
+            letter-spacing: 0.04em;
+            border-radius: 3px;
+            background: #2b1d10;
+            color: #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            transition: background 0.15s, transform 0.1s;
+        }
+
+        .action-chip:hover {
+            background: var(--brass-dark);
+            transform: translateY(-1px);
+        }
+
+        /* Radio Comms */
+        .radio-box {
+            background: rgba(0, 255, 102, 0.05);
+            border: 1px dashed rgba(5, 150, 105, 0.5);
+            border-radius: 4px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .radio-title {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step--1);
+            color: #0b5735;
+        }
+
+        .radio-desc {
+            font-size: var(--step--1);
+            color: #2b1d10;
+            line-height: 1.4;
+        }
+
+        .guide-foot {
+            margin-top: auto;
+            border-top: 1px solid rgba(107, 78, 44, 0.35);
+            padding-top: 10px;
+            text-align: center;
+        }
+
+        /* Guide Drawer Toggle Button */
+        .guide-toggle-btn {
+            display: none;
+        }
+
+        @media (max-width: 1020px) {
+            .workstation {
+                grid-template-columns: 1fr;
+                position: relative;
+            }
+
+            .guide-toggle-btn {
+                display: inline-flex;
+            }
+
+            .guide-drawer {
+                position: absolute;
+                inset: 16px;
+                z-index: 40;
+                background: #1a0f07;
+                display: none;
+            }
+
+            .guide-drawer.is-open {
+                display: flex;
+            }
+        }
+    </style>
+</head>
+
+<body class="l2 scene">
+    <!-- CRT Ambient Overlay -->
+    <div class="crt-overlay" aria-hidden="true"></div>
+
+    <!-- 1. Entry Screen (Parity with Level 1) -->
+    <div id="entry-screen" class="screen is-shown is-visible" role="button" tabindex="0" aria-label="Start Day 1 Level 3">
+        <h1 class="carved entry__title">THE DEEP JUNGLE</h1>
+        <p class="entry__sub">Technozion X SDC Games · Day 1 · Level 3</p>
+        <p class="entry__press">Press any key or click to begin</p>
+    </div>
+
+    <!-- 2. Intro Video Screen -->
+    <div id="video-screen" class="screen">
+        <video id="level2-video" src="/static/assets/round3_intro.mp4" playsinline preload="auto"></video>
+    </div>
+
+    <!-- 3. Victory Screen -->
+    <div id="win-screen" class="screen" role="alert">
+        <div class="orb"><p class="orb__text">Curse lifted,<br>the sanctuary awakens.</p></div>
+        <h2 class="carved win__title">You saved Jumanji</h2>
+    </div>
+
+    <!-- 4. Interactive Breach Station -->
+    <div id="station-screen" class="screen">
+        <header class="topbar chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+
+            <div>
+                <div class="topbar__title carved">THE DEEP JUNGLE · MAINFRAME CORE</div>
+                <div class="topbar__sub">Day 1 · Level 3 · Sacred SQLite Records &amp; SUID Escalation</div>
+            </div>
+
+            <div class="row gap-2 push wrap">
+                <span class="pill pill--emerald"><span class="beat"></span> BEACON: NIGEL_COMMS</span>
+
+                <div class="gauge">
+                    <span class="gauge__label">Time left</span>
+                    <span id="countdown-timer" class="gauge__value gauge__value--amber numeral">--:--</span>
+                </div>
+
+                <div class="gauge">
+                    <span class="gauge__label">Score / 200</span>
+                    <span id="current-score" class="gauge__value gauge__value--gold numeral">{{ points }}</span>
+                </div>
+
+                <a href="{{ url_for('hub') }}" class="btn btn--ghost">Hub</a>
+                <a href="{{ url_for('logout') }}" class="btn btn--ghost">Log out</a>
+
+                <button type="button" class="btn btn--gold btn--sm guide-toggle-btn" onclick="toggleGuide()">
+                    📜 Manual
+                </button>
+            </div>
+        </header>
+
+        <main class="workstation">
+            <!-- Terminal Bezel Chassis -->
+            <section class="bezel">
+                <span class="rivet rivet--tl" aria-hidden="true"></span>
+                <span class="rivet rivet--tr" aria-hidden="true"></span>
+                <span class="rivet rivet--bl" aria-hidden="true"></span>
+                <span class="rivet rivet--br" aria-hidden="true"></span>
+
+                <div class="bezel-bar">
+                    <span class="bezel-bar__title">✦ TERMINAL INTERFACE // BASH CONTAINER LINK-02 ✦</span>
+                    <div class="row gap-2">
+                        <span id="stage1-status-pill" class="pill pill--sm {% if solved_user %}pill--emerald{% else %}pill--stone{% endif %}">
+                            STAGE 1: {{ 'SECURED' if solved_user else 'PENDING' }}
+                        </span>
+                        <span id="stage2-status-pill" class="pill pill--sm {% if solved_root %}pill--emerald{% else %}pill--stone{% endif %}">
+                            STAGE 2: {{ 'SECURED' if solved_root else 'PENDING' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="crt-glass">
+                    <div id="terminal" class="term-mount"></div>
+                </div>
+            </section>
+
+            <!-- Breach Protocols Parchment Manual -->
+            <aside class="guide-drawer wood" id="guide-drawer">
+                <span class="rivet rivet--tl" aria-hidden="true"></span>
+                <span class="rivet rivet--tr" aria-hidden="true"></span>
+                <span class="rivet rivet--bl" aria-hidden="true"></span>
+                <span class="rivet rivet--br" aria-hidden="true"></span>
+
+                <div class="guide-page parchment">
+                    <div class="guide-header">
+                        <span class="guide-icon" aria-hidden="true">📜</span>
+                        <div>
+                            <h2 class="guide-title">Override Protocols</h2>
+                            <p class="guide-sub">Ancient Mainframe Breach Manual</p>
+                        </div>
+                    </div>
+
+                    <!-- Stage 1 -->
+                    <div class="stage-box {% if solved_user %}is-solved{% endif %}">
+                        <div class="stage-head">
+                            <span class="stage-name">Stage 1: User Override</span>
+                            <span class="stage-reward numeral">+80 PTS</span>
+                        </div>
+                        <p class="stage-desc">
+                            Query mainframe SQLite records in <code>/var/jumanji_mainframe</code> to extract the override token.
+                        </p>
+                        <div class="stage-cmd-row">
+                            <code class="stage-cmd">deploy_override OVERRIDE-USER-...</code>
+                            <div class="stage-actions">
+                                <button type="button" class="action-chip" onclick="injectCommand('deploy_override ')">Inject</button>
+                                <button type="button" class="action-chip" onclick="JX.copy(this, 'deploy_override ')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stage 2 -->
+                    <div class="stage-box is-root {% if solved_root %}is-solved{% endif %}">
+                        <div class="stage-head">
+                            <span class="stage-name">Stage 2: Root Escalation</span>
+                            <span class="stage-reward numeral">+120 PTS</span>
+                        </div>
+                        <p class="stage-desc">
+                            Exploit the sacred SUID binary <code>/usr/local/bin/lift_curse</code> with the ancient chant to claim root authority.
+                        </p>
+                        <div class="stage-cmd-row">
+                            <code class="stage-cmd">deploy_override OVERRIDE-ROOT-...</code>
+                            <div class="stage-actions">
+                                <button type="button" class="action-chip" onclick="injectCommand('deploy_override ')">Inject</button>
+                                <button type="button" class="action-chip" onclick="JX.copy(this, 'deploy_override ')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Radio Comms -->
+                    <div class="radio-box">
+                        <div class="radio-title">
+                            <span>📻</span>
+                            <span>Field Radio Transmissions</span>
+                        </div>
+                        <p class="radio-desc">
+                            Tune into Nigel Billingsley's radio guidance for hints and sanctuary directives:
+                        </p>
+                        <div class="stage-cmd-row">
+                            <code class="stage-cmd">nigel_comms</code>
+                            <div class="stage-actions">
+                                <button type="button" class="action-chip" onclick="injectCommand('nigel_comms\n')">Run</button>
+                                <button type="button" class="action-chip" onclick="JX.copy(this, 'nigel_comms')">Copy</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="guide-foot">
+                        <span class="plate">TOTAL REWARD: 200 PTS // ESCALATE TO ROOT</span>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- In-page Toast Notifications Container -->
+    <div class="toast-stack" id="toast-stack"></div>
+
+    <script>
+        const socket = io();
+        const entryScreen = document.getElementById('entry-screen');
+        const videoScreen = document.getElementById('video-screen');
+        const stationScreen = document.getElementById('station-screen');
+        const winScreen = document.getElementById('win-screen');
+        const video = document.getElementById('level2-video');
+        const timerEl = document.getElementById('countdown-timer');
+
+        let hasStarted = false;
+        let stationShown = false;
+        let term = null;
+        let fitAddon = null;
+
+        // --- Screen Transition Engine (Parity with Level 1) ---
+        function show(el) {
+            if (!el) return;
+            el.classList.add('is-shown');
+            void el.offsetWidth;
+            el.classList.add('is-visible');
+        }
+
+        function hide(el, ms = 600) {
+            if (!el) return Promise.resolve();
+            el.classList.remove('is-visible');
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    el.classList.remove('is-shown');
+                    resolve();
+                }, ms);
+            });
+        }
+
+        // --- 1. Entry → Video → Station Flow (Identical to Level 1) ---
+        function startSequence() {
+            if (hasStarted) return;
+            hasStarted = true;
+            hide(entryScreen, 500);
+            show(videoScreen);
+
+            video.currentTime = 0;
+            video.onended = showStation;
+            video.onerror = showStation;
+
+            const p = video.play();
+            if (p !== undefined) {
+                p.catch(() => {
+                    video.muted = true;
+                    video.play().catch(showStation);
+                });
+            }
+        }
+
+        entryScreen.addEventListener('click', startSequence);
+        document.addEventListener('keydown', (e) => {
+            if (entryScreen.classList.contains('is-shown')) {
+                startSequence();
+            } else if (videoScreen.classList.contains('is-shown') && (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter')) {
+                showStation();
+            }
+        });
+
+        videoScreen.addEventListener('click', () => {
+            if (videoScreen.classList.contains('is-shown')) showStation();
+        });
+
+        function showStation() {
+            if (stationShown) return;
+            stationShown = true;
+            video.pause();
+            hide(videoScreen, 500).then(() => {
+                show(stationScreen);
+                initTerminal();
+                fetch('/api/start_level3', { method: 'POST' }).catch(() => {});
+                fetch('/api/start_level2', { method: 'POST' }).catch(() => {});
+            });
+        }
+
+        // --- 3. Terminal Initialization ---
+        function initTerminal() {
+            if (term) {
+                try { fitAddon.fit(); term.focus(); } catch (e) {}
+                return;
+            }
+
+            term = new Terminal({
+                cursorBlink: true,
+                allowTransparency: true,
+                fontFamily: '"Share Tech Mono", monospace',
+                fontSize: 15,
+                lineHeight: 1.25,
+                theme: {
+                    background: 'transparent',
+                    foreground: '#00ff66',
+                    cursor: '#ffd700',
+                    cursorAccent: '#000',
+                    selectionBackground: 'rgba(255, 204, 0, 0.35)',
+                    selectionForeground: '#fff'
+                }
+            });
+
+            fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.onResize(size => {
+                if (socket.connected) socket.emit('pty-resize', { cols: size.cols, rows: size.rows });
+            });
+
+            const mount = document.getElementById('terminal');
+            if (mount) {
+                term.open(mount);
+                setTimeout(() => {
+                    try {
+                        fitAddon.fit();
+                        term.focus();
+                        if (socket.connected) socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
+                    } catch (e) {}
+                }, 120);
+            }
+
+            term.onData(data => {
+                JX.sfx.key();
+                socket.emit('pty-input', { input: data });
+            });
+
+            socket.on('pty-output', data => {
+                term.write(data.output);
+            });
+
+            if (socket.connected) {
+                socket.emit('start-pty', { avatar_id: 'level3' });
+            } else {
+                socket.on('connect', () => {
+                    socket.emit('start-pty', { avatar_id: 'level3' });
+                });
+            }
+        }
+
+        window.addEventListener('resize', () => {
+            if (fitAddon) {
+                try {
+                    fitAddon.fit();
+                    if (term && socket.connected) socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
+                } catch (e) {}
+            }
+        });
+
+        // --- 4. Countdown Timer (Parity with Level 1) ---
+        const remainingRaw = parseInt('{{ remaining_seconds }}', 10);
+        const remainingSeconds = (!isNaN(remainingRaw) && remainingRaw > 0) ? remainingRaw : 3600;
+
+        JX.countdown(
+            remainingSeconds,
+            [timerEl],
+            { onDone: () => { window.location.href = "{{ url_for('login') }}"; } }
+        );
+
+        // Skip the intro if already watched (Parity with Level 1)
+        if (parseInt('{{ has_seen_l3_intro or has_seen_l2_intro }}', 10) === 1) {
+            entryScreen.classList.remove('is-shown', 'is-visible');
+            hasStarted = true;
+            stationShown = true;
+            show(stationScreen);
+            initTerminal();
+        }
+
+        // --- 5. Interactive Dossier Commands ---
+        function injectCommand(cmd) {
+            if (!term) return;
+            term.focus();
+            JX.typeInto(ch => socket.emit('pty-input', { input: ch }), cmd);
+        }
+
+        function toggleGuide() {
+            const drawer = document.getElementById('guide-drawer');
+            if (drawer) drawer.classList.toggle('is-open');
+        }
+
+        // --- 6. Flag & Score Updates ---
+        socket.on('score-update', data => {
+            JX.sfx.success();
+            const scoreEl = document.getElementById('current-score');
+            if (scoreEl && data.new_points !== undefined) {
+                scoreEl.textContent = data.new_points;
+            }
+            JX.toast('✦ PROTOCOL ACCEPTED · SCORE UPDATED', 'success');
+
+            if (data.new_points >= 80) {
+                const s1 = document.getElementById('stage1-status-pill');
+                if (s1) {
+                    s1.textContent = 'STAGE 1: SECURED';
+                    s1.className = 'pill pill--sm pill--emerald';
+                }
+            }
+            if (data.new_points >= 200) {
+                const s2 = document.getElementById('stage2-status-pill');
+                if (s2) {
+                    s2.textContent = 'STAGE 2: SECURED';
+                    s2.className = 'pill pill--sm pill--emerald';
+                }
+            }
+        });
+
+        // --- 7. Victory Flow ---
+        function handleVictory() {
+            JX.drums.pause();
+            [stationScreen, entryScreen].forEach(el => el.classList.remove('is-shown', 'is-visible'));
+            show(winScreen);
+            JX.sfx.success();
+
+            setTimeout(() => {
+                video.src = '/static/assets/round3_win.mp4';
+                video.loop = false;
+                video.muted = false;
+                video.load();
+
+                show(videoScreen);
+                hide(winScreen, 1000);
+
+                const toHub = () => { window.location.href = "{{ url_for('hub') }}"; };
+                video.onended = toHub;
+                video.onerror = () => setTimeout(toHub, 3000);
+
+                const p = video.play();
+                if (p !== undefined) {
+                    p.catch(() => {
+                        video.muted = true;
+                        video.play().catch(toHub);
+                    });
+                }
+            }, 3000);
+        }
+
+        socket.on('game-win-level3', handleVictory);
+        socket.on('game-win-level2', handleVictory);
+        socket.on('game-win-r3', handleVictory);
+
+        // Teardown PTY session cleanly on unload
+        window.addEventListener('beforeunload', () => {
+            socket.emit('stop-pty');
+        });
+    </script>
+</body>
+
+</html>

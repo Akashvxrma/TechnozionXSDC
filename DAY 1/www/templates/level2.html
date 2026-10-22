@@ -4,1001 +4,788 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JUMANJI | Welcome to the Jungle</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://unpkg.com/xterm@4.19.0/css/xterm.css" />
-    <script src="https://unpkg.com/xterm@4.19.0/lib/xterm.js"></script>
-    <script src="https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Jumanji · Avatar Reconnaissance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <style>
-        :root {
-            --retro-green: #39ff14;
-            --retro-yellow: #fefe33;
-            --jungle-green: #004d00;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        @keyframes scanline {
-            0% {
-                transform: translateY(-100%);
-            }
-
-            100% {
-                transform: translateY(100vh);
-            }
-        }
-
-        @keyframes flicker {
-
-            0%,
-            19%,
-            21%,
-            23%,
-            25%,
-            54%,
-            56%,
-            100% {
-                opacity: 1;
-            }
-
-            20%,
-            24%,
-            55% {
-                opacity: 0.5;
-            }
-
-            22% {
-                opacity: 0.3;
-            }
-        }
-
-        body {
-            background-color: #000;
-            color: #4ade80;
-            font-family: 'Share Tech Mono', monospace;
-            min-height: 100vh;
-            background: radial-gradient(ellipse at center, rgba(14, 22, 14, 0.85) 0%, rgba(4, 8, 4, 0.96) 100%),
-                url('/static/assets/jumanji_expedition_desk.jpg') no-repeat center center fixed;
-            background-size: cover;
-            padding: 16px 30px;
-            overflow-x: hidden;
-        }
-
-        /* Scanline effect */
-        body::before {
-            content: " ";
-            display: block;
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 100;
-            background-size: 100% 2px, 3px 100%;
-            pointer-events: none;
-        }
-
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #c59b27;
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-            position: relative;
-            z-index: 10;
-        }
-
-        .jumanji-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 1.6rem;
-            color: #d4af37;
-            text-shadow: 2px 2px 0 #2a1608, 0 0 15px rgba(212, 175, 55, 0.5);
-            animation: flicker 4s infinite;
-        }
-
-        .header-controls {
-            display: flex;
-            gap: 14px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .status-box {
-            color: #d4af37;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.75rem;
-            border: 2px solid #3d2512;
-            outline: 1px solid #c59b27;
-            padding: 8px 12px;
-            background: rgba(18, 12, 7, 0.9);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .status-box span.amber {
-            color: #f59e0b;
-        }
-
-        .status-box span.gold {
-            color: #d4af37;
-        }
-
-        .btn {
-            text-decoration: none;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.72rem;
-            padding: 8px 12px;
-            transition: all 0.2s;
-            cursor: pointer;
-            text-align: center;
-            display: inline-block;
-            white-space: nowrap;
-        }
-
-        .back-btn {
-            color: #d4af37;
-            border: 2px solid #c59b27;
-            background: linear-gradient(180deg, #422a16 0%, #26160a 100%);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-        }
-
-        .back-btn:hover {
-            background: #c59b27;
-            color: #1a0f07;
-            box-shadow: 0 0 15px #c59b27;
-        }
-
-        .logout-btn {
-            color: #ef4444;
-            border: 2px solid #991b1b;
-            background: rgba(20, 10, 10, 0.8);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-        }
-
-        .logout-btn:hover {
-            background: #dc2626;
-            color: #fff;
-            box-shadow: 0 0 15px #dc2626;
-        }
-
-        .main-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            height: calc(100vh - 100px);
-            position: relative;
-            z-index: 10;
-        }
-
-        /* Glassmorphism Panel */
-        .glass-panel {
-            background: rgba(0, 15, 0, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(57, 255, 20, 0.3);
-            border-left: 4px solid var(--retro-green);
-            padding: 25px;
-            overflow-y: auto;
-            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.1);
-        }
-
-        .glass-panel::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .glass-panel::-webkit-scrollbar-track {
-            background: #000;
-        }
-
-        .glass-panel::-webkit-scrollbar-thumb {
-            background: var(--retro-green);
-        }
-
-        h2 {
-            font-family: 'Press Start 2P', monospace;
-            color: var(--retro-yellow);
-            font-size: 1rem;
-            margin-bottom: 20px;
-            line-height: 1.4;
-            text-shadow: 0 0 5px rgba(254, 254, 51, 0.5);
-        }
-
-        .briefing p {
-            margin-bottom: 15px;
-            font-size: 1.1rem;
-            line-height: 1.6;
-        }
-
-        .hint-box {
-            border: 1px dashed var(--retro-green);
-            padding: 15px;
-            background: rgba(0, 255, 0, 0.05);
-            margin-bottom: 25px;
-        }
-
-        .hint-box ul {
-            list-style-type: square;
-            margin-left: 20px;
-            margin-top: 10px;
-            font-size: 0.95rem;
-        }
-
-        .flag-box {
-            border: 2px solid rgba(254, 254, 51, 0.5);
-            padding: 15px;
-            margin-bottom: 20px;
-            background: rgba(0, 0, 0, 0.5);
-            transition: all 0.3s ease;
-        }
-
-        .flag-box:hover {
-            border-color: var(--retro-yellow);
-            box-shadow: 0 0 10px rgba(254, 254, 51, 0.2);
-        }
-
-        .flag-box.solved {
-            border-color: var(--retro-green) !important;
-            background: rgba(0, 255, 0, 0.1);
-        }
-
-        .flag-box-root {
-            border-color: rgba(255, 68, 68, 0.5);
-        }
-
-        .flag-box-root:hover {
-            border-color: #ff4444;
-            box-shadow: 0 0 10px rgba(255, 68, 68, 0.2);
-        }
-
-        .flag-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            margin-bottom: 10px;
-        }
-
-        .flag-input {
-            width: 100%;
-            padding: 8px;
-            margin: 10px 0;
-            background: #000;
-            border: 1px solid var(--retro-green);
-            color: var(--retro-green);
-            font-family: 'Share Tech Mono', monospace;
-            text-align: center;
-        }
-
-        .flag-input:focus {
-            outline: none;
-            box-shadow: 0 0 5px var(--retro-green);
-        }
-
-        .submit-btn {
-            background: rgba(0, 0, 0, 0.8);
-            color: var(--retro-green);
-            border: 1px solid var(--retro-green);
-            padding: 8px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.7rem;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.2s;
-        }
-
-        .submit-btn:hover {
-            background: var(--retro-green);
-            color: #000;
-        }
-
-        /* Temple Relic Terminal Console */
-        .terminal-wrapper {
-            background: rgba(16, 11, 7, 0.96);
-            border: 6px solid #3d2512;
-            outline: 3px solid #c59b27;
-            box-shadow: 0 0 50px rgba(0, 0, 0, 0.95), inset 0 0 40px rgba(0, 0, 0, 0.85);
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            position: relative;
-            border-radius: 6px;
+        body.l1 {
+            --scene: url('/static/assets/jumanji_bg.jpg');
+            height: 100vh;
             overflow: hidden;
         }
 
-        .terminal-header {
-            background: linear-gradient(180deg, #3d2714 0%, #28180b 60%, #1a0f07 100%);
-            border-bottom: 3px solid #c59b27;
-            padding: 10px 18px;
-            display: flex;
-            justify-content: space-between;
+        .screen {
+            position: fixed;
+            inset: 0;
+            display: none;
+            opacity: 0;
+            transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.8s;
+        }
+        .screen.is-shown { display: flex; }
+        .screen.is-visible { opacity: 1; }
+
+        /* ---------- 1. Entry ---------- */
+        #entry-screen {
+            z-index: 3000;
+            flex-direction: column;
             align-items: center;
+            justify-content: center;
+            gap: 28px;
+            text-align: center;
+            cursor: pointer;
+            background: radial-gradient(ellipse at center, #06170d 0%, #000 75%);
+        }
+        .entry__title { font-size: clamp(3rem, 12vw, 7.5rem); line-height: 0.95; }
+        .entry__sub { font-family: var(--font-carved); font-weight: 700; color: var(--text-dim); letter-spacing: 0.1em; }
+        .entry__press { color: var(--emerald); text-shadow: var(--glow-emerald); animation: slow-blink 2.2s ease-in-out infinite; }
+        @keyframes slow-blink { 50% { opacity: 0.25; } }
+
+        /* ---------- 2. Video ---------- */
+        #video-screen { z-index: 2000; background: #000; }
+        #video-screen video { width: 100vw; height: 100vh; object-fit: cover; }
+
+        /* ---------- Win ---------- */
+        #win-screen {
+            z-index: 3100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 24px;
+            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)), url('/static/assets/jumanji_bg.jpg') center / cover;
+        }
+        .win__title { font-size: clamp(2.2rem, 7vw, 4.5rem); text-align: center; }
+
+        /* ---------- Shared top chassis ---------- */
+        .topbar {
+            margin: 14px 16px 0;
+            padding: 10px 14px 10px 28px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             flex-wrap: wrap;
+        }
+        .topbar__title { font-family: var(--font-carved); font-weight: 900; font-size: var(--step-1); color: var(--gold-warm); }
+        .topbar__sub { font-size: var(--step--1); color: var(--text-dim); }
+
+        .gauge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 4px 12px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(184, 134, 11, 0.5);
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+            min-width: 88px;
+        }
+        .gauge__label { font-size: var(--step--2); color: var(--text-dim); letter-spacing: 0.06em; }
+        .gauge__value { font-size: var(--step-1); line-height: 1.2; }
+        .gauge__value--amber { color: #ffb020; text-shadow: 0 0 10px rgba(255, 176, 32, 0.6); }
+        .gauge__value--amber.is-low { color: var(--curse); text-shadow: var(--glow-curse); animation: slow-blink 1s steps(2) infinite; }
+        .gauge__value--gold { color: var(--gold-warm); text-shadow: 0 0 10px rgba(255, 204, 0, 0.5); }
+
+        /* ---------- 3. Avatar select ---------- */
+        #dashboard-wrapper {
+            z-index: 1000;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        #dashboard-wrapper.is-leaving { transform: scale(1.6); filter: blur(10px) brightness(1.8); opacity: 0; }
+
+        .select {
+            flex: 1;
+            width: 100%;
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 22px 16px 24px;
+            display: grid;
+            grid-template-columns: minmax(240px, 330px) minmax(0, 1fr);
+            grid-template-rows: auto 1fr;
+            gap: 22px;
+        }
+
+        .select__portrait {
+            position: relative;
+            aspect-ratio: 3 / 4;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .select__portrait-inner {
+            position: relative;
+            height: 100%;
+            border-radius: 3px;
+            overflow: hidden;
+            background: radial-gradient(ellipse at center, #10291b, #030705);
+            box-shadow: inset 0 0 0 1px #000, inset 0 0 30px rgba(0, 0, 0, 0.9);
+            display: grid;
+            place-items: center;
+        }
+        .select__portrait img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+        .select__placeholder { font-family: var(--font-carved); color: var(--text-faint); text-align: center; padding: 20px; }
+
+        .dossier {
+            padding: 26px 30px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .dossier__name { font-family: var(--font-carved); font-weight: 900; font-size: var(--step-3); line-height: 1.1; color: var(--ink); }
+        .dossier__actor { margin-top: 4px; color: var(--ink-soft); font-size: var(--step--1); }
+        .dossier__traits {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 6px 18px;
+            max-width: 56ch;
+        }
+        .dossier__traits dt { font-family: var(--font-carved); font-weight: 700; color: var(--ink-soft); }
+        .dossier__traits dd { color: var(--ink); }
+        .dossier__quote {
+            margin-top: 18px;
+            padding-left: 14px;
+            border-left: 3px solid var(--bronze);
+            font-style: italic;
+            color: #4a3418;
+            max-width: 56ch;
+        }
+        .dossier__foot {
+            margin-top: auto;
+            padding-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .dossier__value { font-size: var(--step--1); color: var(--ink-soft); }
+        .dossier__value .numeral { font-size: var(--step-1); color: var(--ink); }
+        .dossier__empty { color: var(--ink-soft); max-width: 46ch; }
+
+        /* Roster: five parchment avatar cards */
+        .roster {
+            grid-column: 1 / -1;
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 14px;
+            align-self: end;
+        }
+        .avatar-card {
+            position: relative;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+            padding: 6px;
+            border-radius: 5px;
+            background: linear-gradient(160deg, #5a3a1c, #2e1c0e 60%, #1a0f07);
+            box-shadow: var(--shadow-heavy);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .avatar-card:hover { transform: translateY(-4px); }
+        .avatar-card[aria-pressed="true"] {
+            transform: translateY(-8px);
+            box-shadow: 0 0 0 2px var(--gold), var(--glow-gold), var(--shadow-heavy);
+        }
+        .avatar-card__img {
+            aspect-ratio: 4 / 3;
+            width: 100%;
+            object-fit: cover;
+            object-position: top center;
+            border-radius: 3px 3px 0 0;
+            filter: sepia(0.25) contrast(1.05);
+        }
+        .avatar-card__body { padding: 10px 10px 12px; border-radius: 0 0 3px 3px; }
+        .avatar-card__name { font-family: var(--font-carved); font-weight: 900; font-size: 0.98rem; line-height: 1.2; color: var(--ink); }
+        .avatar-card__role { font-size: var(--step--1); color: var(--ink-soft); }
+        .avatar-card__pts { margin-top: 6px; font-size: var(--step--1); color: var(--emerald-700); }
+
+        .avatar-card .seal {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            transform: rotate(-14deg);
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: 0.66rem;
+            color: rgba(255, 220, 220, 0.9);
+            background: radial-gradient(circle at 38% 32%, #e04848, #9b1c1c 55%, #5c0b0b);
+            box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.45), inset 0 3px 4px rgba(255, 160, 160, 0.35), 0 4px 8px rgba(0, 0, 0, 0.6);
+        }
+        .avatar-card .seal::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; border: 1.5px dashed rgba(255, 200, 200, 0.4); }
+        .avatar-card .seal.is-pressing { animation: seal-press 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+        @keyframes seal-press { from { transform: scale(2.2) rotate(-40deg); opacity: 0; } to { transform: rotate(-14deg); opacity: 1; } }
+
+        /* ---------- 4. Terminal ---------- */
+        #terminal-screen {
+            z-index: 1500;
+            flex-direction: column;
+            transform: scale(0.96) translateY(12px);
+        }
+        #terminal-screen.is-visible { transform: none; }
+
+        .cameo {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            object-fit: cover;
+            object-position: top center;
+            box-shadow: 0 0 0 2px #2a1d05, 0 0 0 4px var(--brass), 0 0 14px rgba(255, 204, 0, 0.35);
+        }
+
+        .station {
+            flex: 1;
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 16px;
+            padding: 16px;
+        }
+        .station .bezel { min-height: 0; display: flex; flex-direction: column; }
+        .station .crt-glass { flex: 1; }
+
+        /* Nigel's drawer: a wooden drawer that slides out of the bezel */
+        .drawer {
+            width: 340px;
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            box-shadow: inset 0 1px 0 rgba(255, 210, 150, 0.2), var(--shadow-heavy);
+            transition: width 0.35s ease, padding 0.35s ease;
+        }
+        .drawer[data-open="false"] { width: 0; padding: 0; overflow: hidden; }
+        .drawer__page { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+        .drawer__title { font-family: var(--font-carved); font-weight: 900; font-size: var(--step-1); color: var(--ink); line-height: 1.2; }
+        .drawer__lore { font-size: 0.92rem; line-height: 1.55; color: #3e2c18; }
+        .drawer h3 { font-family: var(--font-carved); font-weight: 700; font-size: var(--step-0); color: var(--ink-soft); margin-bottom: 8px; }
+
+        .hint-keys { display: grid; grid-template-columns: 1fr; gap: 6px; }
+        .hint-key {
+            display: flex;
+            align-items: center;
             gap: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+            padding: 7px 10px;
+            border-radius: 3px;
+            text-align: left;
+            color: var(--ink);
+            background: rgba(43, 29, 16, 0.07);
+            border: 1px solid rgba(107, 78, 44, 0.35);
+            transition: background 0.15s;
         }
-
-        .terminal-header-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.78rem;
-            color: #d4af37;
-            text-shadow: 2px 2px 0 #2a1608;
-            letter-spacing: 1px;
+        .hint-key:hover { background: rgba(43, 29, 16, 0.14); }
+        .hint-key__n {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            color: var(--gold-warm);
+            background: linear-gradient(160deg, #3d2712, #1a0f07);
         }
+        .hint-key__cmd { margin-left: auto; font-size: var(--step--1); color: var(--ink-soft); }
+        .hint-key.is-active { border-color: var(--emerald-700); background: rgba(5, 150, 105, 0.12); }
+        .hint-key.is-active .hint-key__n { color: var(--emerald); }
 
-        .radio-beacon-badge {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.8rem;
-            color: #4ade80;
+        .cmd-line {
             display: flex;
             align-items: center;
             gap: 8px;
-            background: rgba(8, 16, 8, 0.85);
-            border: 1px solid #2d4520;
-            padding: 4px 10px;
+            padding: 8px 10px;
             border-radius: 3px;
+            background: rgba(43, 29, 16, 0.07);
+            border-left: 3px solid var(--emerald-700);
         }
+        .cmd-line code { background: none; padding: 0; color: #123d14; font-weight: 700; }
+        .cmd-line .btn { margin-left: auto; }
 
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            background: #4ade80;
-            border-radius: 50%;
-            display: inline-block;
-            box-shadow: 0 0 8px #4ade80;
-            animation: pulse-dot 1.5s infinite;
+        @media (max-width: 1000px) {
+            .select { grid-template-columns: 1fr; }
+            .select__portrait { display: none; }
+            .roster { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-row: 1; }
+            .station { grid-template-columns: 1fr; grid-template-rows: minmax(300px, 1fr) auto; }
+            .drawer { width: auto; max-height: 45vh; }
+            .drawer[data-open="false"] { width: auto; max-height: 0; }
         }
-
-        @keyframes pulse-dot {
-
-            0%,
-            100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-
-            50% {
-                opacity: 0.4;
-                transform: scale(0.85);
-            }
-        }
-
-        /* Temple Work Area: Left CRT + Right Protocol Guide */
-        .temple-work-area {
-            display: flex;
-            flex-grow: 1;
-            padding: 12px;
-            gap: 14px;
-            overflow: hidden;
-            background: rgba(10, 7, 4, 0.9);
-        }
-
-        .temple-crt-frame {
-            flex: 1;
-            background: #080d08;
-            border: 6px solid #2e1c0e;
-            outline: 2px solid #8c602a;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            box-shadow: inset 0 0 35px rgba(0, 0, 0, 0.95), 0 0 25px rgba(0, 0, 0, 0.7);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .crt-corner-bracket {
-            position: absolute;
-            width: 14px;
-            height: 14px;
-            border-color: #c59b27;
-            border-style: solid;
-            pointer-events: none;
-            z-index: 20;
-        }
-
-        .crt-corner-bracket.top-left {
-            top: 4px;
-            left: 4px;
-            border-width: 3px 0 0 3px;
-        }
-
-        .crt-corner-bracket.top-right {
-            top: 4px;
-            right: 4px;
-            border-width: 3px 3px 0 0;
-        }
-
-        .crt-corner-bracket.bottom-left {
-            bottom: 4px;
-            left: 4px;
-            border-width: 0 0 3px 3px;
-        }
-
-        .crt-corner-bracket.bottom-right {
-            bottom: 4px;
-            right: 4px;
-            border-width: 0 3px 3px 0;
-        }
-
-        .crt-screen-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: radial-gradient(circle at center, rgba(16, 26, 16, 0.6) 0%, rgba(6, 10, 6, 0.95) 100%);
-        }
-
-        .crt-scanline-fx {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%);
-            background-size: 100% 3px;
-            pointer-events: none;
-            z-index: 10;
-        }
-
-        #terminal {
-            position: absolute;
-            inset: 0;
-            padding: 12px 16px;
-            overflow: hidden;
-            background: transparent;
-        }
-
-        #terminal .xterm {
-            height: 100%;
-            width: 100%;
-        }
-
-        .xterm .xterm-viewport {
-            background-color: transparent !important;
-        }
-
-        /* Temple Protocols Guide */
-        .temple-guide-panel {
-            width: 360px;
-            background: #ede1be;
-            color: #2b1d10;
-            border: 3px solid #b89758;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), inset 0 0 35px rgba(184, 151, 88, 0.35);
-            display: flex;
-            flex-direction: column;
-            padding: 16px;
-            position: relative;
-            border-radius: 3px;
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-
-        .temple-guide-pin {
-            position: absolute;
-            top: 8px;
-            right: 14px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 35% 35%, #e6c875, #7a581e);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
-        }
-
-        .temple-guide-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border-bottom: 2px dashed #9c7b45;
-            padding-bottom: 10px;
-            margin-bottom: 12px;
-        }
-
-        .temple-guide-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.68rem;
-            color: #3b2512;
-            line-height: 1.3;
-        }
-
-        .temple-guide-subtitle {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.75rem;
-            color: #70502a;
-            letter-spacing: 1px;
-        }
-
-        .stage-box {
-            background: rgba(255, 255, 255, 0.4);
-            border: 1px solid #bfa068;
-            padding: 10px;
-            border-radius: 2px;
-            margin-bottom: 10px;
-        }
-
-        .stage-tag {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.58rem;
-            color: #5c381c;
-            margin-bottom: 5px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .stage-desc {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.82rem;
-            line-height: 1.4;
-            color: #2b1d10;
-            margin-bottom: 6px;
-        }
-
-        .stage-cmd {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.82rem;
-            font-weight: bold;
-            color: #123d14;
-            background: #d8cba2;
-            padding: 3px 6px;
-            border-radius: 2px;
-            border-left: 3px solid #1a571c;
-            word-break: break-all;
-        }
-
-        .stage-box.root-tier {
-            border-color: #cf7365;
-            background: rgba(255, 240, 240, 0.5);
-        }
-
-        .stage-box.root-tier .stage-tag {
-            color: #8a1f11;
-        }
-
-        .stage-box.root-tier .stage-cmd {
-            color: #7f1d1d;
-            border-left-color: #b91c1c;
-        }
-
-        .radio-comms-box {
-            background: rgba(255, 255, 255, 0.4);
-            border: 1px solid #bfa068;
-            padding: 10px;
-            border-radius: 2px;
-            margin-top: 4px;
-        }
-
-        .radio-tag {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.58rem;
-            color: #1a571c;
-            margin-bottom: 4px;
-        }
-
-        .temple-guide-footer {
-            border-top: 1px solid #bfa068;
-            padding-top: 8px;
-            margin-top: 10px;
-            text-align: center;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.68rem;
-            color: #70502a;
-            letter-spacing: 1px;
-        }
-
-        @media (max-width: 1080px) {
-            .temple-guide-panel {
-                display: none;
-            }
-        }
-
-        #flash-message {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid var(--retro-green);
-            padding: 15px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            z-index: 2000;
-            display: none;
-        }
-
-        #win-screen,
-        #video-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            z-index: 5000;
-            display: none;
-            opacity: 0;
-            transition: opacity 1s ease;
-        }
-
-        #win-screen {
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: var(--retro-green);
-        }
-
-        #jumanji-video {
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
-        }
-
-        #intro-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            z-index: 6000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .intro-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 2.5rem;
-            color: var(--retro-green);
-            margin-bottom: 30px;
-            text-align: center;
-            text-shadow: 0 0 20px var(--retro-green);
-        }
-
-        .start-prompt {
-            color: var(--retro-yellow);
-            font-family: 'Press Start 2P', monospace;
-            font-size: 1.2rem;
-            animation: blink 1.5s infinite;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0;
-            }
-        }
-
-        #intro-video-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000;
-            z-index: 6001;
-            display: none;
-            opacity: 1;
-            transition: opacity 1.5s ease-in-out;
-        }
-
-        #intro-video-screen video {
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover;
+        @media (max-width: 640px) {
+            body.l1 { overflow: auto; }
+            .topbar { padding-left: 14px; }
+            .topbar__sub { display: none; }
         }
     </style>
 </head>
 
-<body>
+<body class="l1 scene">
+    <div class="crt-overlay" aria-hidden="true"></div>
 
-    <div id="intro-screen" style="display: none;" onclick="startLevel2Sequence()">
-        <div class="intro-title">JUMANJI X SDC GAMES</div>
-        <div class="start-prompt">PRESS ANY KEY OR CLICK TO START</div>
+    <!-- 1. Entry -->
+    <div id="entry-screen" class="screen is-shown is-visible" role="button" tabindex="0" aria-label="Start the game">
+        <h1 class="carved entry__title">Jumanji</h1>
+        <p class="entry__sub">Technozion X SDC Games · Day 1 · Level 2</p>
+        <p class="entry__press">Press any key or click to begin</p>
     </div>
 
-    <div id="intro-video-screen">
-        <video id="intro-video" src="/static/assets/round3_intro.mp4" playsinline preload="auto"></video>
+    <!-- Win -->
+    <div id="win-screen" class="screen" role="alert">
+        <div class="orb"><p class="orb__text">Five relics found,<br>the jungle sleeps.</p></div>
+        <h2 class="carved win__title">You saved Jumanji</h2>
     </div>
 
-    <div id="video-screen">
-        <video id="jumanji-video" src=""></video>
+    <!-- 2. Intro video -->
+    <div id="video-screen" class="screen">
+        <video id="jumanji-video" src="/static/assets/jumanji_intro.mp4" playsinline preload="auto"></video>
     </div>
 
-    <div id="win-screen">
-        <h1 class="jumanji-title" style="font-size: 3rem;">YOU HAVE SAVED JUMANJI</h1>
-    </div>
-
-    <div id="flash-message"></div>
-
-    <div class="header">
-        <div class="jumanji-title">THE DEEP JUNGLE · DAY 1 LEVEL 2</div>
-
-        <div class="header-controls">
-            <div class="status-box">
-                TIMER: <span id="countdown-timer" class="amber">--:--</span>
+    <!-- 3. Avatar select -->
+    <div id="dashboard-wrapper" class="screen">
+        <header class="topbar chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <div>
+                <div class="topbar__title">Avatar Reconnaissance</div>
+                <div class="topbar__sub">Day 1 · Level 2 · Choose who drops into the jungle</div>
             </div>
-            <div class="status-box">
-                SCORE: <span id="current-score" class="gold">{{ points }}</span>
+            <div class="row gap-2 push wrap">
+                <div class="gauge"><span class="gauge__label">Time left</span><span class="gauge__value gauge__value--amber numeral" id="countdown-timer">--:--</span></div>
+                <div class="gauge"><span class="gauge__label">Score / 150</span><span class="gauge__value gauge__value--gold numeral" id="user-points">{{ initial_points }}</span></div>
+                <a href="{{ url_for('hub') }}" class="btn btn--ghost">Hub</a>
+                <a href="{{ url_for('logout') }}" class="btn btn--ghost">Log out</a>
             </div>
-            <a href="{{ url_for('hub') }}" class="btn back-btn" style="margin-right: 5px;">[ HUB ]</a>
-            <a href="{{ url_for('logout') }}" class="btn logout-btn">[ LOGOUT ]</a>
-        </div>
-    </div>
+        </header>
 
-    <div class="main-grid">
-        <div class="terminal-wrapper">
-            <!-- Top Antique Brass Header Plaque -->
-            <div class="terminal-header">
-                <span class="terminal-header-title">✦ JUMANJI MAINFRAME // DAY 1 · LEVEL 2 CORE ✦</span>
-                <div class="radio-beacon-badge">
-                    <span class="pulse-dot"></span>
-                    <span>RADIO BEACON // LISTENING (nigel_comms.sh)</span>
+        <main class="select">
+            <div class="select__portrait wood">
+                <div class="select__portrait-inner">
+                    <p class="select__placeholder" id="avatar-placeholder">Pick an avatar below</p>
+                    <img id="avatar-img" src="" alt="" hidden>
                 </div>
             </div>
 
-            <!-- Work Area: CRT Terminal + Temple Guide Panel -->
-            <div class="temple-work-area">
-                <!-- Temple Stone & Teak CRT Screen -->
-                <div class="temple-crt-frame">
-                    <div class="crt-corner-bracket top-left"></div>
-                    <div class="crt-corner-bracket top-right"></div>
-                    <div class="crt-corner-bracket bottom-left"></div>
-                    <div class="crt-corner-bracket bottom-right"></div>
-                    <div class="crt-screen-inner">
-                        <div class="crt-scanline-fx"></div>
-                        <div id="terminal"></div>
+            <section class="dossier parchment" aria-live="polite">
+                <div id="dialog-text">
+                    <p class="dossier__empty">Each avatar guards one relic in the container. Pick one, drop in and find it. Recover all five to finish the level.</p>
+                </div>
+                <div class="dossier__foot">
+                    <button class="btn btn--gold btn--lg" id="confirm-btn" type="button" hidden onclick="startTerminal()">Drop in</button>
+                    <span class="dossier__value" id="dossier-value"></span>
+                </div>
+            </section>
+
+            <ul class="roster" aria-label="Avatars">
+                {% set roster = [
+                    ('bravestone', 'Dr. Smolder Bravestone', 'Fearless explorer', 'real_bravestone.png', 20),
+                    ('oberon', 'Prof. Sheldon Oberon', 'Cartographer', 'real_oberon.png', 25),
+                    ('ruby', 'Ruby Roundhouse', 'Killer of men', 'real_ruby.png', 30),
+                    ('finbar', 'Franklin Finbar', 'Weapons valet', 'real_finbar.png', 25),
+                    ('seaplane', 'Jefferson Seaplane', 'Pilot', 'real_seaplane.jpg', 50)
+                ] %}
+                {% for id, name, role, img, pts in roster %}
+                <li>
+                    <button class="avatar-card" id="btn-{{ id }}" type="button" aria-pressed="false" onclick="selectChar('{{ id }}')">
+                        <img class="avatar-card__img" src="/static/assets/{{ img }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>
+                        <span class="avatar-card__body parchment">
+                            <span class="avatar-card__name" style="display:block">{{ name }}</span>
+                            <span class="avatar-card__role" style="display:block">{{ role }}</span>
+                            <span class="avatar-card__pts" style="display:block">+{{ pts }} pts</span>
+                        </span>
+                        {% if id in (solved_avatars or []) %}<span class="seal" aria-label="Relic found">Found</span>{% endif %}
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+        </main>
+    </div>
+
+    <!-- 4. Terminal -->
+    <div id="terminal-screen" class="screen">
+        <header class="topbar chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <img id="term-avatar-cameo" class="cameo" src="/static/assets/real_bravestone.png" alt="">
+            <div>
+                <div class="topbar__sub">Field terminal</div>
+                <div class="topbar__title" id="term-avatar-name">Dr. Smolder Bravestone</div>
+            </div>
+            <div class="row gap-2 push wrap">
+                <div class="gauge"><span class="gauge__label">Time left</span><span class="gauge__value gauge__value--amber numeral" id="term-timer-display">--:--</span></div>
+                <div class="gauge"><span class="gauge__label">Score / 150</span><span class="gauge__value gauge__value--gold numeral" id="term-user-points">{{ initial_points }}</span></div>
+                <span class="pill pill--stone" id="link-status"><span class="beat"></span> Connecting</span>
+                <button class="btn btn--ghost" type="button" id="drawer-toggle" aria-controls="nigel-drawer" aria-expanded="true">Nigel's hints</button>
+                <button class="btn btn--ghost" type="button" onclick="exitTerminal()">Return to camp</button>
+            </div>
+        </header>
+
+        <div class="station">
+            <div class="bezel">
+                <span class="rivet rivet--tl" style="top:4px;left:4px" aria-hidden="true"></span>
+                <span class="rivet rivet--tr" style="top:4px;right:4px" aria-hidden="true"></span>
+                <span class="rivet rivet--bl" style="bottom:4px;left:4px" aria-hidden="true"></span>
+                <span class="rivet rivet--br" style="bottom:4px;right:4px" aria-hidden="true"></span>
+                <div class="crt-glass">
+                    <div class="term-mount" id="terminal-body"></div>
+                </div>
+            </div>
+
+            <aside class="drawer wood" id="nigel-drawer" data-open="true" aria-label="Nigel's hints">
+                <div class="drawer__page parchment">
+                    <div>
+                        <div class="drawer__title">Nigel's field notes</div>
+                        <p class="drawer__lore" id="parchment-avatar-lore">Explore the jungle ruins and find the relic for your avatar.</p>
+                    </div>
+                    <div>
+                        <h3>Ask the parrot</h3>
+                        <div class="hint-keys" id="hint-keys">
+                            {% for id, name, role, img, pts in roster %}
+                            <button class="hint-key" type="button" data-hint="{{ loop.index }}" data-avatar="{{ id }}">
+                                <span class="hint-key__n">{{ loop.index }}</span>
+                                <span>{{ name.split(' ')[-1] }}</span>
+                                <span class="hint-key__cmd">parrot_hint {{ loop.index }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <h3>Turn in a relic</h3>
+                        <div class="cmd-line">
+                            <code>complete JUMANJI{...}</code>
+                            <button class="btn btn--emerald btn--sm" type="button" id="type-complete">Type it</button>
+                        </div>
                     </div>
                 </div>
-
-                <!-- Temple Override Protocols Guide -->
-                <aside class="temple-guide-panel">
-                    <div class="temple-guide-pin"></div>
-                    <div class="temple-guide-header">
-                        <span style="font-size: 1.5rem;">📜</span>
-                        <div>
-                            <div class="temple-guide-title">TEMPLE OVERRIDE PROTOCOLS</div>
-                            <div class="temple-guide-subtitle">ANCIENT MAINFRAME BREACH MANUAL</div>
-                        </div>
-                    </div>
-
-                    <div class="stage-box">
-                        <div class="stage-tag">
-                            <span>STAGE 1: USER OVERRIDE</span>
-                            <span style="color: #d4af37;">+80 PTS</span>
-                        </div>
-                        <div class="stage-desc">Query the mainframe SQLite records in
-                            <code>/var/jumanji_mainframe</code> to extract the override token.</div>
-                        <div class="stage-cmd">deploy_override OVERRIDE-USER-...</div>
-                    </div>
-
-                    <div class="stage-box root-tier">
-                        <div class="stage-tag">
-                            <span>STAGE 2: ROOT ESCALATION</span>
-                            <span style="color: #b91c1c;">+120 PTS</span>
-                        </div>
-                        <div class="stage-desc">Exploit the ancient SUID binary <code>/usr/local/bin/lift_curse</code>
-                            with the sacred chant to claim root authority.</div>
-                        <div class="stage-cmd">deploy_override OVERRIDE-ROOT-...</div>
-                    </div>
-
-                    <div class="radio-comms-box">
-                        <div class="radio-tag">📻 FIELD TRANSMISSIONS</div>
-                        <div style="font-size: 0.8rem; line-height: 1.4; color: #2b1d10;">Tune into Nigel Billingsley's
-                            radio guidance at any time:</div>
-                        <div style="margin-top: 4px; font-weight: bold; color: #123d14;">nigel_comms</div>
-                    </div>
-
-                    <div class="temple-guide-footer">
-                        <span>TOTAL REWARD: 200 POINTS // ESCALATE TO ROOT</span>
-                    </div>
-                </aside>
-            </div>
+            </aside>
         </div>
     </div>
 
+    <audio id="drum-audio" src="/static/assets/drum.mp3" preload="auto" loop></audio>
+    <audio id="drum-hit" src="/static/assets/drum.mp3" preload="auto"></audio>
+
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
     <script>
-        // --- Timer Logic ---
-        let remainingSeconds = parseInt('{{ remaining_seconds }}', 10);
-        const timerElement = document.getElementById('countdown-timer');
+        const AVATARS = {
+            bravestone: { name: 'Dr. Smolder Bravestone', actor: 'Dwayne Johnson', role: 'Fearless explorer', skill: 'Heuristic analysis', weakness: 'None', quote: "Don't cry. Don't cry. Don't cry.", img: '/static/assets/real_bravestone.png', pts: 20, hint: 1,
+                lore: 'Bravestone always searches where others dare not. Look beneath the surface in /opt/jungle/ruins for hidden relics.' },
+            oberon: { name: 'Prof. Sheldon Oberon', actor: 'Jack Black', role: 'Cartographer and cryptographer', skill: 'Sensor probes', weakness: 'Endurance', quote: "I think I'm having a mild heart attack!", img: '/static/assets/real_oberon.png', pts: 25, hint: 2,
+                lore: "Oberon's mind is always running in the background. Inspect active processes with ps aux | grep oberon." },
+            ruby: { name: 'Ruby Roundhouse', actor: 'Karen Gillan', role: 'Killer of men', skill: 'Classified logs', weakness: 'Venom', quote: 'Why am I wearing half a shirt and short shorts in the jungle?', img: '/static/assets/real_ruby.png', pts: 30, hint: 3,
+                lore: 'Ruby fights to a rhythm of 64 beats. Check ~/Documents and decode the rhythm with base64 -d.' },
+            finbar: { name: "Franklin 'Mouse' Finbar", actor: 'Kevin Hart', role: 'Weapons valet and zoologist', skill: 'WHOIS intel', weakness: 'Cake', quote: "I'm a backpack guy!", img: '/static/assets/real_finbar.png', pts: 25, hint: 4,
+                lore: 'Mouse guards his pack tightly. Check your elevated abilities with sudo -l to find the zoology relic.' },
+            seaplane: { name: "Jefferson 'Seaplane' McDonough", actor: 'Nick Jonas', role: 'Pilot', skill: 'Margarita mixing', weakness: 'Mosquitoes', quote: 'I am a good pilot!', img: '/static/assets/real_seaplane.jpg', pts: 50, hint: 5,
+                lore: 'Seaplane is broadcasting an emergency beacon. Probe internal ports with curl http://127.0.0.1:8080.' }
+        };
 
-        function updateTimer() {
-            if (remainingSeconds <= 0) {
-                window.location.href = "{{ url_for('login') }}";
-                return;
-            }
-            let minutes = Math.floor(remainingSeconds / 60);
-            let seconds = remainingSeconds % 60;
-            timerElement.innerText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            remainingSeconds--;
+        const entryScreen = document.getElementById('entry-screen');
+        const videoScreen = document.getElementById('video-screen');
+        const dashboardWrapper = document.getElementById('dashboard-wrapper');
+        const terminalScreen = document.getElementById('terminal-screen');
+        const winScreen = document.getElementById('win-screen');
+        const video = document.getElementById('jumanji-video');
+        const drumAudio = document.getElementById('drum-audio');
+        const drumHit = document.getElementById('drum-hit');
+        const confirmBtn = document.getElementById('confirm-btn');
+        const avatarImg = document.getElementById('avatar-img');
+        const avatarPlaceholder = document.getElementById('avatar-placeholder');
+
+        let selectedAvatarId = null;
+        let hasStarted = false;
+
+        function show(el) {
+            el.classList.add('is-shown');
+            void el.offsetWidth;
+            el.classList.add('is-visible');
+        }
+        function hide(el, ms = 800) {
+            el.classList.remove('is-visible');
+            return new Promise(r => setTimeout(() => { el.classList.remove('is-shown'); r(); }, ms));
         }
 
-        // --- Terminal Logic (Xterm.js + Socket.IO) ---
-        const term = new Terminal({
-            cursorBlink: true,
-            allowTransparency: true,
-            theme: {
-                background: 'transparent',
-                foreground: '#4ade80',
-                cursor: '#4ade80',
-                selectionBackground: 'rgba(212, 175, 55, 0.35)'
-            },
-            fontFamily: '"Share Tech Mono", monospace',
-            fontSize: 16
+        function playDrumHit() {
+            drumHit.currentTime = 0;
+            drumHit.play().catch(() => {});
+        }
+
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // --- Entry → intro video → avatar select ---
+        function startSequence() {
+            if (hasStarted) return;
+            hasStarted = true;
+            playDrumHit();
+            hide(entryScreen, 500);
+            show(videoScreen);
+
+            video.currentTime = 0;
+            video.onended = showDashboard;
+            video.onerror = showDashboard;
+            const p = video.play();
+            if (p !== undefined) {
+                p.catch(() => {
+                    video.muted = true;
+                    video.play().catch(showDashboard);
+                });
+            }
+        }
+
+        entryScreen.addEventListener('click', startSequence);
+        document.addEventListener('keydown', () => {
+            if (entryScreen.classList.contains('is-shown')) startSequence();
         });
 
-        const fitAddon = new FitAddon.FitAddon();
-        term.loadAddon(fitAddon);
-        term.open(document.getElementById('terminal'));
+        let dashboardShown = false;
+        function showDashboard() {
+            if (dashboardShown) return;
+            dashboardShown = true;
+            video.pause();
+            hide(videoScreen, 500).then(() => {
+                show(dashboardWrapper);
+                playDrumHit();
+                JX.drums.play(drumAudio, 0.55);
+                fetch('/api/start_level2', { method: 'POST' }).catch(() => {});
+                fetch('/api/set_intro_watched', { method: 'POST' }).catch(() => {});
+            });
+        }
+
+        function selectChar(charId) {
+            const a = AVATARS[charId];
+            if (!a) return;
+            playDrumHit();
+            selectedAvatarId = charId;
+
+            document.querySelectorAll('.avatar-card').forEach(b => b.setAttribute('aria-pressed', String(b.id === 'btn-' + charId)));
+
+            avatarPlaceholder.hidden = true;
+            avatarImg.hidden = false;
+            avatarImg.src = a.img;
+            avatarImg.alt = a.name;
+
+            const found = !!document.querySelector('#btn-' + charId + ' .seal');
+            document.getElementById('dialog-text').innerHTML = `
+                <h2 class="dossier__name surfacing">${esc(a.name)}</h2>
+                <p class="dossier__actor">Played by ${esc(a.actor)}</p>
+                <dl class="dossier__traits">
+                    <dt>Role</dt><dd>${esc(a.role)}</dd>
+                    <dt>Skill</dt><dd>${esc(a.skill)}</dd>
+                    <dt>Weakness</dt><dd>${esc(a.weakness)}</dd>
+                </dl>
+                <blockquote class="dossier__quote">“${esc(a.quote)}”</blockquote>`;
+            document.getElementById('dossier-value').innerHTML = found
+                ? 'Relic already found'
+                : `Relic worth <span class="numeral">+${a.pts}</span> pts`;
+
+            confirmBtn.hidden = false;
+            confirmBtn.textContent = 'Drop in as ' + a.name.replace(/^(Dr\.|Prof\.)\s/, '').split(' ')[0].replace(/'/g, '');
+        }
+
+        // --- Terminal ---
+        const socket = io();
+        setInterval(() => { if (socket.connected) socket.emit('ping'); }, 10000);
+
+        let term = null;
+        let fitAddon = null;
+
+        function fit() {
+            if (fitAddon) {
+                try {
+                    fitAddon.fit();
+                    if (term && socket.connected) {
+                        socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
+                    }
+                } catch (e) {}
+            }
+        }
+
+        function initTerminal() {
+            if (!term) {
+                term = new Terminal({
+                    cursorBlink: true,
+                    allowTransparency: true,
+                    fontFamily: '"Share Tech Mono", monospace',
+                    fontSize: 15,
+                    lineHeight: 1.25,
+                    theme: {
+                        background: 'rgba(0,0,0,0)',
+                        foreground: '#5dffa0',
+                        cursor: '#ffcc00',
+                        cursorAccent: '#020a05',
+                        selectionBackground: 'rgba(255, 204, 0, 0.3)',
+                        green: '#00ff66',
+                        brightGreen: '#5dffa0',
+                        yellow: '#ffcc00',
+                        red: '#ef4444',
+                        cyan: '#00e5ff'
+                    }
+                });
+                if (window.FitAddon && window.FitAddon.FitAddon) {
+                    fitAddon = new FitAddon.FitAddon();
+                    term.loadAddon(fitAddon);
+                }
+                term.open(document.getElementById('terminal-body'));
+                term.onData(data => socket.emit('pty-input', { input: data }));
+                term.onResize(size => socket.emit('pty-resize', { cols: size.cols, rows: size.rows }));
+
+                socket.on('pty-output', data => term.write(data.output));
+
+                socket.on('score-update', data => {
+                    document.getElementById('user-points').textContent = data.new_points;
+                    document.getElementById('term-user-points').textContent = data.new_points;
+                });
+
+                socket.on('flag-solved', data => {
+                    const a = AVATARS[data.avatar_id];
+                    JX.sfx.success();
+                    JX.toast(a ? `${a.name}'s relic recovered. +${a.pts} pts` : 'Relic recovered.');
+                    stampSeal(data.avatar_id);
+                    exitTerminal();
+                });
+
+                socket.on('game-win', showWin);
+            }
+
+            setTimeout(() => {
+                fit();
+                term.focus();
+                socket.emit('start-pty', { avatar_id: selectedAvatarId });
+            }, 120);
+        }
+
+        socket.on('connect', () => setLink(true));
+        socket.on('disconnect', () => setLink(false));
+        function setLink(ok) {
+            const el = document.getElementById('link-status');
+            el.className = 'pill ' + (ok ? 'pill--emerald' : 'pill--curse');
+            el.innerHTML = '<span class="beat"></span> ' + (ok ? 'Link active' : 'Link lost');
+        }
+
+        function stampSeal(avatarId) {
+            const card = document.getElementById('btn-' + avatarId);
+            if (!card || card.querySelector('.seal')) return;
+            const seal = document.createElement('span');
+            seal.className = 'seal is-pressing';
+            seal.setAttribute('aria-label', 'Relic found');
+            seal.textContent = 'Found';
+            card.appendChild(seal);
+        }
 
         window.addEventListener('resize', () => {
-            fitAddon.fit();
+            if (terminalScreen.classList.contains('is-shown')) fit();
         });
 
-        const socket = io();
-
-        function initGame() {
-            setInterval(updateTimer, 1000);
-            updateTimer();
+        function startTerminal() {
+            if (!selectedAvatarId) return;
+            const a = AVATARS[selectedAvatarId];
+            playDrumHit();
+            dashboardWrapper.classList.add('is-leaving');
 
             setTimeout(() => {
-                fitAddon.fit();
-            }, 100);
-
-            if (socket.connected) {
-                socket.emit('start-pty', { avatar_id: 'level2' });
-            } else {
-                socket.on('connect', () => {
-                    socket.emit('start-pty', { avatar_id: 'level2' });
-                });
-            }
+                JX.drums.pause();
+                dashboardWrapper.classList.remove('is-shown', 'is-visible', 'is-leaving');
+                document.getElementById('term-avatar-cameo').src = a.img;
+                document.getElementById('term-avatar-name').textContent = a.name;
+                document.getElementById('parchment-avatar-lore').textContent = a.lore;
+                document.querySelectorAll('.hint-key').forEach(k => k.classList.toggle('is-active', k.dataset.avatar === selectedAvatarId));
+                show(terminalScreen);
+                initTerminal();
+            }, 800);
         }
 
-        // Intro sequence logic
-        const hasSeenIntro = parseInt('{{ has_seen_l2_intro | default(0) }}', 10) || 0;
-
-        let isIntroActive = false;
-
-        if (hasSeenIntro === 0) {
-            document.querySelector('.header').style.display = 'none';
-            document.querySelector('.main-grid').style.display = 'none';
-            document.getElementById('intro-screen').style.display = 'flex';
-            isIntroActive = true;
-        } else {
-            initGame();
+        function exitTerminal() {
+            hide(terminalScreen).then(() => {
+                show(dashboardWrapper);
+                JX.drums.play(drumAudio, 0.55);
+                if (term) {
+                    term.clear();
+                    socket.emit('stop-pty');
+                }
+            });
         }
 
-        function startLevel2Sequence() {
-            if (!isIntroActive) return;
-            isIntroActive = false; // Prevent multiple triggers
-            document.getElementById('intro-screen').style.display = 'none';
-
-            // Fire API immediately so refresh doesn't replay the intro screen
-            fetch('/api/start_level2', { method: 'POST' });
-
-            const vidScreen = document.getElementById('intro-video-screen');
-            vidScreen.style.display = 'block';
-            void vidScreen.offsetWidth;
-            vidScreen.style.opacity = '1';
-
-            const vid = document.getElementById('intro-video');
-            vid.currentTime = 0;
-
-            function finishIntro() {
-                document.querySelector('.header').style.display = 'flex';
-                document.querySelector('.main-grid').style.display = 'flex';
-                vidScreen.style.opacity = '0';
-                setTimeout(() => {
-                    vidScreen.style.display = 'none';
-                    initGame();
-                }, 1500);
-            }
-
-            vid.onended = finishIntro;
-            vid.onerror = (e) => {
-                console.warn("Level 2 intro stream error:", e);
-                finishIntro();
-            };
-
-            const playPromise = vid.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(err => {
-                    console.warn("Level 2 intro audio playback prevented, attempting muted playback:", err);
-                    vid.muted = true;
-                    vid.play().catch(e => {
-                        console.error("Level 2 video playback failed entirely:", e);
-                        finishIntro();
-                    });
-                });
-            }
+        // --- Nigel's drawer ---
+        const drawer = document.getElementById('nigel-drawer');
+        const drawerToggle = document.getElementById('drawer-toggle');
+        function setDrawer(open) {
+            drawer.dataset.open = String(open);
+            drawerToggle.setAttribute('aria-expanded', String(open));
+            JX.sfx.chirp(open ? 520 : 380, 0.06, 'triangle');
+            setTimeout(fit, 380);
+        }
+        drawerToggle.addEventListener('click', () => setDrawer(drawer.dataset.open !== 'true'));
+        if (window.matchMedia('(max-width: 1000px)').matches) {
+            drawer.dataset.open = 'false';
+            drawerToggle.setAttribute('aria-expanded', 'false');
         }
 
-        document.addEventListener('keydown', (e) => {
-            if (isIntroActive) startLevel2Sequence();
-        });
-
-        // --- Flag Submission Logic ---
-        function showFlash(message, color) {
-            const flash = document.getElementById('flash-message');
-            flash.innerHTML = message;
-            flash.style.color = color;
-            flash.style.borderColor = color;
-            flash.style.display = 'block';
-            setTimeout(() => { flash.style.display = 'none'; }, 3000);
+        // Hint keys type the parrot command into the live terminal
+        let typing = false;
+        async function typeCommand(text) {
+            if (!term || typing) return;
+            typing = true;
+            term.focus();
+            await JX.typeInto(ch => socket.emit('pty-input', { input: ch }), text);
+            typing = false;
         }
-
-        term.onData(data => {
-            socket.emit('pty-input', { input: data });
+        document.getElementById('hint-keys').addEventListener('click', e => {
+            const key = e.target.closest('.hint-key');
+            if (key) typeCommand('parrot_hint ' + key.dataset.hint + '\r');
         });
+        document.getElementById('type-complete').addEventListener('click', () => typeCommand('complete '));
 
-        socket.on('pty-output', data => {
-            term.write(data.output);
-        });
-
-        // Listen for successful flag submissions from the terminal!
-        socket.on('score-update', data => {
-            document.getElementById('current-score').innerText = data.new_points;
-            showFlash(`PROTOCOL ACCEPTED! SCORE UPDATED.`, 'var(--retro-green)');
-            setTimeout(() => location.reload(), 2000);
-        });
-
-        function handleVictory() {
-            const winScreen = document.getElementById('win-screen');
-            winScreen.style.display = 'flex';
-            void winScreen.offsetWidth; // Trigger reflow
-            winScreen.style.opacity = '1';
-
-            document.querySelector('.header').style.display = 'none';
-            document.querySelector('.main-grid').style.display = 'none';
+        // --- Victory ---
+        function showWin() {
+            JX.drums.pause();
+            [dashboardWrapper, terminalScreen, entryScreen].forEach(el => el.classList.remove('is-shown', 'is-visible'));
+            show(winScreen);
+            JX.sfx.success();
 
             setTimeout(() => {
-                const video = document.getElementById('intro-video');
-                video.src = "/static/assets/round3_win.mp4";
+                video.src = '/static/assets/jumanji_win.mp4';
                 video.loop = false;
+                video.muted = false;
                 video.load();
+                show(videoScreen);
+                hide(winScreen, 1000);
 
-                const videoScreen = document.getElementById('intro-video-screen');
-                videoScreen.style.display = 'block';
-                void videoScreen.offsetWidth; // Trigger reflow
-                videoScreen.style.opacity = '1';
-
-                winScreen.style.opacity = '0';
-                setTimeout(() => { winScreen.style.display = 'none'; }, 1000);
-
-                video.onended = () => {
-                    window.location.href = '/hub';
-                };
-                video.onerror = (e) => {
-                    console.warn("Level 2 win video stream error, redirecting to hub:", e);
-                    setTimeout(() => { window.location.href = '/hub'; }, 3000);
-                };
-
-                let playPromise = video.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(error => {
-                        console.warn("Autoplay with sound prevented, trying muted:", error);
+                const toHub = () => { window.location.href = '/hub'; };
+                video.onended = toHub;
+                video.onerror = () => setTimeout(toHub, 3000);
+                const p = video.play();
+                if (p !== undefined) {
+                    p.catch(() => {
                         video.muted = true;
-                        video.play().catch(e => {
-                            window.location.href = '/hub';
-                        });
+                        video.play().catch(() => setTimeout(toHub, 3000));
                     });
                 }
             }, 3000);
         }
 
-        socket.on('game-win-level2', handleVictory);
-        socket.on('game-win-r3', handleVictory);
+        // --- Countdown ---
+        JX.countdown(parseInt('{{ remaining_seconds }}', 10),
+            [document.getElementById('countdown-timer'), document.getElementById('term-timer-display')],
+            { onDone: () => { window.location.href = "{{ url_for('login') }}"; } });
 
-        // Cleanup when leaving page
-        window.addEventListener('beforeunload', () => {
-            socket.emit('stop-pty');
-        });
+        // Skip the intro if already watched
+        if (parseInt('{{ has_seen_l2_intro or has_seen_intro }}', 10) === 1) {
+            entryScreen.classList.remove('is-shown', 'is-visible');
+            hasStarted = true;
+            dashboardShown = true;
+            show(dashboardWrapper);
+            JX.drums.play(drumAudio, 0.55);
+        }
     </script>
 </body>
 

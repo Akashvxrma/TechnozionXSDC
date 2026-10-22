@@ -4,243 +4,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JUMANJI | Choose Your Codename</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --retro-green: #39ff14;
-            --retro-yellow: #fefe33;
-            --term-green: #00ff00;
-            --gold: #d4af37;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: #000;
-            color: var(--retro-green);
-            font-family: 'Press Start 2P', monospace;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-            background: url('/static/assets/choose_username_bg.jpg') no-repeat center center;
-            background-size: cover;
-        }
-
-        body::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.82);
-            z-index: 0;
-        }
-
-        /* CRT Effects */
-        .crt::before {
-            content: " ";
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 50;
-            background-size: 100% 4px, 6px 100%;
-            pointer-events: none;
-        }
-
-        .container {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            max-width: 560px;
-            background: rgba(5, 10, 5, 0.92);
-            border: 4px solid var(--retro-green);
-            padding: 40px 35px;
-            box-shadow: 0 0 35px rgba(57, 255, 20, 0.35), inset 0 0 20px rgba(0, 255, 0, 0.08);
-            text-align: center;
-            backdrop-filter: blur(4px);
-        }
-
-        .jumanji-title {
-            font-size: 2.6rem;
-            color: var(--gold);
-            letter-spacing: -1px;
-            text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000, 0 0 15px rgba(212, 175, 55, 0.4);
-            margin-bottom: 8px;
-        }
-
-        .sub-banner {
-            font-size: 0.72rem;
-            color: var(--retro-green);
-            text-shadow: 0 0 8px rgba(57, 255, 20, 0.6);
-            margin-bottom: 25px;
-            letter-spacing: 1px;
-            line-height: 1.5;
-        }
-
-        .google-verified-box {
-            background: rgba(0, 0, 0, 0.75);
-            border: 1px solid var(--retro-yellow);
-            padding: 12px 16px;
-            margin-bottom: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.95rem;
-            color: #fff;
-            box-shadow: 0 0 10px rgba(254, 254, 51, 0.2);
-        }
-
-        .google-verified-box .check-icon {
-            color: var(--retro-green);
-            font-size: 1.1rem;
-        }
-
-        .google-verified-box .email-badge {
-            color: var(--retro-yellow);
-            font-weight: bold;
-            word-break: break-all;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 0.7rem;
-            color: var(--retro-yellow);
-            margin-bottom: 10px;
-            letter-spacing: 0.5px;
-        }
-
-        .form-group input {
-            width: 100%;
-            background: #000;
-            border: 2px solid var(--retro-green);
-            color: var(--retro-green);
-            padding: 16px;
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 1.3rem;
-            outline: none;
-            letter-spacing: 2px;
-            transition: all 0.3s ease;
-        }
-
-        .form-group input:focus {
-            box-shadow: 0 0 15px var(--retro-green);
-            border-color: #fff;
-        }
-
-        .hint {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.85rem;
-            color: #888;
-            margin-top: 8px;
-            text-align: left;
-            line-height: 1.4;
-        }
-
-        .submit-btn {
-            width: 100%;
-            background: var(--retro-green);
-            color: #000;
-            border: none;
-            padding: 18px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.95rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-top: 15px;
-            box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
-        }
-
-        .submit-btn:hover {
-            background: #fff;
-            color: #000;
-            transform: scale(1.02);
-            box-shadow: 0 0 25px rgba(255, 255, 255, 0.8);
-        }
-
-        .flash-messages {
-            color: #ff3333;
-            font-size: 0.7rem;
-            margin-bottom: 20px;
-            line-height: 1.4;
-            animation: blink 1s infinite;
-        }
-
-        @keyframes blink {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0;
-            }
-        }
-
-        .drum-pulse {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            font-size: 0.6rem;
-            color: #ff3333;
-            letter-spacing: 1px;
-            animation: blink 0.8s infinite;
-        }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_auth.css') }}">
+    <title>Jumanji · Choose your codename</title>
+    <style>body.auth { --scene: url('/static/assets/choose_username_bg.jpg'); }</style>
 </head>
 
-<body class="crt">
-    <div class="drum-pulse">● DRUMS IN THE DISTANCE</div>
+<body class="auth scene">
+    <div class="crt-overlay" aria-hidden="true"></div>
 
-    <div class="container">
-        <div class="jumanji-title">JUMANJI</div>
-        <div class="sub-banner">AUTHENTICATED // CHOOSE YOUR CODENAME</div>
+    <main class="lid wood">
+        <span class="rivet rivet--tl" aria-hidden="true"></span>
+        <span class="rivet rivet--tr" aria-hidden="true"></span>
+        <span class="rivet rivet--bl" aria-hidden="true"></span>
+        <span class="rivet rivet--br" aria-hidden="true"></span>
 
-        <div class="google-verified-box">
-            <span class="check-icon">✔</span>
-            <span>VERIFIED: <span class="email-badge">{{ email }}</span></span>
-        </div>
+        <h1 class="carved lid__title">Jumanji</h1>
+        <p class="lid__sub">Technozion X SDC Cyber Tournament</p>
 
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for message in messages %}
-            <p>{{ message }}</p>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
+        <section class="pass parchment">
+            <h2 class="pass__heading">Choose your codename</h2>
+            <p class="pass__lede">It appears on the leaderboard and in your terminal prompt.</p>
 
-        <form action="{{ url_for('choose_username') }}" method="POST">
-            <div class="form-group">
-                <label for="username">SELECT PLAYER USERNAME</label>
-                <input type="text" id="username" name="username" maxlength="20" autocomplete="off" autofocus required
-                    placeholder="e.g. YOUR_USERNAME">
-                <p class="hint">3-20 characters (letters, numbers, _ or -). This codename is linked permanently to your
-                    score and terminal session.</p>
+            <div class="verified">
+                <span class="verified__tick" aria-hidden="true">✓</span>
+                <span>Signed in with Google as <strong>{{ email }}</strong></span>
             </div>
-            <button type="submit" class="submit-btn">ENTER THE JUNGLE</button>
-        </form>
-    </div>
+
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="notice" role="alert">
+                {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('choose_username') }}" method="POST">
+                <div>
+                    <label for="username">Codename</label>
+                    <input class="field" type="text" id="username" name="username" minlength="3" maxlength="20"
+                        pattern="[A-Za-z0-9_\-]{3,20}" autocomplete="off" autocapitalize="none" spellcheck="false"
+                        autofocus required placeholder="e.g. smolder_99" aria-describedby="username-hint">
+                    <p class="pass__hint" id="username-hint">3 to 20 letters, numbers, _ or -. You can't change it later.</p>
+                </div>
+                <button type="submit" class="btn btn--gold btn--block">Enter the jungle</button>
+            </form>
+        </section>
+    </main>
 </body>
 
 </html>

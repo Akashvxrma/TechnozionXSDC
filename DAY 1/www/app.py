@@ -4,6 +4,9 @@ import os
 import pty
 import subprocess
 import select
+import fcntl
+import termios
+import struct
 import urllib.parse
 import requests
 import secrets
@@ -97,17 +100,33 @@ def init_db():
     # Check if legacy columns need renaming or missing columns need adding
     cursor = conn.execute("PRAGMA table_info(users)")
     columns = [col['name'] for col in cursor.fetchall()]
-    
-    if 'round3_points' in columns and 'level2_points' not in columns:
-        conn.execute("ALTER TABLE users RENAME COLUMN round3_points TO level2_points")
-    if 'round3_status' in columns and 'level2_status' not in columns:
-        conn.execute("ALTER TABLE users RENAME COLUMN round3_status TO level2_status")
-    if 'round3_start_time' in columns and 'level2_start_time' not in columns:
-        conn.execute("ALTER TABLE users RENAME COLUMN round3_start_time TO level2_start_time")
-    if 'has_seen_r3_intro' in columns and 'has_seen_l2_intro' not in columns:
-        conn.execute("ALTER TABLE users RENAME COLUMN has_seen_r3_intro TO has_seen_l2_intro")
 
-    # Refresh columns after potential renames
+    if 'level3_points' not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN level3_points INTEGER DEFAULT 0")
+        conn.execute("ALTER TABLE users ADD COLUMN level3_start_time DATETIME")
+        conn.execute("ALTER TABLE users ADD COLUMN level3_status TEXT DEFAULT 'active'")
+        conn.execute("ALTER TABLE users ADD COLUMN has_seen_l3_intro INTEGER DEFAULT 0")
+
+        # Migrate existing users: old level2_points were Mainframe -> migrate to level3
+        conn.execute('''
+            UPDATE users SET 
+                level3_points = level2_points,
+                level3_start_time = level2_start_time,
+                level3_status = level2_status,
+                has_seen_l3_intro = has_seen_l2_intro
+            WHERE (level2_points > 0 OR level2_start_time IS NOT NULL)
+        ''')
+        # Old points were Avatar Reconnaissance -> ensure level2_points has them
+        conn.execute('''
+            UPDATE users SET
+                level2_points = points,
+                level2_start_time = start_time,
+                level2_status = status,
+                has_seen_l2_intro = has_seen_intro
+            WHERE (points > 0 OR start_time IS NOT NULL)
+        ''')
+
+    # Refresh columns after potential additions
     cursor = conn.execute("PRAGMA table_info(users)")
     columns = [col['name'] for col in cursor.fetchall()]
 
@@ -164,32 +183,34 @@ def init_db():
     # Insert default admin user if not exists
     user = conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
     if not user:
-        conn.execute("INSERT INTO users (username, password, role, points, level2_points, status, level2_status, has_seen_intro, has_seen_l2_intro) VALUES ('admin', 'Admin_ShadowDrop!2026', 'admin', 0, 0, 'active', 'active', 1, 1)")
+        conn.execute("INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro) VALUES ('admin', 'Admin_ShadowDrop!2026', 'admin', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1)")
     else:
         # Enforce new secure admin password even if already exists
         conn.execute("UPDATE users SET password = 'Admin_ShadowDrop!2026' WHERE username = 'admin'")
 
-    # Level 1 & Level 2 settings
+    # Day 1 Level 2 (Avatars) & Level 3 (Mainframe) settings
     conn.execute('''
         CREATE TABLE IF NOT EXISTS global_settings (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
-    has_l1 = conn.execute("SELECT 1 FROM global_settings WHERE key = 'level1_unlocked'").fetchone()
-    if not has_l1:
-        conn.execute("UPDATE global_settings SET key = 'level1_unlocked' WHERE key = 'round2_unlocked'")
-    else:
-        conn.execute("DELETE FROM global_settings WHERE key = 'round2_unlocked'")
+    has_l3 = conn.execute("SELECT 1 FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+    if not has_l3:
+        # Migrate: old level2_unlocked was mainframe -> level3_unlocked
+        old_l2 = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+        l3_val = old_l2['value'] if old_l2 else '0'
+        # Old level1_unlocked was avatars -> level2_unlocked
+        old_l1 = conn.execute("SELECT value FROM global_settings WHERE key = 'level1_unlocked'").fetchone()
+        l2_val = old_l1['value'] if old_l1 else '1'
+        conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level3_unlocked', ?)", (l3_val,))
+        conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level2_unlocked', ?)", (l2_val,))
 
-    has_l2 = conn.execute("SELECT 1 FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
-    if not has_l2:
-        conn.execute("UPDATE global_settings SET key = 'level2_unlocked' WHERE key = 'round3_unlocked'")
-    else:
-        conn.execute("DELETE FROM global_settings WHERE key = 'round3_unlocked'")
-
-    conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level1_unlocked', '1')")
-    conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level2_unlocked', '0')")
+    conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level2_unlocked', '1')")
+    conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('level3_unlocked', '0')")
+    conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level1_unlocked', (SELECT value FROM global_settings WHERE key = 'level2_unlocked'))")
+    conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round2_unlocked', (SELECT value FROM global_settings WHERE key = 'level2_unlocked'))")
+    conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round3_unlocked', (SELECT value FROM global_settings WHERE key = 'level3_unlocked'))")
     # Day visibility on the player hub (hidden days are not shown and cannot be entered)
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('day1_visible', '1')")
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('day2_visible', '0')")
@@ -309,27 +330,38 @@ def hub():
         return redirect(url_for('login'))
         
     conn = get_db_connection()
-    l1_unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level1_unlocked'").fetchone()['value'] == '1'
-    l2_unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()['value'] == '1'
+    l2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+    l2_unlocked = (l2_row['value'] == '1') if l2_row else True
+    l3_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+    l3_unlocked = (l3_row['value'] == '1') if l3_row else False
     day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
     user = conn.execute("SELECT * FROM users WHERE id = ?", (session['user_id'],)).fetchone()
     conn.close()
 
-    can_play_l1 = day1_visible and l1_unlocked and user['status'] == 'active' and (user['points'] or 0) < 150
-    can_play_l2 = day1_visible and l2_unlocked and user['level2_status'] == 'active' and (user['level2_points'] or 0) < 200
+    l2_pts = user['level2_points'] or user['points'] or 0
+    l3_pts = user['level3_points'] or 0
+    l2_status = user['level2_status'] or user['status'] or 'active'
+    l3_status = user['level3_status'] or 'active'
+
+    can_play_l2 = day1_visible and l2_unlocked and l2_status == 'active' and l2_pts < 150
+    can_play_l3 = day1_visible and l3_unlocked and l3_status == 'active' and l3_pts < 200
 
     return render_template(
         'hub.html',
         user=user,
-        can_play_l1=can_play_l1,
         can_play_l2=can_play_l2,
-        level1_unlocked=l1_unlocked,
+        can_play_l3=can_play_l3,
         level2_unlocked=l2_unlocked,
-        can_play_r2=can_play_l1,
-        can_play_r3=can_play_l2,
-        r2_unlocked=l1_unlocked,
-        r3_unlocked=l2_unlocked,
+        level3_unlocked=l3_unlocked,
+        can_play_l1=can_play_l2,
+        can_play_r2=can_play_l2,
+        can_play_r3=can_play_l3,
+        level1_unlocked=l2_unlocked,
+        round2_unlocked=l2_unlocked,
+        round3_unlocked=l3_unlocked,
+        r2_unlocked=l2_unlocked,
+        r3_unlocked=l3_unlocked,
         day1_visible=day1_visible,
         day2_visible=day2_visible
     )
@@ -341,25 +373,27 @@ def check_timer():
         
     if 'user_id' in session and session.get('role') != 'admin':
         conn = get_db_connection()
-        user = conn.execute("SELECT start_time, status, level2_start_time, level2_status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        user = conn.execute("SELECT start_time, status, level2_start_time, level2_status, level3_start_time, level3_status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
         
         if user:
             needs_commit = False
-            # Check Level 1 timer
-            if user['start_time'] and user['status'] != 'suspended':
-                start_time = datetime.fromisoformat(user['start_time'])
+            # Check Level 2 timer (Avatars)
+            l2_start = user['level2_start_time'] or user['start_time']
+            l2_stat = user['level2_status'] or user['status']
+            if l2_start and l2_stat != 'suspended':
+                start_time = datetime.fromisoformat(l2_start)
                 if get_utc_now() > start_time + timedelta(minutes=60):
-                    conn.execute("UPDATE users SET status = 'suspended' WHERE id = ?", (session['user_id'],))
-                    needs_commit = True
-                    flash('DAY 1 LEVEL 1 TIME IS UP. ACCOUNT SUSPENDED FROM LEVEL 1.')
-            
-            # Check Level 2 timer
-            if user['level2_start_time'] and user['level2_status'] != 'suspended':
-                l2_start_time = datetime.fromisoformat(user['level2_start_time'])
-                if get_utc_now() > l2_start_time + timedelta(minutes=60):
-                    conn.execute("UPDATE users SET level2_status = 'suspended' WHERE id = ?", (session['user_id'],))
+                    conn.execute("UPDATE users SET level2_status = 'suspended', status = 'suspended' WHERE id = ?", (session['user_id'],))
                     needs_commit = True
                     flash('DAY 1 LEVEL 2 TIME IS UP. ACCOUNT SUSPENDED FROM LEVEL 2.')
+            
+            # Check Level 3 timer (Mainframe)
+            if user['level3_start_time'] and user['level3_status'] != 'suspended':
+                l3_start_time = datetime.fromisoformat(user['level3_start_time'])
+                if get_utc_now() > l3_start_time + timedelta(minutes=60):
+                    conn.execute("UPDATE users SET level3_status = 'suspended' WHERE id = ?", (session['user_id'],))
+                    needs_commit = True
+                    flash('DAY 1 LEVEL 3 TIME IS UP. ACCOUNT SUSPENDED FROM LEVEL 3.')
                     
             if needs_commit:
                 conn.commit()
@@ -407,8 +441,8 @@ def auth_launch():
             suffix += 1
 
         conn.execute('''
-            INSERT INTO users (username, password, role, points, level2_points, status, level2_status, has_seen_intro, has_seen_l2_intro, participant_id, authorized_levels, email, name)
-            VALUES (?, ?, 'player', 0, 0, 'active', 'active', 0, 0, ?, ?, ?, ?)
+            INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
+            VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
         ''', (username, 'ShadowDrop2026!', participant_id, auth_levels_json, email, name))
         conn.commit()
         user = conn.execute("SELECT * FROM users WHERE participant_id = ?", (participant_id,)).fetchone()
@@ -428,17 +462,20 @@ def auth_launch():
     session['participant_id'] = participant_id
     session['role'] = user['role']
     session['authorized_levels'] = authorized_levels
-    session['points'] = user['points'] or 0
-    session['level2_points'] = user['level2_points'] or 0
-    session['round3_points'] = user['level2_points'] or 0
+    l2_pts = user['level2_points'] or user['points'] or 0
+    l3_pts = user['level3_points'] or 0
+    session['points'] = l2_pts
+    session['level2_points'] = l2_pts
+    session['level3_points'] = l3_pts
+    session['round3_points'] = l3_pts
 
     target_param = str(request.args.get('level', '')).lower()
-    if target_param in ['3', 'round3', 'r3', 'level2', 'l2', 'day1-l2', 'day-1-l2'] or req_level == 3:
-        return redirect(url_for('level2'))
+    if target_param in ['3', 'round3', 'r3', 'level3', 'l3', 'day1-l3', 'day-1-l3'] or req_level == 3:
+        return redirect(url_for('level3'))
     elif target_param in ['day2-l2', 'day-2-l2', 'day2', 'gauntlet']:
         return redirect(url_for('day2_level2'))
     else:
-        return redirect(url_for('level1'))
+        return redirect(url_for('level2'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -448,15 +485,19 @@ def login():
         
         conn = get_db_connection()
         user = conn.execute('''
-            SELECT id, username, participant_id, role, points, level2_points, start_time, level2_start_time, status, level2_status, authorized_levels 
+            SELECT id, username, participant_id, role, points, level2_points, level3_points, start_time, level2_start_time, level3_start_time, status, level2_status, level3_status, authorized_levels 
             FROM users 
             WHERE (username = ? OR participant_id = ?) AND password = ?
         ''', (username, username, password)).fetchone()
         
         if user:
-            if user['status'] == 'suspended' and (user['points'] or 0) >= 150 and (user['level2_points'] or 0) >= 200:
+            l2_pts = user['level2_points'] or user['points'] or 0
+            l3_pts = user['level3_points'] or 0
+            l2_stat = user['level2_status'] or user['status']
+            l3_stat = user['level3_status']
+            if l2_stat == 'suspended' and l3_stat == 'suspended' and l2_pts >= 150 and l3_pts >= 200:
                 conn.close()
-                flash('ACCOUNT SUSPENDED: ALL LEVELS COMPLETED.')
+                flash('ACCOUNT SUSPENDED: ALL DAY 1 LEVELS COMPLETED.')
                 return render_template('login.html')
                 
             conn.close()
@@ -464,9 +505,10 @@ def login():
             session['username'] = user['username']
             session['participant_id'] = user['participant_id']
             session['role'] = user['role']
-            session['points'] = user['points'] or 0
-            session['level2_points'] = user['level2_points'] or 0
-            session['round3_points'] = user['level2_points'] or 0
+            session['points'] = l2_pts
+            session['level2_points'] = l2_pts
+            session['level3_points'] = l3_pts
+            session['round3_points'] = l3_pts
             try:
                 session['authorized_levels'] = json.loads(user['authorized_levels']) if user['authorized_levels'] else [2, 3]
             except Exception:
@@ -665,12 +707,12 @@ def admin():
         if action == 'update':
             user_id = request.form.get('user_id')
             new_points = request.form.get('points')
-            level_num = request.form.get('level') or request.form.get('round')
+            level_num = str(request.form.get('level') or request.form.get('round') or '2')
             if user_id and new_points is not None:
-                if level_num in ('2', '3'):
-                    conn.execute("UPDATE users SET level2_points = ? WHERE id = ?", (new_points, user_id))
+                if level_num in ('3', 'round3', 'level3'):
+                    conn.execute("UPDATE users SET level3_points = ? WHERE id = ?", (new_points, user_id))
                 else:
-                    conn.execute("UPDATE users SET points = ? WHERE id = ?", (new_points, user_id))
+                    conn.execute("UPDATE users SET level2_points = ?, points = ? WHERE id = ?", (new_points, new_points, user_id))
                 conn.commit()
                 flash('Points updated successfully.')
         elif action == 'delete':
@@ -685,22 +727,27 @@ def admin():
                     flash('User deleted successfully.')
                 else:
                     flash('Cannot delete admin account.')
-        elif action in ('toggle_level2', 'toggle_round3'):
+        elif action in ('toggle_level3', 'toggle_round3'):
+            current = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+            cur_val = current['value'] if current else '0'
+            new_val = '1' if cur_val == '0' else '0'
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level3_unlocked', ?)", (new_val,))
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round3_unlocked', ?)", (new_val,))
+            conn.commit()
+            if new_val == '0':
+                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level3_' --filter 'name=jumanji_r3_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            flash(f"Day 1 Level 3 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
+        elif action in ('toggle_level2', 'toggle_level1', 'toggle_round2'):
             current = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
-            new_val = '1' if current['value'] == '0' else '0'
-            conn.execute("UPDATE global_settings SET value = ? WHERE key = 'level2_unlocked'", (new_val,))
+            cur_val = current['value'] if current else '0'
+            new_val = '1' if cur_val == '0' else '0'
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level2_unlocked', ?)", (new_val,))
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level1_unlocked', ?)", (new_val,))
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round2_unlocked', ?)", (new_val,))
             conn.commit()
             if new_val == '0':
-                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level2_' --filter 'name=jumanji_r3_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level2_' --filter 'name=jumanji_day1_level1_' --filter 'name=jumanji_r2_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             flash(f"Day 1 Level 2 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
-        elif action in ('toggle_level1', 'toggle_round2'):
-            current = conn.execute("SELECT value FROM global_settings WHERE key = 'level1_unlocked'").fetchone()
-            new_val = '1' if current['value'] == '0' else '0'
-            conn.execute("UPDATE global_settings SET value = ? WHERE key = 'level1_unlocked'", (new_val,))
-            conn.commit()
-            if new_val == '0':
-                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level1_' --filter 'name=jumanji_r2_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            flash(f"Day 1 Level 1 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
         elif action in ('toggle_day1', 'toggle_day2'):
             key = 'day1_visible' if action == 'toggle_day1' else 'day2_visible'
             current = conn.execute("SELECT value FROM global_settings WHERE key = ?", (key,)).fetchone()
@@ -711,37 +758,40 @@ def admin():
             flash(f"{day_label} is now {'VISIBLE' if new_val == '1' else 'HIDDEN'} on the player hub")
         elif action == 'toggle_status':
             user_id = request.form.get('user_id')
-            level_num = request.form.get('level') or request.form.get('round')
+            level_num = str(request.form.get('level') or request.form.get('round') or '2')
             if user_id:
-                if level_num in ('2', '3'):
-                    cur_stat = conn.execute("SELECT level2_status FROM users WHERE id = ?", (user_id,)).fetchone()
-                    new_stat = 'active' if (cur_stat and cur_stat['level2_status'] == 'suspended') else 'suspended'
-                    conn.execute("UPDATE users SET level2_status = ? WHERE id = ?", (new_stat, user_id))
+                if level_num in ('3', 'round3', 'level3'):
+                    cur_stat = conn.execute("SELECT level3_status FROM users WHERE id = ?", (user_id,)).fetchone()
+                    new_stat = 'active' if (cur_stat and cur_stat['level3_status'] == 'suspended') else 'suspended'
+                    conn.execute("UPDATE users SET level3_status = ? WHERE id = ?", (new_stat, user_id))
+                    conn.commit()
+                    flash(f"Day 1 Level 3 status updated to {new_stat.upper()} for player #{user_id}.")
+                else:
+                    cur_stat = conn.execute("SELECT level2_status, status FROM users WHERE id = ?", (user_id,)).fetchone()
+                    cur_val = (cur_stat['level2_status'] or cur_stat['status']) if cur_stat else 'active'
+                    new_stat = 'active' if cur_val == 'suspended' else 'suspended'
+                    conn.execute("UPDATE users SET level2_status = ?, status = ? WHERE id = ?", (new_stat, new_stat, user_id))
                     conn.commit()
                     flash(f"Day 1 Level 2 status updated to {new_stat.upper()} for player #{user_id}.")
-                else:
-                    cur_stat = conn.execute("SELECT status FROM users WHERE id = ?", (user_id,)).fetchone()
-                    new_stat = 'active' if (cur_stat and cur_stat['status'] == 'suspended') else 'suspended'
-                    conn.execute("UPDATE users SET status = ? WHERE id = ?", (new_stat, user_id))
-                    conn.commit()
-                    flash(f"Day 1 Level 1 status updated to {new_stat.upper()} for player #{user_id}.")
         elif action == 'reset_timer':
             user_id = request.form.get('user_id')
-            level_num = request.form.get('level') or request.form.get('round')
+            level_num = str(request.form.get('level') or request.form.get('round') or '2')
             if user_id:
-                if level_num in ('2', '3'):
-                    conn.execute("UPDATE users SET level2_start_time = NULL, level2_status = 'active', has_seen_l2_intro = 0 WHERE id = ?", (user_id,))
+                if level_num in ('3', 'round3', 'level3'):
+                    conn.execute("UPDATE users SET level3_start_time = NULL, level3_status = 'active', has_seen_l3_intro = 0 WHERE id = ?", (user_id,))
+                    conn.commit()
+                    flash(f"Day 1 Level 3 timer reset for player #{user_id}. Ready for fresh session.")
+                else:
+                    conn.execute("UPDATE users SET level2_start_time = NULL, start_time = NULL, level2_status = 'active', status = 'active', has_seen_l2_intro = 0, has_seen_intro = 0 WHERE id = ?", (user_id,))
                     conn.commit()
                     flash(f"Day 1 Level 2 timer reset for player #{user_id}. Ready for fresh session.")
-                else:
-                    conn.execute("UPDATE users SET start_time = NULL, status = 'active', has_seen_intro = 0 WHERE id = ?", (user_id,))
-                    conn.commit()
-                    flash(f"Day 1 Level 1 timer reset for player #{user_id}. Ready for fresh session.")
             
-    users_l1 = conn.execute("SELECT * FROM users ORDER BY points DESC").fetchall()
-    users_l2 = conn.execute("SELECT * FROM users ORDER BY level2_points DESC").fetchall()
-    level1_unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level1_unlocked'").fetchone()['value'] == '1'
-    level2_unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()['value'] == '1'
+    users_l2 = conn.execute("SELECT * FROM users ORDER BY COALESCE(level2_points, points, 0) DESC").fetchall()
+    users_l3 = conn.execute("SELECT * FROM users ORDER BY COALESCE(level3_points, 0) DESC").fetchall()
+    l2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+    level2_unlocked = (l2_row['value'] == '1') if l2_row else True
+    l3_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+    level3_unlocked = (l3_row['value'] == '1') if l3_row else False
     day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
     conn.close()
@@ -754,23 +804,33 @@ def admin():
         'suspended': 0,
         'l2_completed': 0,
         'l2_suspended': 0,
+        'l3_completed': 0,
+        'l3_suspended': 0,
         'r3_completed': 0,
         'r3_suspended': 0
     }
     
-    for u in users_l1:
+    for u in users_l2:
         if u['role'] == 'admin': continue
         
-        # Level 1 Stats
-        if u['points'] >= 150: stats['completed'] += 1
-        if u['status'] == 'suspended': stats['suspended'] += 1
-        
-        # Level 2 Stats
-        if (u['level2_points'] or 0) >= 200:
+        # Level 2 Stats (Avatars, 150 pts max)
+        pts_l2 = u['level2_points'] or u['points'] or 0
+        stat_l2 = u['level2_status'] or u['status'] or 'active'
+        if pts_l2 >= 150:
+            stats['completed'] += 1
             stats['l2_completed'] += 1
-            stats['r3_completed'] += 1
-        if u['level2_status'] == 'suspended':
+        if stat_l2 == 'suspended':
+            stats['suspended'] += 1
             stats['l2_suspended'] += 1
+        
+        # Level 3 Stats (Mainframe, 200 pts max)
+        pts_l3 = u['level3_points'] or 0
+        stat_l3 = u['level3_status'] or 'active'
+        if pts_l3 >= 200:
+            stats['l3_completed'] += 1
+            stats['r3_completed'] += 1
+        if stat_l3 == 'suspended':
+            stats['l3_suspended'] += 1
             stats['r3_suspended'] += 1
         
         if u['last_active']:
@@ -784,15 +844,17 @@ def admin():
             
     return render_template(
         'admin.html',
-        users_l1=users_l1,
+        users_l1=users_l2,
         users_l2=users_l2,
-        users_r2=users_l1,
-        users_r3=users_l2,
+        users_l3=users_l3,
+        users_r2=users_l2,
+        users_r3=users_l3,
         stats=stats,
-        level1_unlocked=level1_unlocked,
+        level1_unlocked=level2_unlocked,
         level2_unlocked=level2_unlocked,
-        round2_unlocked=level1_unlocked,
-        round3_unlocked=level2_unlocked,
+        level3_unlocked=level3_unlocked,
+        round2_unlocked=level2_unlocked,
+        round3_unlocked=level3_unlocked,
         day1_visible=day1_visible,
         day2_visible=day2_visible
     )
@@ -832,8 +894,8 @@ def sync_sdc_roster():
                     username = f"{base_username}_{suffix}"
                     suffix += 1
                 conn.execute('''
-                    INSERT INTO users (username, password, role, points, level2_points, status, level2_status, has_seen_intro, has_seen_l2_intro, participant_id, authorized_levels, email, name)
-                    VALUES (?, ?, 'player', 0, 0, 'active', 'active', 0, 0, ?, ?, ?, ?)
+                    INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
+                    VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
                 ''', (username, 'ShadowDrop2026!', pid, auth_levels, email, name))
                 synced_count += 1
             else:
@@ -848,35 +910,14 @@ def sync_sdc_roster():
         flash(f"Roster sync error: {e}")
     return redirect(url_for('admin'))
 
+@app.route('/admin/export-scores/level2')
 @app.route('/admin/export-scores/level1')
 @app.route('/admin/export-scores/round2')
-def export_scores_l1():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        return redirect(url_for('login'))
-    conn = get_db_connection()
-    users = conn.execute("SELECT participant_id, username, points FROM users WHERE role != 'admin' ORDER BY points DESC").fetchall()
-    conn.close()
-    
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['participantId', 'score'])
-    for u in users:
-        pid = u['participant_id'] or u['username']
-        writer.writerow([pid, u['points'] or 0])
-        
-    return Response(
-        output.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=sdc_day1_level1_cybersec_scores.csv'}
-    )
-
-@app.route('/admin/export-scores/level2')
-@app.route('/admin/export-scores/round3')
 def export_scores_l2():
     if 'user_id' not in session or session.get('role') != 'admin':
         return redirect(url_for('login'))
     conn = get_db_connection()
-    users = conn.execute("SELECT participant_id, username, level2_points FROM users WHERE role != 'admin' ORDER BY level2_points DESC").fetchall()
+    users = conn.execute("SELECT participant_id, username, COALESCE(level2_points, points, 0) as score FROM users WHERE role != 'admin' ORDER BY score DESC").fetchall()
     conn.close()
     
     output = io.StringIO()
@@ -884,12 +925,34 @@ def export_scores_l2():
     writer.writerow(['participantId', 'score'])
     for u in users:
         pid = u['participant_id'] or u['username']
-        writer.writerow([pid, u['level2_points'] or 0])
+        writer.writerow([pid, u['score'] or 0])
         
     return Response(
         output.getvalue(),
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=sdc_day1_level2_cybersec_scores.csv'}
+    )
+
+@app.route('/admin/export-scores/level3')
+@app.route('/admin/export-scores/round3')
+def export_scores_l3():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    conn = get_db_connection()
+    users = conn.execute("SELECT participant_id, username, COALESCE(level3_points, 0) as score FROM users WHERE role != 'admin' ORDER BY score DESC").fetchall()
+    conn.close()
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['participantId', 'score'])
+    for u in users:
+        pid = u['participant_id'] or u['username']
+        writer.writerow([pid, u['score'] or 0])
+        
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=sdc_day1_level3_cybersec_scores.csv'}
     )
 
 @app.route('/api/admin/user/<int:user_id>/flags', methods=['GET'])
@@ -910,8 +973,8 @@ def get_user_flags(user_id):
         
     return jsonify({'status': 'success', 'flags': flag_list})
 
-@app.route('/level1')
-def level1():
+@app.route('/level2')
+def level2():
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
@@ -920,61 +983,154 @@ def level1():
 
     auth_levels = session.get('authorized_levels')
     if auth_levels is not None and 2 not in auth_levels and 1 not in auth_levels:
-        flash('Your team is not registered for Cybersecurity in Level 1.')
+        flash('Your team is not registered for Cybersecurity in Day 1 Level 2.')
         return redirect(url_for('hub'))
         
     conn = get_db_connection()
-    l1_unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level1_unlocked'").fetchone()['value'] == '1'
+    l2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+    l2_unlocked = (l2_row['value'] == '1') if l2_row else True
     day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
-    user = conn.execute("SELECT start_time, has_seen_intro, points, status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+    user = conn.execute("SELECT start_time, level2_start_time, has_seen_intro, has_seen_l2_intro, points, level2_points, status, level2_status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
 
-    if not day1_visible or not l1_unlocked or user['status'] == 'suspended' or user['points'] >= 150:
+    pts = user['level2_points'] or user['points'] or 0
+    stat = user['level2_status'] or user['status'] or 'active'
+
+    if not day1_visible or not l2_unlocked or stat == 'suspended' or pts >= 150:
         conn.close()
         return redirect(url_for('hub'))
         
-    if not user['start_time']:
-        start_time = get_utc_now().isoformat()
-        conn.execute("UPDATE users SET start_time = ? WHERE id = ?", (start_time, session['user_id']))
+    start_val = user['level2_start_time'] or user['start_time']
+    if not start_val:
+        start_time_iso = get_utc_now().isoformat()
+        conn.execute("UPDATE users SET level2_start_time = ?, start_time = ? WHERE id = ?", (start_time_iso, start_time_iso, session['user_id']))
         conn.commit()
-        user = conn.execute("SELECT start_time, has_seen_intro, points, status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        user = conn.execute("SELECT start_time, level2_start_time, has_seen_intro, has_seen_l2_intro, points, level2_points, status, level2_status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        start_val = start_time_iso
         
     conn.close()
     
-    start_time = datetime.fromisoformat(user['start_time'])
-    time_elapsed = (get_utc_now() - start_time).total_seconds()
+    start_dt = datetime.fromisoformat(start_val)
+    time_elapsed = (get_utc_now() - start_dt).total_seconds()
     remaining_seconds = max(0, 3600 - time_elapsed)
+    seen_intro = 1 if (user['has_seen_l2_intro'] or user['has_seen_intro']) else 0
             
-    return render_template('level1.html', remaining_seconds=int(remaining_seconds), has_seen_intro=user['has_seen_intro'], initial_points=user['points'])
+    return render_template('level2.html', remaining_seconds=int(remaining_seconds), has_seen_intro=seen_intro, has_seen_l2_intro=seen_intro, initial_points=pts)
 
+@app.route('/level1')
 @app.route('/dashboard')
-def dashboard():
-    return level1()
+@app.route('/round2')
+def redirect_to_level2():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return redirect(url_for('level2'))
 
+@app.route('/api/start_level2', methods=['POST'])
 @app.route('/api/set_intro_watched', methods=['POST'])
-def set_intro_watched():
+def start_level2():
     if 'user_id' in session:
         conn = get_db_connection()
-        conn.execute("UPDATE users SET has_seen_intro = 1 WHERE id = ?", (session['user_id'],))
-        conn.commit()
-        conn.close()
-    return jsonify({'status': 'success'})
-
-@app.route('/reset_level1_intro', methods=['POST'])
-@app.route('/reset_intro', methods=['POST'])
-def reset_level1_intro():
-    if 'user_id' in session:
-        conn = get_db_connection()
-        conn.execute("UPDATE users SET has_seen_intro = 0 WHERE id = ?", (session['user_id'],))
+        user = conn.execute("SELECT level2_start_time, start_time FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+        start_val = user['level2_start_time'] or user['start_time'] if user else None
+        if not start_val:
+            now_iso = get_utc_now().isoformat()
+            conn.execute("UPDATE users SET level2_start_time = ?, start_time = ?, has_seen_l2_intro = 1, has_seen_intro = 1 WHERE id = ?", (now_iso, now_iso, session['user_id']))
+        else:
+            conn.execute("UPDATE users SET has_seen_l2_intro = 1, has_seen_intro = 1 WHERE id = ?", (session['user_id'],))
         conn.commit()
         conn.close()
     return jsonify({'status': 'success'})
 
 @app.route('/reset_level2_intro', methods=['POST'])
-@app.route('/reset_r3_intro', methods=['POST'])
+@app.route('/reset_level1_intro', methods=['POST'])
+@app.route('/reset_intro', methods=['POST'])
 def reset_level2_intro():
     if 'user_id' in session:
         conn = get_db_connection()
-        conn.execute("UPDATE users SET has_seen_l2_intro = 0 WHERE id = ?", (session['user_id'],))
+        conn.execute("UPDATE users SET has_seen_l2_intro = 0, has_seen_intro = 0 WHERE id = ?", (session['user_id'],))
+        conn.commit()
+        conn.close()
+    return jsonify({'status': 'success'})
+
+@app.route('/level3')
+def level3():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    if session.get('role') == 'admin':
+        return redirect(url_for('admin'))
+
+    auth_levels = session.get('authorized_levels')
+    if auth_levels is not None and 3 not in auth_levels and 2 not in auth_levels:
+        flash('Your team is not registered for Cybersecurity in Day 1 Level 3.')
+        return redirect(url_for('hub'))
+        
+    conn = get_db_connection()
+    l3_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+    unlocked = (l3_row['value'] == '1') if l3_row else False
+    day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
+    user = conn.execute("SELECT level3_start_time, level3_status, level3_points, has_seen_l3_intro FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+
+    pts = user['level3_points'] or 0
+    stat = user['level3_status'] or 'active'
+
+    if not day1_visible or not unlocked or stat == 'suspended' or pts >= 200:
+        conn.close()
+        return redirect(url_for('hub'))
+        
+    if not user['level3_start_time']:
+        remaining_seconds = 3600
+    else:
+        start_time = datetime.fromisoformat(user['level3_start_time'])
+        time_elapsed = (get_utc_now() - start_time).total_seconds()
+        remaining_seconds = max(0, 3600 - time_elapsed)
+    
+    solved_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_user', 'level2_user', 'round3_user')", (session['user_id'],)).fetchone() is not None
+    solved_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_root', 'level2_root', 'round3_root')", (session['user_id'],)).fetchone() is not None
+    
+    conn.close()
+    seen_intro = 1 if user['has_seen_l3_intro'] else 0
+    
+    return render_template(
+        'level3.html',
+        points=pts,
+        solved_user=solved_user,
+        solved_root=solved_root,
+        remaining_seconds=int(remaining_seconds),
+        has_seen_l3_intro=seen_intro,
+        has_seen_l2_intro=seen_intro,
+        round3_points=pts,
+        has_seen_r3_intro=seen_intro
+    )
+
+@app.route('/round3')
+def round3():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return redirect(url_for('level3'))
+
+@app.route('/api/start_level3', methods=['POST'])
+@app.route('/api/start_r3', methods=['POST'])
+def start_level3():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    conn = get_db_connection()
+    user = conn.execute("SELECT level3_start_time FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+    if not user['level3_start_time']:
+        l3_start_time = get_utc_now().isoformat()
+        conn.execute("UPDATE users SET level3_start_time = ?, has_seen_l3_intro = 1 WHERE id = ?", (l3_start_time, session['user_id']))
+        conn.commit()
+    else:
+        conn.execute("UPDATE users SET has_seen_l3_intro = 1 WHERE id = ?", (session['user_id'],))
+        conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
+@app.route('/reset_level3_intro', methods=['POST'])
+@app.route('/reset_r3_intro', methods=['POST'])
+def reset_level3_intro():
+    if 'user_id' in session:
+        conn = get_db_connection()
+        conn.execute("UPDATE users SET has_seen_l3_intro = 0 WHERE id = ?", (session['user_id'],))
         conn.commit()
         conn.close()
     return jsonify({'status': 'success'})
@@ -985,6 +1141,8 @@ SCORE_MATRIX = {
     'finbar': 25,
     'ruby': 30,
     'seaplane': 50,
+    'level3_user': 80,
+    'level3_root': 120,
     'level2_user': 80,
     'level2_root': 120,
     'round3_user': 80,
@@ -996,12 +1154,12 @@ import hashlib
 def generate_dynamic_flag(user_id, avatar_id):
     secret = "8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
     
-    if avatar_id in ('level2_user', 'round3_user'):
+    if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
         hash_input = f"{user_id}:user:{secret}"
         hex_digest = hashlib.md5(hash_input.encode()).hexdigest()[:8]
         return f"OVERRIDE-USER-{hex_digest}"
     
-    if avatar_id in ('level2_root', 'round3_root'):
+    if avatar_id in ('level3_root', 'level2_root', 'round3_root'):
         hash_input = f"{user_id}:root:{secret}"
         hex_digest = hashlib.md5(hash_input.encode()).hexdigest()[:8]
         return f"OVERRIDE-ROOT-{hex_digest}"
@@ -1049,15 +1207,16 @@ def submit_score():
     avatar_id = data.get('avatar_id')
     submitted_flag = data.get('flag', '').strip()
     
-    if avatar_id in ('level2', 'round3'):
-        expected_user = generate_dynamic_flag(user_id, 'level2_user')
-        expected_root = generate_dynamic_flag(user_id, 'level2_root')
+    if avatar_id in ('level3', 'level2', 'round3', 'level2_mainframe'):
+        expected_user = generate_dynamic_flag(user_id, 'level3_user')
+        expected_root = generate_dynamic_flag(user_id, 'level3_root')
         if submitted_flag == expected_user:
-            avatar_id = 'level2_user'
+            avatar_id = 'level3_user'
         elif submitted_flag == expected_root:
-            avatar_id = 'level2_root'
+            avatar_id = 'level3_root'
         else:
-            return jsonify({'status': 'invalid_flag', 'error': 'INCORRECT OVERRIDE CODE!'}), 400
+            if not (submitted_flag.startswith('JUMANJI{') and '_' in submitted_flag):
+                return jsonify({'status': 'invalid_flag', 'error': 'INCORRECT OVERRIDE CODE!'}), 400
 
     if avatar_id not in SCORE_MATRIX:
         if submitted_flag.startswith('JUMANJI{') and '_' in submitted_flag:
@@ -1065,9 +1224,9 @@ def submit_score():
             if inferred in SCORE_MATRIX:
                 avatar_id = inferred
         elif submitted_flag.startswith('OVERRIDE-USER-'):
-            avatar_id = 'level2_user'
+            avatar_id = 'level3_user'
         elif submitted_flag.startswith('OVERRIDE-ROOT-'):
-            avatar_id = 'level2_root'
+            avatar_id = 'level3_root'
 
     if avatar_id not in SCORE_MATRIX:
         return jsonify({'error': 'Invalid checkpoint'}), 400
@@ -1079,9 +1238,14 @@ def submit_score():
     points_to_add = SCORE_MATRIX[avatar_id]
     
     conn = get_db_connection()
-    # Check if already solved (check canonical and alias)
-    alias_id = 'round3_user' if avatar_id == 'level2_user' else ('round3_root' if avatar_id == 'level2_root' else ('level2_user' if avatar_id == 'round3_user' else ('level2_root' if avatar_id == 'round3_root' else avatar_id)))
-    solved = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN (?, ?)", (user_id, avatar_id, alias_id)).fetchone()
+    alias_ids = [avatar_id]
+    if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
+        alias_ids = ['level3_user', 'level2_user', 'round3_user']
+    elif avatar_id in ('level3_root', 'level2_root', 'round3_root'):
+        alias_ids = ['level3_root', 'level2_root', 'round3_root']
+
+    placeholders = ', '.join(['?'] * len(alias_ids))
+    solved = conn.execute(f"SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ({placeholders})", [user_id] + alias_ids).fetchone()
     
     if solved:
         conn.close()
@@ -1091,27 +1255,26 @@ def submit_score():
     solved_time = get_utc_now().isoformat()
     conn.execute("INSERT INTO solved_challenges (user_id, challenge_id, solved_at) VALUES (?, ?, ?)", (user_id, avatar_id, solved_time))
     
-    is_level2 = avatar_id in ['round3_user', 'round3_root', 'level2_user', 'level2_root']
+    is_level3 = avatar_id in ['level3_user', 'level3_root', 'level2_user', 'level2_root', 'round3_user', 'round3_root']
     
-    if is_level2:
-        conn.execute("UPDATE users SET level2_points = level2_points + ? WHERE id = ?", (points_to_add, user_id))
+    if is_level3:
+        conn.execute("UPDATE users SET level3_points = COALESCE(level3_points, 0) + ? WHERE id = ?", (points_to_add, user_id))
+        conn.commit()
+        new_points = conn.execute("SELECT level3_points FROM users WHERE id = ?", (user_id,)).fetchone()['level3_points']
+        session['level3_points'] = new_points
+        session['round3_points'] = new_points
+        sdc_round_id = 'day-1-l3'
     else:
-        conn.execute("UPDATE users SET points = points + ? WHERE id = ?", (points_to_add, user_id))
-    conn.commit()
-    
-    # Get new total
-    if is_level2:
+        conn.execute("UPDATE users SET level2_points = COALESCE(level2_points, 0) + ?, points = COALESCE(points, 0) + ? WHERE id = ?", (points_to_add, points_to_add, user_id))
+        conn.commit()
         new_points = conn.execute("SELECT level2_points FROM users WHERE id = ?", (user_id,)).fetchone()['level2_points']
         session['level2_points'] = new_points
-        session['round3_points'] = new_points
-    else:
-        new_points = conn.execute("SELECT points FROM users WHERE id = ?", (user_id,)).fetchone()['points']
         session['points'] = new_points
+        sdc_round_id = 'day-1-l2'
 
     # Real-time automated score ingestion into SDC Games
     user_row = conn.execute("SELECT participant_id FROM users WHERE id = ?", (user_id,)).fetchone()
     p_id = (user_row['participant_id'] if user_row and user_row['participant_id'] else session.get('participant_id'))
-    sdc_round_id = 'day-1-l2' if is_level2 else 'day-1-l1'
 
     if p_id:
         success = dispatch_score_to_sdc_games(p_id, sdc_round_id, new_points, avatar_id, points_to_add)
@@ -1119,75 +1282,28 @@ def submit_score():
             record_pending_sync(p_id, sdc_round_id, new_points, avatar_id, points_to_add)
     
     if sid:
-        if is_level2:
-            l2_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('round3_user', 'level2_user')", (user_id,)).fetchone()
-            l2_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('round3_root', 'level2_root')", (user_id,)).fetchone()
-            if l2_user and l2_root:
-                conn.execute("UPDATE users SET level2_status = 'suspended' WHERE id = ?", (user_id,))
+        if is_level3:
+            l3_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_user', 'level2_user', 'round3_user')", (user_id,)).fetchone()
+            l3_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_root', 'level2_root', 'round3_root')", (user_id,)).fetchone()
+            if l3_user and l3_root:
+                conn.execute("UPDATE users SET level3_status = 'suspended' WHERE id = ?", (user_id,))
                 conn.commit()
+                socketio.emit('game-win-level3', {}, room=sid)
                 socketio.emit('game-win-level2', {}, room=sid)
                 socketio.emit('game-win-r3', {}, room=sid)
             else:
                 socketio.emit('score-update', {'new_points': new_points}, room=sid)
         else:
             socketio.emit('score-update', {'new_points': new_points}, room=sid)
+            if new_points >= 150:
+                conn.execute("UPDATE users SET level2_status = 'suspended', status = 'suspended' WHERE id = ?", (user_id,))
+                conn.commit()
+                socketio.emit('game-win', {}, room=sid)
             
         socketio.emit('flag-solved', {'avatar_id': avatar_id}, room=sid)
-        
-        if not is_level2 and new_points >= 150:
-            socketio.emit('game-win', {}, room=sid)
             
     conn.close()
     return jsonify({'status': 'success', 'points_awarded': points_to_add, 'total_points': new_points})
-
-@app.route('/level2')
-def level2():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-        
-    if session.get('role') == 'admin':
-        return redirect(url_for('admin'))
-
-    auth_levels = session.get('authorized_levels')
-    if auth_levels is not None and 3 not in auth_levels and 2 not in auth_levels:
-        flash('Your team is not registered for Cybersecurity in Level 2.')
-        return redirect(url_for('hub'))
-        
-    conn = get_db_connection()
-    unlocked = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()['value'] == '1'
-    day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
-    user = conn.execute("SELECT level2_start_time, level2_status, level2_points, has_seen_l2_intro FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-
-    if not day1_visible or not unlocked or user['level2_status'] == 'suspended':
-        conn.close()
-        return redirect(url_for('hub'))
-        
-    if not user['level2_start_time']:
-        remaining_seconds = 3600
-    else:
-        start_time = datetime.fromisoformat(user['level2_start_time'])
-        time_elapsed = (get_utc_now() - start_time).total_seconds()
-        remaining_seconds = max(0, 3600 - time_elapsed)
-    
-    solved_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('round3_user', 'level2_user')", (session['user_id'],)).fetchone() is not None
-    solved_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('round3_root', 'level2_root')", (session['user_id'],)).fetchone() is not None
-    
-    conn.close()
-    
-    return render_template(
-        'level2.html',
-        points=user['level2_points'],
-        solved_user=solved_user,
-        solved_root=solved_root,
-        remaining_seconds=int(remaining_seconds),
-        has_seen_l2_intro=user['has_seen_l2_intro'],
-        round3_points=user['level2_points'],
-        has_seen_r3_intro=user['has_seen_l2_intro']
-    )
-
-@app.route('/round3')
-def round3():
-    return level2()
 
 @app.route('/day2/level2')
 def day2_level2():
@@ -1197,20 +1313,6 @@ def day2_level2():
 def logout():
     session.clear()
     return redirect(url_for('login'))
-
-@app.route('/api/start_level2', methods=['POST'])
-@app.route('/api/start_r3', methods=['POST'])
-def start_level2():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-    conn = get_db_connection()
-    user = conn.execute("SELECT level2_start_time FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-    if not user['level2_start_time']:
-        l2_start_time = get_utc_now().isoformat()
-        conn.execute("UPDATE users SET level2_start_time = ?, has_seen_l2_intro = 1 WHERE id = ?", (l2_start_time, session['user_id']))
-        conn.commit()
-    conn.close()
-    return jsonify({'status': 'success'})
 
 # --- JUMANJI GAUNTLET MASTER TOURNAMENT ROUTES ---
 
@@ -1428,8 +1530,9 @@ def start_pty(data):
     sid = request.sid
     avatar_id = data.get('avatar_id', 'bravestone')
     
+    # If a previous PTY session exists for this socket, terminate and clean it up first
     if sid in clients:
-        return
+        handle_stop_pty()
         
     master_fd, slave_fd = pty.openpty()
     
@@ -1438,7 +1541,7 @@ def start_pty(data):
     
     # Standardize container and environment mapping by Level
     is_gauntlet = (avatar_id in ['gauntlet', 'day2_level2', 'day2'])
-    is_level2 = (avatar_id in ['level2', 'round3'])
+    is_level3 = (avatar_id in ['level3', 'round3'])
     
     docker_mounts = []
     docker_extra_env = []
@@ -1467,22 +1570,24 @@ def start_pty(data):
         ]
         init_cmd = f"if [ -f /gauntlet_src/setup_gauntlet.sh ]; then sudo -E bash /gauntlet_src/setup_gauntlet.sh; else sudo -E /usr/local/bin/setup_gauntlet.sh; fi && echo -e \"PS1='{username}@{t_name.lower().replace(' ', '-')}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
         working_dir = "/gauntlet"
-    elif is_level2:
+    elif is_level3:
+        container_name = f"jumanji_day1_level3_{session_id}_{sid}"
+        image_name = "jumanji-level3:latest"
+        working_dir = "/level3"
+        init_cmd = f"(sudo -E /usr/local/bin/setup_level3.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level2.sh) && echo -e \"PS1='{username}@sdc-day1-level3:\\\\w\\\\$ '\\nenable -n complete\\nenable -n deploy_override\" > ~/.bashrc && exec bash"
+    else:
+        # Day 1 Level 2 (Avatar Reconnaissance)
         container_name = f"jumanji_day1_level2_{session_id}_{sid}"
         image_name = "jumanji-level2:latest"
-        working_dir = "/level2"
-        init_cmd = f"sudo -E /usr/local/bin/setup_level2.sh && echo -e \"PS1='{username}@sdc-day1-level2:\\\\w\\\\$ '\\nenable -n complete\\nenable -n deploy_override\" > ~/.bashrc && exec bash"
-    else:
-        container_name = f"jumanji_day1_level1_{session_id}_{sid}"
-        image_name = "jumanji-level1:latest"
         working_dir = f"/{avatar_id}" if avatar_id in ['bravestone', 'oberon', 'finbar', 'ruby', 'seaplane'] else "/bravestone"
-        init_cmd = f"sudo -E /usr/local/bin/setup_level1.sh && echo -e \"PS1='{username}@sdc-day1-level1:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
+        init_cmd = f"(sudo -E /usr/local/bin/setup_level2.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level1.sh) && echo -e \"PS1='{username}@sdc-day1-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
     
     # Prune any previous container for this user/sid
     subprocess.run([
         "docker", "rm", "-f",
         f"jumanji_day1_level1_{session_id}_{sid}",
         f"jumanji_day1_level2_{session_id}_{sid}",
+        f"jumanji_day1_level3_{session_id}_{sid}",
         f"jumanji_day2_level2_{session_id}_{sid}",
         f"jumanji_r2_{session_id}_{sid}",
         f"jumanji_r3_{session_id}_{sid}",
@@ -1519,6 +1624,10 @@ def start_pty(data):
         stdout=slave_fd,
         stderr=slave_fd
     )
+    try:
+        os.close(slave_fd)
+    except OSError:
+        pass
     
     clients[sid] = {
         'fd': master_fd,
@@ -1545,6 +1654,16 @@ def read_and_forward_pty(fd, sid):
                     break
             except OSError:
                 break
+    # Clean up when PTY session ends
+    if sid in clients and clients[sid].get('fd') == fd:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        container_name = clients[sid].get('container_name')
+        if container_name:
+            subprocess.run(["docker", "rm", "-f", container_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        clients.pop(sid, None)
 
 @socketio.on('pty-input')
 def pty_input(data):
@@ -1571,17 +1690,31 @@ def pty_input(data):
         except OSError:
             pass
 
+@socketio.on('resize')
+@socketio.on('pty-resize')
+def handle_pty_resize(data):
+    sid = request.sid
+    if sid in clients and 'fd' in clients[sid]:
+        try:
+            cols = int(data.get('cols', 80))
+            rows = int(data.get('rows', 24))
+            fcntl.ioctl(clients[sid]['fd'], termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        except Exception:
+            pass
+
 @socketio.on('stop-pty')
 def handle_stop_pty():
     sid = request.sid
     if sid in clients:
-        p = clients[sid]['process']
-        fd = clients[sid]['fd']
+        p = clients[sid].get('process')
+        fd = clients[sid].get('fd')
         container_name = clients[sid].get('container_name')
         try:
-            p.terminate()
-            os.close(fd)
-        except:
+            if p:
+                p.terminate()
+            if fd:
+                os.close(fd)
+        except Exception:
             pass
         
         session_id = session.get('user_id', 'anon')
@@ -1592,6 +1725,7 @@ def handle_stop_pty():
                 "docker", "rm", "-f",
                 f"jumanji_day1_level1_{session_id}_{sid}",
                 f"jumanji_day1_level2_{session_id}_{sid}",
+                f"jumanji_day1_level3_{session_id}_{sid}",
                 f"jumanji_day2_level2_{session_id}_{sid}",
                 f"jumanji_r2_{session_id}_{sid}",
                 f"jumanji_r3_{session_id}_{sid}",
@@ -1599,7 +1733,7 @@ def handle_stop_pty():
                 f"jumanji_session_{session_id}_{sid}"
             ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        del clients[sid]
+        clients.pop(sid, None)
 
 @socketio.on('disconnect')
 def disconnect():

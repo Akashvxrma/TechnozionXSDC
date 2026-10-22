@@ -1,0 +1,631 @@
+/* ==========================================================================
+   JUMANJI EXPEDITION NOIR — shared design system
+   Technozion X SDC · Jumanji Cyber Tournament
+
+   Materials, not cards: every surface is made of something —
+   brass (HUD chassis), parchment (dossiers & field notes), stone (pillars,
+   altar), phosphor glass (terminals) and the emerald scrying orb.
+
+   Fonts are loaded by each template's <link> (Cinzel / Orbitron / Share Tech Mono).
+   ========================================================================== */
+
+:root {
+    /* Abyssal canopy */
+    --canopy-0: #030705;
+    --canopy-1: #070f0b;
+    --canopy-2: #0c1a12;
+    --canopy-3: #13261b;
+
+    /* Relic gold & brass */
+    --gold: #ffd700;
+    --gold-warm: #ffcc00;
+    --brass: #b8860b;
+    --bronze: #8c6239;
+    --brass-dark: #4a3500;
+
+    /* Bioluminescent emerald */
+    --emerald: #00ff66;
+    --emerald-500: #10b981;
+    --emerald-700: #059669;
+    --emerald-900: #03321c;
+
+    /* Blood curse */
+    --curse: #ef4444;
+    --curse-600: #dc2626;
+    --curse-800: #991b1b;
+
+    /* Ley-lines */
+    --ley: #00e5ff;
+    --ley-600: #06b6d4;
+
+    /* Parchment */
+    --parchment: #f5eed7;
+    --parchment-shade: #e4d6ad;
+    --mist: #d8f3dc;
+    --ink: #2b1d10;
+    --ink-soft: #6b4e2c;
+
+    /* Wood & stone */
+    --wood-0: #1a0f07;
+    --wood-1: #2e1c0e;
+    --wood-2: #4a2e17;
+    --stone-0: #1b201c;
+    --stone-1: #2c332d;
+    --stone-2: #454e46;
+
+    /* Text on dark */
+    --text: #d8f3dc;
+    --text-dim: #9db5a7;
+    --text-faint: #6b8275;
+
+    /* Type */
+    --font-carved: 'Cinzel', 'Trajan Pro', Georgia, serif;
+    --font-hud: 'Orbitron', 'Share Tech Mono', sans-serif;
+    --font-log: 'Share Tech Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+    /* Modular scale (major third, 1.25) */
+    --step--2: 0.64rem;
+    --step--1: 0.8rem;
+    --step-0: 1rem;
+    --step-1: 1.25rem;
+    --step-2: 1.563rem;
+    --step-3: 1.953rem;
+    --step-4: 2.441rem;
+    --step-5: 3.052rem;
+    --step-6: 3.815rem;
+
+    /* Spacing */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+    --sp-8: 64px;
+
+    /* Glows */
+    --glow-emerald: 0 0 15px rgba(0, 255, 102, 0.4);
+    --glow-gold: 0 0 18px rgba(255, 204, 0, 0.45);
+    --glow-curse: 0 0 22px rgba(239, 68, 68, 0.55);
+    --glow-ley: 0 0 14px rgba(0, 229, 255, 0.45);
+
+    /* Deep material shadow */
+    --shadow-heavy: 0 18px 40px -12px rgba(0, 0, 0, 0.9), 0 2px 0 rgba(0, 0, 0, 0.6);
+
+    /* Grain — inline SVG turbulence, reused by stone & parchment */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    --grain-coarse: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.045' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    min-height: 100vh;
+    background-color: var(--canopy-0);
+    color: var(--text);
+    font-family: var(--font-log);
+    font-size: var(--step-0);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+}
+
+img, video, svg { display: block; max-width: 100%; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; }
+a { color: inherit; }
+
+:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 3px;
+}
+
+.visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+::selection { background: rgba(255, 204, 0, 0.35); color: #fff; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--bronze) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--bronze); border-radius: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Atmosphere ---------- */
+
+/* Page backdrop: photo + canopy vignette. Set --scene on body. */
+.scene {
+    background:
+        radial-gradient(ellipse 80% 70% at 50% 35%, rgba(3, 7, 5, 0.55) 0%, rgba(3, 7, 5, 0.93) 100%),
+        var(--scene, none) center / cover no-repeat fixed,
+        var(--canopy-0);
+}
+
+/* CRT phosphor scanlines + vignette + chromatic fringe at the page edges */
+.crt-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    pointer-events: none;
+    background:
+        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.1) 50%) 0 0 / 100% 3px,
+        radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, 0.55) 100%);
+    box-shadow:
+        inset 3px 0 0 rgba(255, 0, 60, 0.06),
+        inset -3px 0 0 rgba(0, 229, 255, 0.06);
+}
+
+/* ---------- Typography ---------- */
+
+.carved {
+    font-family: var(--font-carved);
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: var(--gold-warm);
+    /* Chiselled: highlight above, cut shadow below */
+    text-shadow:
+        0 -1px 0 rgba(255, 240, 180, 0.35),
+        0 2px 0 var(--brass-dark),
+        0 3px 0 #1c1300,
+        0 0 26px rgba(255, 204, 0, 0.25);
+}
+
+.numeral {
+    font-family: var(--font-hud);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.dim { color: var(--text-dim); }
+
+code, kbd {
+    font-family: var(--font-log);
+    font-size: 0.95em;
+    padding: 0 0.3em;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--gold-warm);
+}
+
+/* ---------- Brass ---------- */
+
+.rivet {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: inline-block;
+    background: radial-gradient(circle at 32% 30%, #fff4c2 0%, #e2b648 22%, var(--brass) 55%, var(--brass-dark) 100%);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.9), inset 0 -1px 1px rgba(0, 0, 0, 0.5);
+}
+
+.rivet--tl, .rivet--tr, .rivet--bl, .rivet--br { position: absolute; z-index: 2; }
+.rivet--tl { top: 8px; left: 8px; }
+.rivet--tr { top: 8px; right: 8px; }
+.rivet--bl { bottom: 8px; left: 8px; }
+.rivet--br { bottom: 8px; right: 8px; }
+
+/* A brass-framed dark chassis (HUD bars, station panels) */
+.chassis {
+    position: relative;
+    background: linear-gradient(180deg, rgba(19, 38, 27, 0.94) 0%, rgba(7, 15, 11, 0.97) 100%);
+    border: 1px solid var(--brass);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 140, 0.25),
+        inset 0 0 0 3px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 4px rgba(184, 134, 11, 0.3),
+        var(--shadow-heavy);
+    border-radius: 6px;
+}
+
+/* Engraved brass plate — nameplates */
+.plate {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 4px 12px;
+    border-radius: 3px;
+    font-family: var(--font-carved);
+    font-weight: 700;
+    font-size: var(--step--1);
+    letter-spacing: 0.06em;
+    color: #2a1b00;
+    background: linear-gradient(180deg, #f3d77a 0%, #c9992d 48%, #9c7417 52%, #d1a43a 100%);
+    border: 1px solid #6e5108;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 1px 0 rgba(255, 240, 190, 0.5);
+    white-space: nowrap;
+}
+
+/* ---------- Parchment ---------- */
+
+.parchment {
+    position: relative;
+    color: var(--ink);
+    background:
+        radial-gradient(ellipse at 15% 10%, rgba(140, 98, 57, 0.18), transparent 45%),
+        radial-gradient(ellipse at 90% 95%, rgba(140, 98, 57, 0.28), transparent 50%),
+        var(--grain),
+        linear-gradient(180deg, var(--parchment) 0%, var(--parchment-shade) 100%);
+    background-blend-mode: normal, normal, multiply, normal;
+    box-shadow: inset 0 0 40px rgba(110, 72, 30, 0.35), var(--shadow-heavy);
+    border-radius: 3px;
+}
+
+.parchment code { color: #123d14; background: rgba(43, 29, 16, 0.1); }
+
+/* ---------- Wood ---------- */
+
+.wood {
+    background:
+        var(--grain),
+        repeating-linear-gradient(92deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 9px, rgba(255, 200, 140, 0.04) 9px 11px, transparent 11px 23px),
+        linear-gradient(180deg, var(--wood-2) 0%, var(--wood-1) 55%, var(--wood-0) 100%);
+    background-blend-mode: multiply, normal, normal;
+}
+
+/* ---------- Stone ---------- */
+
+.stone {
+    position: relative;
+    background:
+        var(--grain-coarse),
+        var(--grain),
+        linear-gradient(160deg, var(--stone-2) 0%, var(--stone-1) 45%, var(--stone-0) 100%);
+    background-blend-mode: multiply, overlay, normal;
+    box-shadow:
+        inset 0 2px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -3px 0 rgba(0, 0, 0, 0.5),
+        inset 0 0 40px rgba(0, 0, 0, 0.5),
+        var(--shadow-heavy);
+}
+
+/* Etched rune channel — a carved groove that carries light */
+.rune-channel {
+    position: relative;
+    height: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.rune-channel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--emerald), transparent);
+    opacity: 0.55;
+    animation: channel-flow 5s linear infinite;
+}
+
+@keyframes channel-flow {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+}
+
+/* ---------- Phosphor glass (terminal housing) ---------- */
+
+.bezel {
+    position: relative;
+    padding: 14px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #6a4d14 0%, #2a1d05 30%, #47330c 60%, #1b1203 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 230, 150, 0.35),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+        var(--shadow-heavy);
+}
+
+.crt-glass {
+    position: relative;
+    height: 100%;
+    min-height: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #062012 0%, #020a05 85%);
+    box-shadow:
+        inset 0 0 0 2px #000,
+        inset 0 0 50px rgba(0, 0, 0, 0.9),
+        inset 0 0 18px rgba(0, 255, 102, 0.12);
+}
+
+/* Glass curvature + scanlines on top of xterm */
+.crt-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    border-radius: inherit;
+    background:
+        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.16) 50%) 0 0 / 100% 3px,
+        radial-gradient(ellipse at 30% 0%, rgba(255, 255, 255, 0.06), transparent 50%),
+        radial-gradient(ellipse at center, transparent 65%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.term-mount {
+    position: absolute;
+    inset: 0;
+    padding: 14px 16px;
+}
+
+.term-mount .xterm { height: 100%; }
+.term-mount .xterm-viewport { background-color: transparent !important; }
+
+/* ---------- Scrying orb (signature element) ---------- */
+
+.orb {
+    --orb-size: 280px;
+    position: relative;
+    width: var(--orb-size);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    isolation: isolate;
+    flex-shrink: 0;
+    background:
+        radial-gradient(circle at 34% 28%, rgba(220, 255, 230, 0.5) 0%, rgba(220, 255, 230, 0) 13%),
+        radial-gradient(circle at 50% 62%, rgba(0, 255, 102, 0.32) 0%, rgba(0, 120, 50, 0.14) 45%, transparent 70%),
+        radial-gradient(circle at 50% 50%, #0b4a26 0%, #052a15 50%, #010c05 100%);
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.8),
+        inset 0 -18px 40px rgba(0, 0, 0, 0.75),
+        inset 0 10px 30px rgba(0, 255, 102, 0.18),
+        0 0 60px rgba(0, 255, 102, 0.28);
+    animation: orb-breathe 6s ease-in-out infinite;
+}
+
+/* Drifting smoke inside the glass */
+.orb::before {
+    content: '';
+    position: absolute;
+    inset: 8%;
+    border-radius: 50%;
+    z-index: -1;
+    background:
+        radial-gradient(ellipse 40% 25% at 30% 60%, rgba(180, 255, 210, 0.16), transparent 70%),
+        radial-gradient(ellipse 35% 30% at 70% 40%, rgba(180, 255, 210, 0.12), transparent 70%);
+    filter: blur(6px);
+    animation: orb-smoke 14s linear infinite;
+}
+
+.orb__text {
+    width: 82%;
+    text-align: center;
+    text-wrap: balance;
+    font-family: var(--font-carved);
+    font-weight: 700;
+    font-size: calc(var(--orb-size) * 0.054);
+    line-height: 1.5;
+    color: #c9ffd9;
+    text-shadow: 0 0 10px rgba(0, 255, 102, 0.7), 0 0 2px #000;
+}
+
+.orb__text.is-surfacing { animation: surface 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* Small status orb (altar feedback) */
+.orb--small {
+    --orb-size: 46px;
+    animation: none;
+    box-shadow: inset 0 0 0 2px #000, 0 0 0 3px var(--brass), 0 0 0 4px #2a1d05, 0 0 16px rgba(0, 255, 102, 0.25);
+    transition: box-shadow 0.4s, background 0.4s;
+}
+.orb--small::before { display: none; }
+.orb--small.is-success { background: radial-gradient(circle at 34% 28%, #dcffe6 0 12%, transparent 14%), radial-gradient(circle, #22ff88 0%, #0b6a33 55%, #021407 100%); box-shadow: inset 0 0 0 2px #000, 0 0 0 3px var(--brass), 0 0 30px rgba(0, 255, 102, 0.8); }
+.orb--small.is-warn { background: radial-gradient(circle at 34% 28%, #fff6d0 0 12%, transparent 14%), radial-gradient(circle, #ffd84a 0%, #8a6300 55%, #140c00 100%); box-shadow: inset 0 0 0 2px #000, 0 0 0 3px var(--brass), 0 0 30px rgba(255, 204, 0, 0.8); }
+.orb--small.is-curse { background: radial-gradient(circle at 34% 28%, #ffd7d7 0 12%, transparent 14%), radial-gradient(circle, #ff4d4d 0%, #7a0d0d 55%, #140000 100%); box-shadow: inset 0 0 0 2px #000, 0 0 0 3px var(--brass), 0 0 30px rgba(239, 68, 68, 0.85); }
+.orb--small.is-busy { animation: orb-breathe 0.8s ease-in-out infinite; }
+
+@keyframes orb-breathe {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.15); }
+}
+
+@keyframes orb-smoke {
+    from { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(1.08); }
+    to { transform: rotate(360deg) scale(1); }
+}
+
+/* Text that rises out of smoke */
+@keyframes surface {
+    0% { opacity: 0; filter: blur(10px); letter-spacing: 0.25em; transform: translateY(8px); }
+    60% { opacity: 1; filter: blur(1px); }
+    100% { opacity: 1; filter: blur(0); letter-spacing: normal; transform: none; }
+}
+
+.surfacing { animation: surface 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* ---------- Buttons ---------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    padding: 10px 18px;
+    border-radius: 4px;
+    font-family: var(--font-carved);
+    font-weight: 700;
+    font-size: var(--step-0);
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: transform 0.12s ease, box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease;
+}
+
+.btn:active { transform: translateY(1px); }
+.btn[disabled], .btn.is-disabled { cursor: not-allowed; filter: grayscale(0.85) brightness(0.55); }
+
+/* Relic gold — the primary action */
+.btn--gold {
+    color: #1f1400;
+    background: linear-gradient(180deg, #ffe680 0%, var(--gold) 30%, var(--brass) 100%);
+    border: 1px solid #fff0a8;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 0 rgba(90, 60, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 1px 0 rgba(255, 245, 200, 0.6);
+}
+.btn--gold:hover:not([disabled]) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 -2px 0 rgba(90, 60, 0, 0.6), var(--glow-gold); filter: brightness(1.08); }
+
+/* Emerald — terminal-side actions */
+.btn--emerald {
+    color: #00170a;
+    background: linear-gradient(180deg, #5effa4 0%, var(--emerald-500) 45%, var(--emerald-700) 100%);
+    border: 1px solid #9dffc7;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+.btn--emerald:hover:not([disabled]) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), var(--glow-emerald); }
+
+/* Curse red — offensive actions */
+.btn--curse {
+    color: #fff;
+    background: linear-gradient(180deg, var(--curse) 0%, var(--curse-600) 45%, var(--curse-800) 100%);
+    border: 1px solid #fca5a5;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+.btn--curse:hover:not([disabled]) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), var(--glow-curse); }
+
+/* Ghost brass — navigation */
+.btn--ghost {
+    color: var(--gold-warm);
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(184, 134, 11, 0.7);
+    font-family: var(--font-log);
+    font-weight: 400;
+    font-size: var(--step--1);
+    letter-spacing: 0.02em;
+    padding: 7px 12px;
+}
+.btn--ghost:hover { background: rgba(255, 204, 0, 0.1); box-shadow: var(--glow-gold); }
+.btn--ghost[aria-pressed="true"] { background: rgba(255, 204, 0, 0.16); box-shadow: inset 0 0 10px rgba(255, 204, 0, 0.25); }
+
+.btn--sm { padding: 5px 10px; font-size: var(--step--1); }
+.btn--lg { padding: 14px 26px; font-size: var(--step-1); }
+.btn--block { width: 100%; }
+
+/* ---------- Pills ---------- */
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-family: var(--font-hud);
+    font-weight: 700;
+    font-size: var(--step--2);
+    letter-spacing: 0.12em;
+    border: 1px solid currentColor;
+    background: rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+}
+.pill--emerald { color: var(--emerald); box-shadow: 0 0 10px rgba(0, 255, 102, 0.2); }
+.pill--gold { color: var(--gold-warm); box-shadow: 0 0 10px rgba(255, 204, 0, 0.2); }
+.pill--ley { color: var(--ley); box-shadow: 0 0 10px rgba(0, 229, 255, 0.2); }
+.pill--curse { color: var(--curse); }
+.pill--stone { color: var(--text-faint); }
+
+/* Heartbeat dot */
+.beat {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 8px currentColor;
+    animation: beat 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+@keyframes beat {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    15% { transform: scale(1.5); }
+    30% { transform: scale(1); opacity: 0.6; }
+}
+
+/* ---------- Inputs ---------- */
+
+.field {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(184, 134, 11, 0.6);
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--emerald);
+    font-family: var(--font-log);
+    font-size: var(--step-0);
+    letter-spacing: 0.04em;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field::placeholder { color: var(--text-faint); }
+.field:focus { outline: none; border-color: var(--emerald); box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9), var(--glow-emerald); }
+textarea.field { resize: vertical; min-height: 64px; line-height: 1.4; }
+
+/* ---------- Toast (in-page replacement for alert()) ---------- */
+
+.toast-stack {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: min(380px, calc(100vw - 32px));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    padding: 10px 14px;
+    border-radius: 4px;
+    border: 1px solid rgba(184, 134, 11, 0.4);
+    border-left: 3px solid var(--emerald);
+    background: rgba(7, 15, 11, 0.97);
+    box-shadow: var(--shadow-heavy);
+    font-size: var(--step--1);
+    animation: toast-in 0.25s ease-out both;
+}
+.toast--warn { border-left-color: var(--gold-warm); }
+.toast--curse { border-left-color: var(--curse); }
+.toast.is-leaving { animation: toast-out 0.3s ease-in both; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateX(16px); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(16px); } }
+
+/* ---------- Curse-active tint ---------- */
+
+.is-cursed .crt-overlay {
+    background:
+        linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(60, 0, 0, 0.25) 50%) 0 0 / 100% 3px,
+        radial-gradient(ellipse at center, transparent 50%, rgba(120, 0, 0, 0.45) 100%);
+}
+
+/* ---------- Layout helpers ---------- */
+
+.stack { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; }
+.wrap { flex-wrap: wrap; }
+.gap-2 { gap: var(--sp-2); }
+.gap-3 { gap: var(--sp-3); }
+.gap-4 { gap: var(--sp-4); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.push { margin-left: auto; }
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+}

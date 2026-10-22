@@ -4,412 +4,755 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JUMANJI | Expedition Hub</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
+    <title>Jumanji · Expedition Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <style>
-        :root {
-            --retro-green: #39ff14;
-            --retro-yellow: #fefe33;
-            --term-green: #00ff00;
-            --gold: #d4af37;
-            --alert-red: #ff3333;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: #000;
-            color: var(--retro-green);
-            font-family: 'Share Tech Mono', monospace;
-            min-height: 100vh;
+        body.hub {
+            --scene: url('/static/assets/jumanji_expedition_desk.jpg');
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 30px 20px;
-            position: relative;
-            background: url('/static/assets/jumanji_bg.jpg') no-repeat center center fixed;
-            background-size: cover;
         }
 
-        body::before {
+        /* Parchment-warm vignette over the desk */
+        body.hub::before {
             content: '';
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.88);
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(ellipse 60% 50% at 50% 30%, rgba(140, 98, 57, 0.18), transparent 70%);
+        }
+
+        .hub-bar {
+            position: relative;
+            z-index: 10;
+            margin: 16px 16px 0;
+            padding: 10px 14px 10px 28px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .hub-bar__mark {
+            font-family: var(--font-carved);
+            font-weight: 700;
+            font-size: var(--step--1);
+            color: var(--text-dim);
+            letter-spacing: 0.08em;
+        }
+
+        /* Player credential */
+        .pass {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .pass__medal {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-1);
+            color: #2a1b00;
+            background: radial-gradient(circle at 35% 30%, #fff1b0, var(--gold) 35%, var(--brass) 75%, var(--brass-dark));
+            box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.45), 0 0 0 2px #2a1d05, 0 0 0 3px var(--brass);
+            text-shadow: 0 1px 0 rgba(255, 245, 200, 0.6);
+        }
+
+        .pass__who { line-height: 1.2; }
+        .pass__name { font-family: var(--font-carved); font-weight: 700; color: #fff; }
+        .pass__handle { font-size: var(--step--1); color: var(--text-dim); }
+
+        .score-pill {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 204, 0, 0.5);
+            color: var(--gold-warm);
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
+        }
+        .score-pill__of { font-size: var(--step--1); color: var(--text-dim); text-shadow: none; }
+
+        /* ---------- Hero: the board's orb ---------- */
+
+        .hero {
+            position: relative;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 28px 16px 8px;
+        }
+
+        .emblem {
+            --size: min(420px, 84vw);
+            position: relative;
+            width: var(--size);
+            aspect-ratio: 1;
+            display: grid;
+            place-items: center;
+        }
+
+        .emblem__ring {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            animation: ring-settle 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        }
+
+        .emblem__ring text {
+            font-family: var(--font-carved);
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 3.2px;
+            fill: #f3d77a;
+        }
+
+        .emblem .orb { --orb-size: calc(var(--size) * 0.6); }
+
+        @keyframes ring-settle {
+            from { transform: rotate(-40deg); opacity: 0; }
+            to { transform: rotate(0deg); opacity: 1; }
+        }
+
+        .hero__title {
+            margin-top: 18px;
+            font-size: clamp(var(--step-4), 8vw, var(--step-6));
+            line-height: 1;
+        }
+
+        .hero__lede {
+            margin-top: 10px;
+            max-width: 52ch;
+            color: var(--text-dim);
+        }
+
+        /* Flash message pinned as a torn note */
+        .notice {
+            position: relative;
+            z-index: 6;
+            margin: 18px auto 0;
+            max-width: 560px;
+            padding: 12px 18px;
+            transform: rotate(-0.6deg);
+            font-size: var(--step--1);
+            color: var(--curse-800);
+            border-left: 3px solid var(--curse-600);
+        }
+
+        /* ---------- The board trail ---------- */
+
+        .board {
+            position: relative;
+            z-index: 5;
+            width: 100%;
+            max-width: 1180px;
+            margin: 26px auto 0;
+            padding: 0 16px 40px;
+        }
+
+        .board__day {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 6px 0 14px;
+            font-family: var(--font-carved);
+            font-weight: 700;
+            color: var(--gold-warm);
+        }
+        .board__day .rune-channel { flex: 1; }
+
+        .trail {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+            gap: 28px;
+            position: relative;
+        }
+
+        /* The carved path that links the tiles */
+        .trail::before {
+            content: '';
+            position: absolute;
+            left: 8%;
+            right: 8%;
+            top: 38px;
+            height: 4px;
+            border-radius: 2px;
+            background: repeating-linear-gradient(90deg, rgba(184, 134, 11, 0.7) 0 10px, transparent 10px 20px);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
             z-index: 0;
         }
 
-        /* CRT Effects */
-        .crt::before {
-            content: " ";
-            display: block;
-            position: fixed;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-                linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 50;
-            background-size: 100% 4px, 6px 100%;
-            pointer-events: none;
-        }
-
-        .hub-container {
+        .tile {
             position: relative;
-            z-index: 10;
-            width: 100%;
-            max-width: 950px;
-            background: rgba(5, 12, 5, 0.94);
-            border: 3px solid var(--retro-green);
-            padding: 35px;
-            box-shadow: 0 0 40px rgba(57, 255, 20, 0.25);
-            text-align: center;
-        }
-
-        .jumanji-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 2.5rem;
-            color: var(--gold);
-            letter-spacing: -1px;
-            text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000;
-            margin-bottom: 8px;
-        }
-
-        .sub-banner {
-            font-size: 0.85rem;
-            color: var(--retro-yellow);
-            margin-bottom: 25px;
-            letter-spacing: 2px;
-        }
-
-        .player-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid var(--retro-green);
-            padding: 12px 20px;
-            margin-bottom: 30px;
-            font-size: 1rem;
-        }
-
-        .player-name {
-            color: #fff;
-            font-weight: bold;
-        }
-
-        .player-badge {
-            color: var(--retro-green);
-        }
-
-        .rounds-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-            gap: 25px;
-            margin-bottom: 30px;
-        }
-
-        .round-card {
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #333;
-            padding: 25px;
-            text-align: left;
-            position: relative;
-            transition: all 0.3s ease;
+            z-index: 1;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            padding: 6px;
+            border-radius: 6px;
         }
 
-        .round-card.unlocked {
-            border-color: var(--retro-green);
-            box-shadow: 0 0 20px rgba(57, 255, 20, 0.15);
+        .tile__face {
+            position: relative;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 52px 22px 22px;
+            border-radius: 3px;
+            overflow: hidden;
         }
 
-        .round-card.locked {
-            border-color: #555;
-            opacity: 0.85;
+        /* Sequence marker: carved die face on the trail */
+        .tile__step {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+            width: 54px;
+            height: 54px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-2);
+            color: var(--gold-warm);
+            background: linear-gradient(160deg, #3d2712, #1a0f07);
+            border: 1px solid var(--brass);
+            box-shadow: inset 0 1px 0 rgba(255, 220, 140, 0.25), 0 6px 14px rgba(0, 0, 0, 0.7);
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
         }
 
-        .round-card:hover {
-            transform: translateY(-4px);
+        .tile__meta {
+            font-size: var(--step--1);
+            color: #5a3e1e;
         }
 
-        .card-header {
+        .tile__title {
+            margin-top: 4px;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: var(--step-2);
+            line-height: 1.15;
+            color: var(--ink);
+        }
+
+        .tile__desc {
+            margin-top: 10px;
+            font-size: 0.92rem;
+            line-height: 1.55;
+            color: #3e2c18;
+        }
+
+        .tile__progress {
+            margin-top: auto;
+            padding-top: 18px;
+        }
+
+        .tile__progress-row {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 15px;
-        }
-
-        .round-tag {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.9rem;
-            color: var(--gold);
-        }
-
-        .status-pill {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.65rem;
-            padding: 6px 10px;
-            border-radius: 2px;
-            text-transform: uppercase;
-        }
-
-        .status-unlocked {
-            background: rgba(57, 255, 20, 0.2);
-            color: var(--retro-green);
-            border: 1px solid var(--retro-green);
-        }
-
-        .status-locked {
-            background: rgba(255, 51, 51, 0.2);
-            color: var(--alert-red);
-            border: 1px solid var(--alert-red);
-        }
-
-        .status-completed {
-            background: rgba(212, 175, 55, 0.2);
-            color: var(--gold);
-            border: 1px solid var(--gold);
-        }
-
-        .round-desc {
-            font-size: 0.95rem;
-            color: #bbb;
-            margin-bottom: 20px;
-            line-height: 1.5;
-        }
-
-        .card-stats {
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            border-top: 1px dashed #333;
-            padding-top: 12px;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
+            align-items: baseline;
+            font-size: var(--step--1);
+            color: var(--ink-soft);
             margin-bottom: 6px;
         }
 
-        .action-btn {
-            display: block;
-            text-align: center;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            padding: 16px;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            width: 100%;
+        .tile__progress-row .numeral { color: var(--ink); font-size: var(--step-0); }
+
+        /* Ink-line progress */
+        .ink-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(43, 29, 16, 0.15);
+            box-shadow: inset 0 1px 2px rgba(43, 29, 16, 0.35);
+            overflow: hidden;
+        }
+        .ink-bar__fill {
+            height: 100%;
+            width: var(--pct, 0%);
+            background: linear-gradient(90deg, var(--emerald-700), var(--emerald-500));
+            border-radius: inherit;
         }
 
-        .btn-enter {
-            background: var(--retro-green);
-            color: #000;
-            font-weight: bold;
+        .tile__status {
+            margin-top: 12px;
+            font-size: var(--step--1);
+            color: var(--ink-soft);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-
-        .btn-enter:hover {
-            background: #fff;
-            box-shadow: 0 0 20px #fff;
-            transform: scale(1.02);
+        .tile__status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
         }
+        .tile[data-state="open"] .tile__status { color: var(--emerald-700); }
+        .tile[data-state="expired"] .tile__status { color: var(--curse-800); }
+        .tile[data-state="done"] .tile__status { color: #7a5a10; }
 
-        .btn-disabled {
-            background: #222;
-            color: #666;
-            cursor: not-allowed;
+        .tile__cta { margin-top: 14px; }
+
+        /* Wood frame around the parchment */
+        .tile { background: linear-gradient(160deg, #5a3a1c, #2e1c0e 60%, #1a0f07); box-shadow: inset 0 1px 0 rgba(255, 210, 150, 0.2), var(--shadow-heavy); }
+
+        /* Locked: dimmed parchment + stone padlock with chains */
+        .tile[data-state="locked"] .tile__face,
+        .tile[data-state="expired"] .tile__face { filter: grayscale(0.7) brightness(0.62) sepia(0.2); }
+
+        .lock {
+            position: absolute;
+            inset: 6px;
+            z-index: 4;
+            overflow: hidden;
+            border-radius: 3px;
             pointer-events: none;
-            border: 1px solid #444;
+            display: grid;
+            place-items: center;
         }
 
-        .flash-messages {
-            color: var(--alert-red);
-            font-size: 0.85rem;
-            margin-bottom: 20px;
-            font-family: 'Press Start 2P', monospace;
-            animation: blink 1s infinite;
+        .lock__chain {
+            position: absolute;
+            left: -10%;
+            right: -10%;
+            top: 50%;
+            height: 18px;
+            margin-top: -9px;
+            background:
+                radial-gradient(ellipse 9px 6px at 9px 9px, transparent 4px, #8d939a 4.5px, #4b5056 6px, transparent 6.5px) 0 0 / 18px 18px repeat-x;
+            filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.8));
+        }
+        .lock__chain--a { transform: rotate(24deg); }
+        .lock__chain--b { transform: rotate(-24deg); }
+
+        .lock__pad {
+            position: relative;
+            width: 78px;
+            height: 92px;
+            filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.85));
         }
 
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0; }
+        .lock__shackle {
+            position: absolute;
+            left: 15px;
+            top: 0;
+            width: 48px;
+            height: 50px;
+            border: 9px solid #6b706e;
+            border-bottom: 0;
+            border-radius: 26px 26px 0 0;
+            box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.2);
         }
 
-        .footer-nav {
-            margin-top: 20px;
-            font-size: 0.9rem;
+        .lock__body {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 78px;
+            height: 58px;
+            border-radius: 10px;
+            display: grid;
+            place-items: center;
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: 1.4rem;
+            color: rgba(0, 0, 0, 0.55);
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
         }
 
-        .footer-nav a {
-            color: var(--retro-yellow);
-            text-decoration: none;
-            margin: 0 15px;
+        .lock__label {
+            position: absolute;
+            bottom: 18%;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
         }
 
-        .footer-nav a:hover {
-            text-decoration: underline;
+        /* Chain-break sequence (first view after the host unlocks) */
+        .lock.is-breaking .lock__chain--a { animation: chain-fall-a 1s cubic-bezier(0.5, 0, 0.8, 0.4) 0.45s forwards; }
+        .lock.is-breaking .lock__chain--b { animation: chain-fall-b 1s cubic-bezier(0.5, 0, 0.8, 0.4) 0.5s forwards; }
+        .lock.is-breaking .lock__shackle { animation: shackle-pop 0.4s ease-out forwards; }
+        .lock.is-breaking .lock__pad { animation: pad-drop 1.1s cubic-bezier(0.5, 0, 0.8, 0.4) 0.35s forwards; }
+        .lock.is-breaking .lock__label { animation: fade-out 0.3s forwards; }
+
+        @keyframes shackle-pop { to { transform: translateY(-14px) rotate(-18deg); transform-origin: 80% 100%; } }
+        @keyframes pad-drop { to { transform: translateY(120%) rotate(14deg); opacity: 0; } }
+        @keyframes chain-fall-a { to { transform: rotate(40deg) translateY(260px); opacity: 0; } }
+        @keyframes chain-fall-b { to { transform: rotate(-44deg) translateY(260px); opacity: 0; } }
+        @keyframes fade-out { to { opacity: 0; } }
+
+        .shard {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 6px;
+            height: 6px;
+            border-radius: 1px;
+            background: var(--c, #8d939a);
+            box-shadow: 0 0 6px var(--c, transparent);
+            animation: shard 0.9s cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
+        }
+        @keyframes shard {
+            from { transform: translate(-50%, -50%); opacity: 1; }
+            to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--r)); opacity: 0; }
+        }
+
+        /* Completed: wax seal */
+        .seal {
+            position: absolute;
+            right: 16px;
+            top: 16px;
+            z-index: 3;
+            width: 74px;
+            height: 74px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            transform: rotate(-12deg);
+            font-family: var(--font-carved);
+            font-weight: 900;
+            font-size: 0.7rem;
+            line-height: 1.1;
+            text-align: center;
+            color: rgba(255, 220, 220, 0.85);
+            background: radial-gradient(circle at 38% 32%, #e04848, #9b1c1c 55%, #5c0b0b);
+            box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.45), inset 0 3px 4px rgba(255, 160, 160, 0.35), 0 4px 8px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.5);
+        }
+        .seal::before {
+            content: '';
+            position: absolute;
+            inset: 7px;
+            border-radius: 50%;
+            border: 1.5px dashed rgba(255, 200, 200, 0.4);
+        }
+
+        /* Day 2: wide tile splits into text + a strip of the four relics */
+        .tile--wide .tile__face {
+            display: grid;
+            grid-template-columns: minmax(0, 60ch) minmax(0, 1fr);
+            column-gap: 32px;
+            align-items: start;
+        }
+        .tile--wide .tile__body { display: flex; flex-direction: column; height: 100%; }
+        .relic-strip {
+            align-self: stretch;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+            align-content: center;
+        }
+        .relic-strip figure {
+            position: relative;
+            aspect-ratio: 3 / 4;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 2px solid #6e5108;
+            box-shadow: 0 0 0 1px #000, 0 8px 18px rgba(0, 0, 0, 0.55);
+        }
+        .relic-strip img { width: 100%; height: 100%; object-fit: cover; }
+        .relic-strip figcaption {
+            position: absolute;
+            inset: auto 0 0;
+            padding: 16px 6px 6px;
+            font-family: var(--font-carved);
+            font-weight: 700;
+            font-size: 0.72rem;
+            text-align: center;
+            color: #f5eed7;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+        }
+
+        .hub-foot {
+            position: relative;
+            z-index: 5;
+            margin-top: auto;
+            padding: 0 16px 24px;
+            text-align: center;
+            font-size: var(--step--1);
+            color: var(--text-faint);
+        }
+
+        @media (max-width: 900px) {
+            .trail { grid-template-columns: 1fr; gap: 22px; padding-left: 0; }
+            .trail::before { left: 50%; right: auto; top: 0; bottom: 0; width: 4px; height: auto; background: repeating-linear-gradient(180deg, rgba(184, 134, 11, 0.7) 0 10px, transparent 10px 20px); }
+            .pass { margin-left: 0; width: 100%; }
+            .hub-bar { padding-left: 14px; }
+            .hub-bar__mark { display: none; }
+            .tile--wide .tile__face { grid-template-columns: 1fr; row-gap: 18px; }
         }
     </style>
 </head>
 
-<body class="crt">
-    <div class="hub-container">
-        <div class="jumanji-title">JUMANJI</div>
-        <div class="sub-banner">// EXPEDITION COMMAND CENTER //</div>
+{% set l2_pts = user.level2_points or user.points or 0 %}
+{% set l3_pts = user.level3_points or user.round3_points or 0 %}
+{% set l2_status = user.level2_status or user.status %}
+{% set l3_status = user.level3_status or user.round3_status %}
+{% set display_name = user.name or user.username %}
 
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for message in messages %}
-            <p>{{ message }}</p>
-            {% endfor %}
+<body class="scene hub">
+    <div class="crt-overlay" aria-hidden="true"></div>
+    <audio id="drum-audio" src="/static/assets/drum.mp3" loop preload="auto"></audio>
+
+    <header class="hub-bar chassis">
+        <span class="rivet rivet--tl" aria-hidden="true"></span>
+        <span class="rivet rivet--bl" aria-hidden="true"></span>
+        <span class="hub-bar__mark">JUMANJI · EXPEDITION COMMAND CENTER · Technozion X SDC</span>
+
+        <div class="pass">
+            <div class="pass__medal" aria-hidden="true">{{ display_name[:1] | upper }}</div>
+            <div class="pass__who">
+                <div class="pass__name">{{ display_name }}</div>
+                <div class="pass__handle">@{{ user.username }}</div>
+            </div>
+            <div class="score-pill" title="Day 1 expedition score">
+                <span class="numeral">{{ l2_pts + l3_pts }}</span>
+                <span class="score-pill__of">/ 350 pts</span>
+            </div>
         </div>
-        {% endif %}
-        {% endwith %}
 
-        <div class="player-bar">
-            <div>CODENAME: <span class="player-name">{{ user.username | upper }}</span></div>
-            <div>STATUS: <span class="player-badge">DAY 1 LEVEL 1: {{ user.status | upper }} | DAY 1 LEVEL 2: {{ (user.level2_status or user.round3_status) | upper }}</span></div>
-            <div>OVERALL EXPEDITION SCORE: <span style="color: var(--gold); font-weight: bold;">{{ (user.points or 0) + (user.level2_points or user.round3_points or 0) }} / 350 PTS</span></div>
+        <div class="row gap-2">
+            {% if session.get('role') == 'admin' %}
+            <a class="btn btn--ghost" href="{{ url_for('admin') }}">Admin</a>
+            {% endif %}
+            <a class="btn btn--ghost" href="{{ url_for('logout') }}">Log out</a>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="emblem">
+            <svg class="emblem__ring" viewBox="0 0 420 420" aria-hidden="true">
+                <defs>
+                    <radialGradient id="ringWood" cx="50%" cy="50%" r="50%">
+                        <stop offset="70%" stop-color="#2e1c0e" />
+                        <stop offset="86%" stop-color="#4a2e17" />
+                        <stop offset="100%" stop-color="#1a0f07" />
+                    </radialGradient>
+                    <path id="ringPath" d="M210,210 m-176,0 a176,176 0 1,1 352,0 a176,176 0 1,1 -352,0" />
+                </defs>
+                <circle cx="210" cy="210" r="206" fill="url(#ringWood)" />
+                <circle cx="210" cy="210" r="204" fill="none" stroke="#b8860b" stroke-width="2" />
+                <circle cx="210" cy="210" r="156" fill="none" stroke="#b8860b" stroke-width="2" />
+                <circle cx="210" cy="210" r="196" fill="none" stroke="rgba(0,0,0,0.6)" stroke-width="1" />
+                <!-- Carved notches -->
+                <g stroke="#8c6239" stroke-width="2">
+                    {% for i in range(24) %}
+                    <line x1="210" y1="8" x2="210" y2="16" transform="rotate({{ i * 15 }} 210 210)" />
+                    {% endfor %}
+                </g>
+                <text>
+                    <textPath href="#ringPath" startOffset="0">Technozion X SDC ✦ Jumanji Cyber Tournament ✦ Technozion X SDC ✦ Jumanji Cyber Tournament ✦</textPath>
+                </text>
+            </svg>
+
+            <div class="orb">
+                <p class="orb__text is-surfacing" id="orb-text">
+                    {% if day2_visible %}
+                    Two by two the players go;<br>one reads the map, one strikes the blow.
+                    {% elif can_play_l2 or can_play_l3 %}
+                    A path is cut, the drums are near;<br>your trial waits, the way is clear.
+                    {% elif day1_visible and l2_pts >= 150 and l3_pts >= 200 %}
+                    Two trials won, the board falls still;<br>Day 2 awaits beyond the hill.
+                    {% else %}
+                    The board is still, the drums are low;<br>the host will say when you may go.
+                    {% endif %}
+                </p>
+            </div>
         </div>
 
-        {% if not day1_visible and not day2_visible %}
-        <p class="round-desc" style="text-align: center; margin-bottom: 30px;">No expedition is open right now. Stand by for the host.</p>
-        {% endif %}
+        <h1 class="carved hero__title">Jumanji</h1>
+        <p class="hero__lede">Pick your next trial. Each one opens when the host unlocks it.</p>
+    </section>
 
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="notice parchment" role="alert">
+        {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <main class="board" aria-label="Trials">
         {% if day1_visible %}
-        <h2 class="round-tag" style="text-align: left; margin-bottom: 15px;">DAY 1</h2>
-        <div class="rounds-grid">
-            <!-- DAY 1 LEVEL 1 CARD -->
-            <div class="round-card {% if can_play_l1 or user.points >= 150 %}unlocked{% else %}locked{% endif %}">
-                <div>
-                    <div class="card-header">
-                        <span class="round-tag">DAY 1 · LEVEL 1</span>
-                        {% if user.points >= 150 %}
-                        <span class="status-pill status-completed">ESCAPED (100%)</span>
-                        {% elif not level1_unlocked %}
-                        <span class="status-pill status-locked" style="background: rgba(100,100,100,0.2); border-color: #666; color: #888;">LOCKED BY HOST</span>
-                        {% elif user.status == 'suspended' %}
-                        <span class="status-pill status-locked">TIME EXPIRED</span>
+        <h2 class="board__day">Day 1 <span class="rune-channel" aria-hidden="true"></span></h2>
+        <ol class="trail" style="--cols: 2;">
+            {# ---- Day 1 · Level 2 ---- #}
+            {% if l2_pts >= 150 %}{% set s2 = 'done' %}
+            {% elif not level2_unlocked %}{% set s2 = 'locked' %}
+            {% elif l2_status == 'suspended' %}{% set s2 = 'expired' %}
+            {% else %}{% set s2 = 'open' %}{% endif %}
+            <li class="tile" data-level="l2" data-state="{{ s2 }}">
+                <span class="tile__step" aria-hidden="true">1</span>
+                <article class="tile__face parchment">
+                    {% if s2 == 'done' %}<div class="seal" aria-hidden="true">Escaped</div>{% endif %}
+                    <div class="tile__meta">DAY 1 · LEVEL 2 · 60 minutes</div>
+                    <h3 class="tile__title">Avatar Reconnaissance</h3>
+                    <p class="tile__desc">Five avatar domains, five hidden relics. Read hidden files, decode base64 ciphers, inspect processes and climb through sudo to claim each one.</p>
+                    <div class="tile__progress">
+                        <div class="tile__progress-row">
+                            <span>Relic score</span>
+                            <span><span class="numeral">{{ l2_pts }}</span> / 150</span>
+                        </div>
+                        <div class="ink-bar"><div class="ink-bar__fill" style="--pct: {{ [l2_pts / 150 * 100, 100] | min }}%;"></div></div>
+                        <p class="tile__status">
+                            {% if s2 == 'done' %}All five relics recovered
+                            {% elif s2 == 'locked' %}Locked by the host
+                            {% elif s2 == 'expired' %}Your 60 minutes have run out
+                            {% else %}Open now{% endif %}
+                        </p>
+                    </div>
+                    <div class="tile__cta">
+                        {% if can_play_l2 %}
+                        <a href="{{ url_for('level2') }}" class="btn btn--gold btn--block">Enter the jungle</a>
+                        {% elif s2 == 'done' %}
+                        <span class="btn btn--ghost btn--block is-disabled" aria-disabled="true">Level complete</span>
                         {% else %}
-                        <span class="status-pill status-unlocked">UNLOCKED</span>
+                        <span class="btn btn--ghost btn--block is-disabled" aria-disabled="true">Not available</span>
                         {% endif %}
                     </div>
-                    <h3 style="color: #fff; margin-bottom: 10px; font-size: 1.2rem;">THE JUMANJI JUNGLE</h3>
-                    <p class="round-desc">
-                        Reconnaissance expedition across 5 avatar domains: Bravestone, Ruby Roundhouse, Mouse Finbar, Prof. Oberon, and Seaplane. Retrieve the sacred relics and complete checkpoints.
-                    </p>
-                </div>
-                <div>
-                    <div class="card-stats">
-                        <div class="stat-row">
-                            <span style="color: #888;">Score Target:</span>
-                            <span style="color: var(--retro-green);">{{ user.points }} / 150 PTS</span>
-                        </div>
-                        <div class="stat-row">
-                            <span style="color: #888;">Level Access:</span>
-                            <span>{% if level1_unlocked %}HOST ACCESSIBLE{% else %}MAINFRAME LOCK{% endif %}</span>
-                        </div>
-                    </div>
-                    {% if can_play_l1 %}
-                    <a href="{{ url_for('level1') }}" class="action-btn btn-enter">ENTER JUNGLE (LEVEL 1)</a>
-                    {% elif user.points >= 150 %}
-                    <span class="action-btn btn-disabled">LEVEL 1 COMPLETED</span>
-                    {% elif user.status == 'suspended' %}
-                    <span class="action-btn btn-disabled" style="border-color: var(--alert-red); color: var(--alert-red);">TIME EXPIRED</span>
-                    {% else %}
-                    <span class="action-btn btn-disabled">LEVEL LOCKED BY HOST</span>
-                    {% endif %}
-                </div>
-            </div>
+                </article>
+                {% if s2 in ['locked', 'open'] %}{% include 'partials/_lock.html' %}{% endif %}
+            </li>
 
-            <!-- DAY 1 LEVEL 2 CARD -->
-            <div class="round-card {% if can_play_l2 or (user.level2_points or user.round3_points or 0) >= 200 %}unlocked{% else %}locked{% endif %}">
-                <div>
-                    <div class="card-header">
-                        <span class="round-tag">DAY 1 · LEVEL 2</span>
-                        {% if (user.level2_points or user.round3_points or 0) >= 200 %}
-                        <span class="status-pill status-completed">CONQUERED (100%)</span>
-                        {% elif not level2_unlocked %}
-                        <span class="status-pill status-locked" style="background: rgba(100,100,100,0.2); border-color: #666; color: #888;">OFFLINE / LOCKED</span>
-                        {% elif (user.level2_status or user.round3_status) == 'suspended' %}
-                        <span class="status-pill status-locked">TIME EXPIRED</span>
+            {# ---- Day 1 · Level 3 ---- #}
+            {% if l3_pts >= 200 %}{% set s3 = 'done' %}
+            {% elif not level3_unlocked %}{% set s3 = 'locked' %}
+            {% elif l3_status == 'suspended' %}{% set s3 = 'expired' %}
+            {% else %}{% set s3 = 'open' %}{% endif %}
+            <li class="tile" data-level="l3" data-state="{{ s3 }}">
+                <span class="tile__step" aria-hidden="true">2</span>
+                <article class="tile__face parchment">
+                    {% if s3 == 'done' %}<div class="seal" aria-hidden="true">Curse<br>lifted</div>{% endif %}
+                    <div class="tile__meta">DAY 1 · LEVEL 3 · 60 minutes</div>
+                    <h3 class="tile__title">Simulation Mainframe DB &amp; SUID Curse</h3>
+                    <p class="tile__desc">Enumerate the mainframe database for the user override, follow Nigel's radio guidance, then break the SUID root curse to escape.</p>
+                    <div class="tile__progress">
+                        <div class="tile__progress-row">
+                            <span>Override score</span>
+                            <span><span class="numeral">{{ l3_pts }}</span> / 200</span>
+                        </div>
+                        <div class="ink-bar"><div class="ink-bar__fill" style="--pct: {{ [l3_pts / 200 * 100, 100] | min }}%;"></div></div>
+                        <p class="tile__status">
+                            {% if s3 == 'done' %}Root claimed, curse lifted
+                            {% elif s3 == 'locked' %}Locked by the host
+                            {% elif s3 == 'expired' %}Your 60 minutes have run out
+                            {% else %}Mainframe is live{% endif %}
+                        </p>
+                    </div>
+                    <div class="tile__cta">
+                        {% if can_play_l3 %}
+                        <a href="{{ url_for('level3') }}" class="btn btn--gold btn--block">Access the mainframe</a>
+                        {% elif s3 == 'done' %}
+                        <span class="btn btn--ghost btn--block is-disabled" aria-disabled="true">Level complete</span>
                         {% else %}
-                        <span class="status-pill status-unlocked">MAINFRAME LIVE</span>
+                        <span class="btn btn--ghost btn--block is-disabled" aria-disabled="true">Not available</span>
                         {% endif %}
                     </div>
-                    <h3 style="color: #fff; margin-bottom: 10px; font-size: 1.2rem;">SIMULATION MAINFRAME</h3>
-                    <p class="round-desc">
-                        The core terminal simulation. Enumerate the encrypted database, escalate privileges to admin and root, and deploy system overrides to lift the Jumanji curse.
-                    </p>
-                </div>
-                <div>
-                    <div class="card-stats">
-                        <div class="stat-row">
-                            <span style="color: #888;">Override Target:</span>
-                            <span style="color: var(--retro-green);">{{ user.level2_points or user.round3_points or 0 }} / 200 PTS</span>
-                        </div>
-                        <div class="stat-row">
-                            <span style="color: #888;">Level Access:</span>
-                            <span>{% if level2_unlocked %}MAINFRAME LIVE{% else %}OFFLINE / LOCKED{% endif %}</span>
-                        </div>
-                    </div>
-                    {% if can_play_l2 %}
-                    <a href="{{ url_for('level2') }}" class="action-btn btn-enter" style="background: var(--gold); color: #000;">ACCESS MAINFRAME (LEVEL 2)</a>
-                    {% elif (user.level2_points or user.round3_points or 0) >= 200 %}
-                    <span class="action-btn btn-disabled">MAINFRAME OVERRIDDEN</span>
-                    {% elif (user.level2_status or user.round3_status) == 'suspended' %}
-                    <span class="action-btn btn-disabled" style="border-color: var(--alert-red); color: var(--alert-red);">TIME EXPIRED</span>
-                    {% else %}
-                    <span class="action-btn btn-disabled">LEVEL LOCKED BY HOST</span>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+                </article>
+                {% if s3 in ['locked', 'open'] %}{% include 'partials/_lock.html' %}{% endif %}
+            </li>
+        </ol>
         {% endif %}
 
         {% if day2_visible %}
-        <h2 class="round-tag" style="text-align: left; margin-bottom: 15px;">DAY 2</h2>
-        <div class="rounds-grid">
-            <!-- DAY 2 LEVEL 2: THE JUMANJI GAUNTLET -->
-            <div class="round-card unlocked">
-                <div>
-                    <div class="card-header">
-                        <span class="round-tag">DAY 2 · LEVEL 2</span>
-                        <span class="status-pill status-unlocked">TOURNAMENT LIVE</span>
+        <h2 class="board__day" {% if day1_visible %}style="margin-top: 34px;"{% endif %}>Day 2 <span class="rune-channel" aria-hidden="true"></span></h2>
+        <ol class="trail" style="--cols: 1;" start="3">
+            <li class="tile tile--wide" data-level="d2" data-state="open">
+                <span class="tile__step" aria-hidden="true">3</span>
+                <article class="tile__face parchment">
+                    <div class="tile__body">
+                        <div class="tile__meta">DAY 2 · LEVEL 2 · 120 minutes · duo</div>
+                        <h3 class="tile__title">The Jumanji Gauntlet</h3>
+                        <p class="tile__desc">Sixteen teams of two. The Navigator works the terminal and the Cartographer holds the split keys. Clear your pod, win your duels, then hold the Shrine to keep scoring.</p>
+                        <div class="tile__progress">
+                            <p class="tile__status">Tournament live</p>
+                        </div>
+                        <div class="tile__cta">
+                            <a href="{{ url_for('day2_level2') }}" class="btn btn--gold btn--block">Enter the gauntlet</a>
+                        </div>
                     </div>
-                    <h3 style="color: #fff; margin-bottom: 10px; font-size: 1.2rem;">THE JUMANJI GAUNTLET</h3>
-                    <p class="round-desc">
-                        120-minute team-vs-team cyber championship. Split-key relics, live curse cards, and King-of-the-Hill territory control.
-                    </p>
-                </div>
-                <div>
-                    <a href="{{ url_for('day2_level2') }}" class="action-btn btn-enter" style="background: var(--retro-green); color: #000; text-align: center; text-decoration: none;">ENTER GAUNTLET STATION</a>
-                </div>
-            </div>
-        </div>
+                    <div class="relic-strip" aria-label="Relics in play">
+                        <figure><img src="/static/assets/relic_sun_compass.jpg" alt="" loading="lazy"><figcaption>Sun Compass</figcaption></figure>
+                        <figure><img src="/static/assets/relic_obsidian_blade.jpg" alt="" loading="lazy"><figcaption>Obsidian Blade</figcaption></figure>
+                        <figure><img src="/static/assets/relic_jaguar_fang.jpg" alt="" loading="lazy"><figcaption>Jaguar Fang</figcaption></figure>
+                        <figure><img src="/static/assets/relic_golden_idol.jpg" alt="" loading="lazy"><figcaption>Golden Idol</figcaption></figure>
+                    </div>
+                </article>
+                {% include 'partials/_lock.html' %}
+            </li>
+        </ol>
         {% endif %}
+    </main>
 
-        <div class="footer-nav">
-            {% if session.get('role') == 'admin' %}
-            <a href="{{ url_for('admin') }}">[ ADMIN DASHBOARD ]</a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}">[ LOGOUT SESSION ]</a>
-        </div>
-    </div>
+    <footer class="hub-foot">Jumanji Cyber Tournament · Technozion X SDC</footer>
+
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
+    <script>
+        const drumAudio = document.getElementById('drum-audio');
+        if (drumAudio) {
+            JX.drums.play(drumAudio, 0.5);
+        }
+
+        // Break the chains the first time a player sees a level the host has just opened.
+        // Locked levels forget the flag, so the next unlock plays again.
+        (function () {
+            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            document.querySelectorAll('.tile').forEach(tile => {
+                const lock = tile.querySelector('.lock');
+                if (!lock) return;
+                const key = 'jx-opened-' + tile.dataset.level;
+                const state = tile.dataset.state;
+
+                if (state === 'locked') {
+                    JX.store.set(key, '');
+                    return;
+                }
+                if (state !== 'open' || JX.store.get(key) === '1' || reduceMotion) {
+                    lock.remove();
+                    JX.store.set(key, '1');
+                    return;
+                }
+
+                JX.store.set(key, '1');
+                setTimeout(() => {
+                    lock.classList.add('is-breaking');
+                    JX.sfx.unlock();
+                    const colors = ['#8d939a', '#6b706e', '#ffcc00', '#00ff66'];
+                    for (let i = 0; i < 18; i++) {
+                        const s = document.createElement('span');
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = 60 + Math.random() * 120;
+                        s.className = 'shard';
+                        s.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+                        s.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+                        s.style.setProperty('--r', (Math.random() * 540 - 270) + 'deg');
+                        s.style.setProperty('--c', colors[i % colors.length]);
+                        lock.appendChild(s);
+                    }
+                    setTimeout(() => lock.remove(), 1700);
+                }, 900);
+            });
+        })();
+    </script>
 </body>
 
 </html>

@@ -4,689 +4,325 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JUMANJI | Admin Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
-        rel="stylesheet">
-    <style>
-        :root {
-            --retro-green: #39ff14;
-            --retro-yellow: #fefe33;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: #000;
-            color: var(--retro-green);
-            font-family: 'Share Tech Mono', monospace;
-            height: 100vh;
-            overflow-y: auto;
-            background: url('/static/assets/jumanji_bg.jpg') no-repeat center center fixed;
-            background-size: cover;
-            padding: 40px;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: -1;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .jumanji-title {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 2.5rem;
-            color: #d4af37;
-            text-shadow: 2px 2px 0 #8b4513, 4px 4px 0 #000;
-        }
-
-        .dashboard-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid var(--retro-green);
-            padding: 30px;
-            box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-        }
-
-        th,
-        td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid var(--retro-green);
-        }
-
-        th {
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            color: var(--retro-yellow);
-        }
-
-        .points-input {
-            background: #000;
-            border: 1px solid var(--retro-green);
-            color: var(--retro-green);
-            padding: 5px 10px;
-            width: 80px;
-            font-family: 'Share Tech Mono', monospace;
-        }
-
-        .update-btn {
-            background: var(--retro-green);
-            color: #000;
-            border: none;
-            padding: 5px 15px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .update-btn:hover {
-            background: #fff;
-        }
-
-        .btn-status-toggle {
-            color: #000 !important;
-            padding: 4px 8px !important;
-            font-size: 0.6rem !important;
-        }
-
-        .btn-status-suspended {
-            background: var(--retro-green) !important;
-        }
-
-        .btn-status-active {
-            background: #ff5555 !important;
-        }
-
-        .btn-timer-reset {
-            background: var(--gold) !important;
-            color: #000 !important;
-            padding: 4px 8px !important;
-            font-size: 0.6rem !important;
-        }
-
-        .btn-delete {
-            background: #ff0000 !important;
-            color: #fff !important;
-            padding: 4px 8px !important;
-            font-size: 0.6rem !important;
-        }
-
-        .nav-links {
-            text-align: center;
-            margin-top: 20px;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-        }
-
-        .nav-links a {
-            color: var(--retro-yellow);
-            text-decoration: none;
-            margin: 0 15px;
-        }
-
-        .flash-messages {
-            color: var(--retro-yellow);
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .status-suspended {
-            color: #ff0000;
-        }
-
-        .status-active {
-            color: var(--retro-green);
-        }
-
-        /* Tab Styles */
-        .tab-bar {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-        }
-
-        .tab-btn {
-            background: none;
-            border: none;
-            color: #555;
-            font-family: 'Press Start 2P', monospace;
-            font-size: 0.8rem;
-            cursor: pointer;
-            padding: 10px 20px;
-            transition: all 0.3s;
-        }
-
-        .tab-btn:hover {
-            color: var(--retro-yellow);
-        }
-
-        .tab-btn.active {
-            color: var(--retro-green);
-            border-bottom: 3px solid var(--retro-green);
-            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-            animation: fadeIn 0.5s;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        .table-container {
-            max-height: 500px;
-            overflow-y: auto;
-            border: 2px solid var(--retro-green);
-            background: rgba(0, 0, 0, 0.8);
-        }
-
-        .table-container::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .table-container::-webkit-scrollbar-track {
-            background: #000;
-        }
-
-        .table-container::-webkit-scrollbar-thumb {
-            background: var(--retro-green);
-        }
-
-        /* Modal Styles */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-content {
-            background: #051005;
-            border: 2px solid var(--retro-green);
-            padding: 30px;
-            width: 90%;
-            max-width: 600px;
-            position: relative;
-            box-shadow: 0 0 20px rgba(57, 255, 20, 0.2);
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            color: var(--retro-green);
-            background: none;
-            border: none;
-            font-family: 'Press Start 2P', monospace;
-            cursor: pointer;
-            font-size: 1.2rem;
-        }
-
-        .close-btn:hover {
-            color: #ff0000;
-        }
-
-        .clickable-username {
-            cursor: pointer;
-            text-decoration: underline;
-            text-decoration-color: var(--retro-green);
-            text-decoration-thickness: 2px;
-            text-underline-offset: 4px;
-        }
-
-        .clickable-username:hover {
-            color: #fff;
-            text-decoration-color: #fff;
-        }
-    </style>
+    <title>Jumanji · Host Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_admin.css') }}">
 </head>
 
-<body>
-    <div class="header">
-        <div class="jumanji-title">POINTS DASHBOARD</div>
-        <p style="margin-top: 10px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem;">ADMINISTRATION
-            OVERRIDE</p>
-    </div>
+<body class="admin scene">
+    <div class="crt-overlay" aria-hidden="true"></div>
 
-    <div class="dashboard-container">
+    <div class="console">
+        <header class="topbar chassis">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <div>
+                <h1 class="carved topbar__title">Host console</h1>
+                <p class="topbar__sub">Jumanji Cyber Tournament · Technozion X SDC</p>
+            </div>
+            <div class="row gap-2 push wrap">
+                <span class="pill pill--emerald"><span class="beat"></span> {{ stats.online }} online</span>
+                <span class="pill pill--stone">{{ stats.offline }} offline</span>
+                <a class="btn btn--ghost" href="{{ url_for('gauntlet_admin') }}">Gauntlet control</a>
+                <a class="btn btn--ghost" href="{{ url_for('hub') }}">Player hub</a>
+                <a class="btn btn--ghost" href="{{ url_for('logout') }}">Log out</a>
+            </div>
+        </header>
+
         {% with messages = get_flashed_messages() %}
         {% if messages %}
-        <div class="flash-messages">
-            {% for message in messages %}
-            <p>{{ message }}</p>
-            {% endfor %}
+        <div class="notice" role="status">
+            {% for message in messages %}<p>{{ message }}</p>{% endfor %}
         </div>
         {% endif %}
         {% endwith %}
 
-        <div class="tab-bar">
-            <button class="tab-btn active" onclick="openTab('tab-overview')">GLOBAL OVERVIEW</button>
-            <button class="tab-btn" onclick="openTab('tab-level1')">LEVEL 1 COMMAND</button>
-            <button class="tab-btn" onclick="openTab('tab-level2')">LEVEL 2 COMMAND</button>
-        </div>
-
-        <!-- TAB 1: GLOBAL OVERVIEW -->
-        <div id="tab-overview" class="tab-content active">
-            <div
-                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div
-                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">PLAYERS ONLINE</div>
-                    <div style="font-size: 2rem; margin-top: 20px;">{{ stats.online }}</div>
-                </div>
-                <div
-                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">PLAYERS OFFLINE</div>
-                    <div style="font-size: 2rem; margin-top: 20px;">{{ stats.offline }}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 2: LEVEL 1 COMMAND -->
-        <div id="tab-level1" class="tab-content">
-            <div
-                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div
-                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">L1 ESCAPED</div>
-                    <div style="font-size: 1.5rem;">{{ stats.completed }}</div>
-                </div>
-                <div style="flex: 1; border: 2px solid #ff0000; padding: 15px; background: rgba(255,0,0,0.1);">
-                    <div style="color: #ff0000; margin-bottom: 10px;">L1 SUSPENDED</div>
-                    <div style="font-size: 1.5rem;">{{ stats.suspended }}</div>
-                </div>
-            </div>
-
-            <!-- SDC GAMES INTEGRATION HUB -->
-            <div style="border: 2px solid #00d2ff; padding: 20px; background: rgba(0, 30, 50, 0.7); margin-bottom: 30px; box-shadow: 0 0 15px rgba(0, 210, 255, 0.3);">
-                <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: #00d2ff; margin-bottom: 12px; text-shadow: 0 0 8px #00d2ff;">
-                    🛡️ SDC GAMES INTEGRATION HUB
-                </h3>
-                <p style="color: #b0e0ff; margin-bottom: 15px; font-size: 0.95rem;">
-                    Single Sign-On & Real-Time Automated Score Sync Active. Export official RFC 4180 CSVs anytime.
-                </p>
-                <div style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
-                    <form action="{{ url_for('sync_sdc_roster') }}" method="POST" style="display: inline;">
-                        <button type="submit" class="update-btn" style="background: #00d2ff; color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer; box-shadow: 0 0 10px rgba(0,210,255,0.5);">
-                            🔄 SYNC SDC ROSTER
-                        </button>
-                    </form>
-                    <a href="{{ url_for('export_scores_l1') }}" style="text-decoration: none;">
-                        <button type="button" class="update-btn" style="background: var(--retro-yellow); color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer;">
-                            📥 EXPORT LEVEL 1 CSV
-                        </button>
-                    </a>
-                    <a href="{{ url_for('export_scores_l2') }}" style="text-decoration: none;">
-                        <button type="button" class="update-btn" style="background: var(--retro-green); color: #000; padding: 10px 18px; font-weight: bold; cursor: pointer;">
-                            📥 EXPORT LEVEL 2 CSV
-                        </button>
-                    </a>
-                </div>
-            </div>
-
-            <!-- DAY VISIBILITY CONTROL -->
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 30px;">
-                <div class="{% if day1_visible %}panel-unlocked{% else %}panel-locked{% endif %}"
-                    style="flex: 1; min-width: 240px; border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5);">
-                    <h3
-                        style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
-                        DAY 1 VISIBILITY</h3>
-                    <p style="margin-bottom: 15px;">Player hub: <span
-                            class="{% if day1_visible %}text-unlocked{% else %}text-locked{% endif %}"
-                            style="font-weight: bold;">{% if day1_visible %}VISIBLE{% else %}HIDDEN{% endif %}</span>
-                    </p>
+        <section aria-labelledby="controls-title">
+            <h2 class="block-title" id="controls-title">What players can see</h2>
+            <div class="switches">
+                {% set switches = [
+                    ('toggle_day1', 'Day 1 on the hub', day1_visible, 'Visible', 'Hidden', 'Hide Day 1', 'Show Day 1'),
+                    ('toggle_level2', 'Day 1 · Level 2', level2_unlocked, 'Unlocked', 'Locked', 'Lock Level 2', 'Unlock Level 2'),
+                    ('toggle_level3', 'Day 1 · Level 3', level3_unlocked, 'Unlocked', 'Locked', 'Lock Level 3', 'Unlock Level 3'),
+                    ('toggle_day2', 'Day 2 on the hub', day2_visible, 'Visible', 'Hidden', 'Hide Day 2', 'Show Day 2')
+                ] %}
+                {% for action, name, on, on_text, off_text, off_cta, on_cta in switches %}
+                <div class="switch {% if on %}is-on{% endif %}">
+                    <div class="switch__name">{{ name }}</div>
+                    <div class="switch__state"><span class="switch__lamp" aria-hidden="true"></span>{{ on_text if on else off_text }}</div>
                     <form action="{{ url_for('admin') }}" method="POST">
-                        <input type="hidden" name="action" value="toggle_day1">
-                        <button type="submit"
-                            class="update-btn {% if day1_visible %}btn-unlocked{% else %}btn-locked{% endif %}"
-                            style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                            {% if day1_visible %}HIDE DAY 1{% else %}UNHIDE DAY 1{% endif %}
-                        </button>
+                        <input type="hidden" name="action" value="{{ action }}">
+                        <button type="submit" class="btn btn--sm btn--block {{ 'btn--ghost' if on else 'btn--gold' }}">{{ off_cta if on else on_cta }}</button>
                     </form>
                 </div>
-                <div class="{% if day2_visible %}panel-unlocked{% else %}panel-locked{% endif %}"
-                    style="flex: 1; min-width: 240px; border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5);">
-                    <h3
-                        style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
-                        DAY 2 VISIBILITY</h3>
-                    <p style="margin-bottom: 15px;">Player hub: <span
-                            class="{% if day2_visible %}text-unlocked{% else %}text-locked{% endif %}"
-                            style="font-weight: bold;">{% if day2_visible %}VISIBLE{% else %}HIDDEN{% endif %}</span>
-                    </p>
-                    <form action="{{ url_for('admin') }}" method="POST">
-                        <input type="hidden" name="action" value="toggle_day2">
-                        <button type="submit"
-                            class="update-btn {% if day2_visible %}btn-unlocked{% else %}btn-locked{% endif %}"
-                            style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                            {% if day2_visible %}HIDE DAY 2{% else %}UNHIDE DAY 2{% endif %}
-                        </button>
-                    </form>
-                    <a href="{{ url_for('gauntlet_admin') }}" style="display: inline-block; margin-top: 15px; color: var(--retro-yellow); font-size: 0.75rem; font-family: 'Press Start 2P', monospace; text-decoration: none;">[ GAUNTLET MISSION CONTROL ]</a>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section>
+            <div class="tabs" role="tablist" aria-label="Console sections">
+                <button class="tab" role="tab" id="tabbtn-level2" aria-controls="tab-level2" aria-selected="true">Level 2 leaderboard</button>
+                <button class="tab" role="tab" id="tabbtn-level3" aria-controls="tab-level3" aria-selected="false">Level 3 leaderboard</button>
+                <button class="tab" role="tab" id="tabbtn-sdc" aria-controls="tab-sdc" aria-selected="false">SDC Games sync</button>
+            </div>
+
+            <!-- Level 2 (Avatars) -->
+            <div class="tab-panel" role="tabpanel" id="tab-level2" aria-labelledby="tabbtn-level2">
+                <div class="stats">
+                    <div class="stat stat--good"><div class="stat__value numeral">{{ stats.completed }}</div><div class="stat__label">Escaped (150 pts)</div></div>
+                    <div class="stat stat--bad"><div class="stat__value numeral">{{ stats.suspended }}</div><div class="stat__label">Suspended</div></div>
                 </div>
-            </div>
 
-            <div class="{% if level1_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}"
-                style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
-                <h3
-                    style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
-                    DAY 1 · LEVEL 1 CONTROL</h3>
-                <p style="margin-bottom: 15px;">Status: <span
-                        class="{% if level1_unlocked %}text-unlocked{% else %}text-locked{% endif %}"
-                        style="font-weight: bold;">{% if level1_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span>
-                </p>
-                <form action="{{ url_for('admin') }}" method="POST">
-                    <input type="hidden" name="action" value="toggle_level1">
-                    <button type="submit"
-                        class="update-btn {% if level1_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}"
-                        style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                        {% if level1_unlocked %}LOCK LEVEL 1{% else %}UNLOCK LEVEL 1{% endif %}
-                    </button>
-                </form>
-            </div>
-
-            <h2 class="leaderboard-title">DAY 1 · LEVEL 1 LEADERBOARD</h2>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>PLAYER</th>
-                            <th>ROLE</th>
-                            <th>L1 STATUS</th>
-                            <th>L1 POINTS</th>
-                            <th>ACTION</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in (users_l1 or users_r2) %}
-                        <tr>
-                            <td>{{ user.id }}</td>
-                            <td class="clickable-username" style="text-transform: uppercase;"
-                                data-user-id="{{ user.id }}" data-username="{{ user.username }}"
-                                onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}
-                            </td>
-                            <td>{{ user.role }}</td>
-                            <td
-                                class="{% if user.status == 'suspended' %}status-suspended{% else %}status-active{% endif %}">
-                                {{ user.status | upper }}</td>
-                            <td>
-                                <form action="{{ url_for('admin') }}" method="POST" style="display: flex; gap: 10px;">
-                                    <input type="hidden" name="action" value="update">
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <input type="hidden" name="level" value="1">
-                                    <input type="hidden" name="round" value="2">
-                                    <input type="number" name="points" value="{{ user.points }}" class="points-input">
-                                    <button type="submit" class="update-btn">UPDATE</button>
-                                </form>
-                                {% if user.role != 'admin' %}
-                                <div style="display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap;">
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="toggle_status">
-                                        <input type="hidden" name="user_id" value="{{ user.id }}">
-                                        <input type="hidden" name="level" value="1">
-                                        <input type="hidden" name="round" value="2">
-                                        <button type="submit"
-                                            class="update-btn btn-status-toggle {% if user.status == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
-                                            {% if user.status == 'suspended' %}UNSUSPEND{% else %}SUSPEND{% endif %}
-                                        </button>
-                                    </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
-                                        onsubmit="return confirm('Reset 60m Level 1 timer for {{ user.username }}?');">
-                                        <input type="hidden" name="action" value="reset_timer">
-                                        <input type="hidden" name="user_id" value="{{ user.id }}">
-                                        <input type="hidden" name="level" value="1">
-                                        <input type="hidden" name="round" value="2">
-                                        <button type="submit" class="update-btn btn-timer-reset">
-                                            RESET TIMER
-                                        </button>
-                                    </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
-                                        onsubmit="return confirm('Disqualify and delete user {{ user.username }}?');">
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="user_id" value="{{ user.id }}">
-                                        <button type="submit" class="update-btn btn-delete">DEL</button>
-                                    </form>
-                                </div>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- TAB 3: LEVEL 2 COMMAND -->
-        <div id="tab-level2" class="tab-content">
-            <div
-                style="display: flex; gap: 20px; margin-bottom: 30px; font-family: 'Press Start 2P', monospace; font-size: 0.8rem; text-align: center;">
-                <div
-                    style="flex: 1; border: 2px solid var(--retro-green); padding: 15px; background: rgba(0,255,0,0.1);">
-                    <div style="color: var(--retro-yellow); margin-bottom: 10px;">L2 ESCAPED</div>
-                    <div style="font-size: 1.5rem;">{{ stats.r3_completed }}</div>
+                <div class="table-tools">
+                    <input class="field" type="search" placeholder="Find a player" aria-label="Find a player in Level 2" data-filter="l2-body">
+                    <span class="table-tools__count" data-count="l2-body"></span>
                 </div>
-                <div style="flex: 1; border: 2px solid #ff0000; padding: 15px; background: rgba(255,0,0,0.1);">
-                    <div style="color: #ff0000; margin-bottom: 10px;">L2 SUSPENDED</div>
-                    <div style="font-size: 1.5rem;">{{ stats.r3_suspended }}</div>
-                </div>
-            </div>
-
-            <div class="{% if level2_unlocked %}panel-unlocked{% else %}panel-locked{% endif %}"
-                style="border: 2px dashed; padding: 20px; text-align: center; background: rgba(0,0,0,0.5); margin-bottom: 30px;">
-                <h3
-                    style="font-family: 'Press Start 2P', monospace; font-size: 1rem; color: var(--retro-yellow); margin-bottom: 15px;">
-                    DAY 1 · LEVEL 2 CONTROL</h3>
-                <p style="margin-bottom: 15px;">Status: <span
-                        class="{% if level2_unlocked %}text-unlocked{% else %}text-locked{% endif %}"
-                        style="font-weight: bold;">{% if level2_unlocked %}UNLOCKED{% else %}LOCKED{% endif %}</span>
-                </p>
-                <form action="{{ url_for('admin') }}" method="POST">
-                    <input type="hidden" name="action" value="toggle_level2">
-                    <button type="submit"
-                        class="update-btn {% if level2_unlocked %}btn-unlocked{% else %}btn-locked{% endif %}"
-                        style="padding: 10px 20px; font-size: 1rem; color: #000;">
-                        {% if level2_unlocked %}LOCK LEVEL 2{% else %}UNLOCK LEVEL 2{% endif %}
-                    </button>
-                </form>
-            </div>
-
-            <h2 class="leaderboard-title">DAY 1 · LEVEL 2 LEADERBOARD</h2>
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>PLAYER</th>
-                            <th>ROLE</th>
-                            <th>L2 STATUS</th>
-                            <th>L2 POINTS</th>
-                            <th>ACTION</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in (users_l2 or users_r3) %}
-                        <tr>
-                            <td>{{ user.id }}</td>
-                            <td class="clickable-username" style="text-transform: uppercase;"
-                                data-user-id="{{ user.id }}" data-username="{{ user.username }}"
-                                onclick="showFlagsModal(this.dataset.userId, this.dataset.username)">{{ user.username }}
-                            </td>
-                            <td>{{ user.role }}</td>
-                            <td
-                                class="{% if (user.level2_status or user.round3_status) == 'suspended' %}status-suspended{% else %}status-active{% endif %}">
-                                {{ (user.level2_status or user.round3_status) | upper }}</td>
-                            <td>
-                                <form action="{{ url_for('admin') }}" method="POST" style="display: flex; gap: 10px;">
-                                    <input type="hidden" name="action" value="update">
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <input type="hidden" name="level" value="2">
-                                    <input type="hidden" name="round" value="3">
-                                    <input type="number" name="points" value="{{ user.level2_points or user.round3_points }}"
-                                        class="points-input">
-                                    <button type="submit" class="update-btn">UPDATE</button>
-                                </form>
-                                {% if user.role != 'admin' %}
-                                <div style="display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap;">
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;">
-                                        <input type="hidden" name="action" value="toggle_status">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Player</th><th>Role</th><th>Status</th><th>Points</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="l2-body">
+                            {% for user in (users_l2 or users_r2) %}
+                            {% set l2_status = user.level2_status or user.status %}
+                            <tr data-name="{{ user.username | lower }}">
+                                <td class="num">{{ user.id }}</td>
+                                <td><button type="button" class="player-btn" data-user-id="{{ user.id }}" data-username="{{ user.username }}">{{ user.username }}</button></td>
+                                <td>{{ user.role }}</td>
+                                <td><span class="status {{ 'status--suspended' if l2_status == 'suspended' else 'status--active' }}">{{ l2_status }}</span></td>
+                                <td>
+                                    <form action="{{ url_for('admin') }}" method="POST" class="points-form">
+                                        <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="level" value="2">
-                                        <input type="hidden" name="round" value="3">
-                                        <button type="submit"
-                                            class="update-btn btn-status-toggle {% if (user.level2_status or user.round3_status) == 'suspended' %}btn-status-suspended{% else %}btn-status-active{% endif %}">
-                                            {% if (user.level2_status or user.round3_status) == 'suspended' %}UNSUSPEND{% else %}SUSPEND{% endif %}
-                                        </button>
+                                        <input class="field" type="number" name="points" value="{{ user.level2_points or user.points }}" aria-label="Level 2 points for {{ user.username }}">
+                                        <button type="submit" class="btn btn--ghost btn--xs">Save</button>
                                     </form>
-                                    <form action="{{ url_for('admin') }}" method="POST" style="display: inline;"
-                                        onsubmit="return confirm('Reset 60m Level 2 timer for {{ user.username }}?');">
-                                        <input type="hidden" name="action" value="reset_timer">
+                                </td>
+                                <td>
+                                    {% if user.role != 'admin' %}
+                                    <div class="row-actions">
+                                        <form action="{{ url_for('admin') }}" method="POST">
+                                            <input type="hidden" name="action" value="toggle_status">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="level" value="2">
+                                            <button type="submit" class="btn btn--ghost btn--xs">{{ 'Unsuspend' if l2_status == 'suspended' else 'Suspend' }}</button>
+                                        </form>
+                                        <form action="{{ url_for('admin') }}" method="POST" data-confirm="Reset the 60-minute Level 2 timer for {{ user.username }}?">
+                                            <input type="hidden" name="action" value="reset_timer">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="level" value="2">
+                                            <button type="submit" class="btn btn--ghost btn--xs">Reset timer</button>
+                                        </form>
+                                        <form action="{{ url_for('admin') }}" method="POST" data-confirm="Disqualify and delete {{ user.username }}? This can't be undone.">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <button type="submit" class="btn btn--danger-ghost btn--xs">Delete</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="dim">No players have registered yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Level 3 -->
+            <div class="tab-panel" role="tabpanel" id="tab-level3" aria-labelledby="tabbtn-level3" hidden>
+                <div class="stats">
+                    <div class="stat stat--good"><div class="stat__value numeral">{{ stats.r3_completed }}</div><div class="stat__label">Escaped (200 pts)</div></div>
+                    <div class="stat stat--bad"><div class="stat__value numeral">{{ stats.r3_suspended }}</div><div class="stat__label">Suspended</div></div>
+                </div>
+
+                <div class="table-tools">
+                    <input class="field" type="search" placeholder="Find a player" aria-label="Find a player in Level 3" data-filter="l3-body">
+                    <span class="table-tools__count" data-count="l3-body"></span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>ID</th><th>Player</th><th>Role</th><th>Status</th><th>Points</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="l3-body">
+                            {% for user in (users_l3 or users_r3) %}
+                            {% set l3_status = user.level3_status or user.level2_status or user.round3_status %}
+                            <tr data-name="{{ user.username | lower }}">
+                                <td class="num">{{ user.id }}</td>
+                                <td><button type="button" class="player-btn" data-user-id="{{ user.id }}" data-username="{{ user.username }}">{{ user.username }}</button></td>
+                                <td>{{ user.role }}</td>
+                                <td><span class="status {{ 'status--suspended' if l3_status == 'suspended' else 'status--active' }}">{{ l3_status }}</span></td>
+                                <td>
+                                    <form action="{{ url_for('admin') }}" method="POST" class="points-form">
+                                        <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
-                                        <input type="hidden" name="level" value="2">
-                                        <input type="hidden" name="round" value="3">
-                                        <button type="submit" class="update-btn btn-timer-reset">
-                                            RESET TIMER
-                                        </button>
+                                        <input type="hidden" name="level" value="3">
+                                        <input class="field" type="number" name="points" value="{{ user.level3_points or user.level2_points or user.round3_points }}" aria-label="Level 3 points for {{ user.username }}">
+                                        <button type="submit" class="btn btn--ghost btn--xs">Save</button>
                                     </form>
-                                </div>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+                                </td>
+                                <td>
+                                    {% if user.role != 'admin' %}
+                                    <div class="row-actions">
+                                        <form action="{{ url_for('admin') }}" method="POST">
+                                            <input type="hidden" name="action" value="toggle_status">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="level" value="3">
+                                            <button type="submit" class="btn btn--ghost btn--xs">{{ 'Unsuspend' if l3_status == 'suspended' else 'Suspend' }}</button>
+                                        </form>
+                                        <form action="{{ url_for('admin') }}" method="POST" data-confirm="Reset the 60-minute Level 3 timer for {{ user.username }}?">
+                                            <input type="hidden" name="action" value="reset_timer">
+                                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                                            <input type="hidden" name="level" value="3">
+                                            <button type="submit" class="btn btn--ghost btn--xs">Reset timer</button>
+                                        </form>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="dim">No players have registered yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- SDC Games -->
+            <div class="tab-panel" role="tabpanel" id="tab-sdc" aria-labelledby="tabbtn-sdc" hidden>
+                <h2 class="block-title">SDC Games integration</h2>
+                <p class="lede">Players sign in through SDC Games and scores sync automatically as they solve. Pull the latest roster or download the official CSVs here.</p>
+                <div class="sync-actions">
+                    <form action="{{ url_for('sync_sdc_roster') }}" method="POST">
+                        <button type="submit" class="btn btn--gold">Sync SDC roster</button>
+                    </form>
+                    <a class="btn btn--ghost" href="{{ url_for('export_scores_l2') }}">Download Level 2 CSV</a>
+                    <a class="btn btn--ghost" href="{{ url_for('export_scores_l3') }}">Download Level 3 CSV</a>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Player flags -->
+    <dialog class="flags" id="flagsModal" aria-labelledby="modalTitle">
+        <div class="flags__head">
+            <h2 class="flags__title" id="modalTitle">Solved checkpoints</h2>
+            <form method="dialog" class="push"><button class="btn btn--ghost btn--xs" type="submit">Close</button></form>
+        </div>
+        <div class="flags__body">
+            <p class="flags__msg" id="modalLoading">Loading…</p>
+            <div class="table-wrap" id="flagsTable" hidden>
+                <table>
+                    <thead><tr><th>Checkpoint</th><th>Solved at (UTC)</th></tr></thead>
+                    <tbody id="flagsTableBody"></tbody>
                 </table>
             </div>
         </div>
-
-        <div class="nav-links">
-            <a href="{{ url_for('hub') }}">[ EXPEDITION HUB ]</a>
-            <a href="{{ url_for('logout') }}">[ LOGOUT ]</a>
-        </div>
-    </div>
-
-    <!-- Flags Modal -->
-    <div id="flagsModal" class="modal-overlay">
-        <div class="modal-content">
-            <button class="close-btn" onclick="closeFlagsModal()">X</button>
-            <h3 style="font-family: 'Press Start 2P', monospace; font-size: 1.2rem; color: var(--retro-yellow); margin-bottom: 20px;"
-                id="modalTitle">PLAYER FLAGS</h3>
-            <div class="table-container" style="max-height: 300px;">
-                <table style="margin-top: 0;">
-                    <thead>
-                        <tr>
-                            <th>CHALLENGE</th>
-                            <th>TIMESTAMP (UTC)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="flagsTableBody">
-                        <!-- Flags will be injected here via JS -->
-                    </tbody>
-                </table>
-            </div>
-            <p id="modalLoading" style="text-align: center; margin-top: 20px;">Loading...</p>
-        </div>
-    </div>
+    </dialog>
 
     <script>
-        function openTab(tabId) {
-            const contents = document.querySelectorAll('.tab-content');
-            contents.forEach(content => content.classList.remove('active'));
-
-            const buttons = document.querySelectorAll('.tab-btn');
-            buttons.forEach(btn => btn.classList.remove('active'));
-
-            document.getElementById(tabId).classList.add('active');
-
-            const activeBtn = Array.from(buttons).find(btn => btn.getAttribute('onclick').includes(tabId));
-            if (activeBtn) activeBtn.classList.add('active');
-
-            localStorage.setItem('activeAdminTab', tabId);
+        // Tabs (remembers the last one, including the old tab ids)
+        const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+        function openTab(panelId) {
+            if (!document.getElementById(panelId)) return;
+            tabs.forEach(t => {
+                const on = t.getAttribute('aria-controls') === panelId;
+                t.setAttribute('aria-selected', String(on));
+                t.tabIndex = on ? 0 : -1;
+                document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+            });
+            try { localStorage.setItem('activeAdminTab', panelId); } catch (e) {}
         }
+        tabs.forEach((t, i) => {
+            t.addEventListener('click', () => openTab(t.getAttribute('aria-controls')));
+            t.addEventListener('keydown', e => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                next.focus();
+                openTab(next.getAttribute('aria-controls'));
+            });
+        });
+        let saved = null;
+        try { saved = localStorage.getItem('activeAdminTab'); } catch (e) {}
+        const legacy = { 'tab-round2': 'tab-level2', 'tab-round3': 'tab-level3', 'tab-level1': 'tab-level2', 'tab-overview': 'tab-level2' };
+        openTab(legacy[saved] || saved || 'tab-level2');
+
+        // Confirm destructive actions; the message lives in data-confirm so usernames never land in JS source
+        document.querySelectorAll('form[data-confirm]').forEach(f => {
+            f.addEventListener('submit', e => { if (!confirm(f.dataset.confirm)) e.preventDefault(); });
+        });
+
+        // Player search
+        document.querySelectorAll('[data-filter]').forEach(input => {
+            const body = document.getElementById(input.dataset.filter);
+            const count = document.querySelector('[data-count="' + input.dataset.filter + '"]');
+            const rows = Array.from(body.querySelectorAll('tr[data-name]'));
+            function apply() {
+                const q = input.value.trim().toLowerCase();
+                let shown = 0;
+                rows.forEach(r => {
+                    const hit = !q || r.dataset.name.includes(q);
+                    r.hidden = !hit;
+                    if (hit) shown++;
+                });
+                count.textContent = q ? `${shown} of ${rows.length} players` : `${rows.length} players`;
+            }
+            input.addEventListener('input', apply);
+            apply();
+        });
+
+        // Solved checkpoints for a player
+        const dialog = document.getElementById('flagsModal');
+        const title = document.getElementById('modalTitle');
+        const tbody = document.getElementById('flagsTableBody');
+        const loading = document.getElementById('modalLoading');
+        const tableWrap = document.getElementById('flagsTable');
 
         function showFlagsModal(userId, username) {
-            const modal = document.getElementById('flagsModal');
-            const title = document.getElementById('modalTitle');
-            const tableBody = document.getElementById('flagsTableBody');
-            const loading = document.getElementById('modalLoading');
+            title.textContent = `${username}: solved checkpoints`;
+            tbody.replaceChildren();
+            tableWrap.hidden = true;
+            loading.hidden = false;
+            loading.textContent = 'Loading…';
+            dialog.showModal();
 
-            title.innerText = username.toUpperCase() + " FLAGS";
-            tableBody.innerHTML = '';
-            loading.style.display = 'block';
-            modal.style.display = 'flex';
-
-            fetch('/api/admin/user/' + userId + '/flags')
-                .then(response => response.json())
+            fetch('/api/admin/user/' + encodeURIComponent(userId) + '/flags')
+                .then(r => r.json())
                 .then(data => {
-                    loading.style.display = 'none';
-                    if (data.status === 'success') {
-                        if (data.flags.length === 0) {
-                            tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center;">No flags submitted yet.</td></tr>';
-                        } else {
-                            data.flags.forEach(flag => {
-                                const row = document.createElement('tr');
-                                row.innerHTML = `<td>${flag.challenge_id}</td><td>${flag.solved_at}</td>`;
-                                tableBody.appendChild(row);
-                            });
-                        }
-                    } else {
-                        tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:red;">Error loading flags.</td></tr>';
+                    if (data.status !== 'success') throw new Error('bad status');
+                    if (!data.flags.length) {
+                        loading.textContent = 'This player hasn\'t solved any checkpoints yet.';
+                        return;
                     }
+                    data.flags.forEach(f => {
+                        const tr = document.createElement('tr');
+                        const a = document.createElement('td');
+                        const b = document.createElement('td');
+                        a.textContent = f.challenge_id;
+                        b.textContent = f.solved_at;
+                        b.className = 'num';
+                        tr.append(a, b);
+                        tbody.appendChild(tr);
+                    });
+                    loading.hidden = true;
+                    tableWrap.hidden = false;
                 })
-                .catch(err => {
-                    loading.style.display = 'none';
-                    tableBody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:red;">Error fetching data.</td></tr>';
+                .catch(() => {
+                    loading.textContent = 'Couldn\'t load checkpoints. Check the server log and try again.';
                 });
         }
 
-        function closeFlagsModal() {
-            document.getElementById('flagsModal').style.display = 'none';
-        }
-
-        window.onload = () => {
-            let savedTab = localStorage.getItem('activeAdminTab');
-            if (savedTab === 'tab-round2') savedTab = 'tab-level1';
-            if (savedTab === 'tab-round3') savedTab = 'tab-level2';
-            if (savedTab && document.getElementById(savedTab)) {
-                openTab(savedTab);
-            }
-        };
+        document.addEventListener('click', e => {
+            const btn = e.target.closest('.player-btn');
+            if (btn) showFlagsModal(btn.dataset.userId, btn.dataset.username);
+        });
+        dialog.addEventListener('click', e => { if (e.target === dialog) dialog.close(); });
     </script>
 </body>
 
