@@ -10,6 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_3d.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" defer></script>
+    <script src="{{ url_for('static', filename='js/jumanji_3d_engine.js') }}" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
@@ -329,7 +332,7 @@
     </style>
 </head>
 
-<body class="l1 scene">
+<body class="l1 scene" data-world="ambient">
     <div class="crt-overlay" aria-hidden="true"></div>
 
     <!-- 1. Entry -->
@@ -397,6 +400,7 @@
                 <li>
                     <button class="avatar-card" id="btn-{{ id }}" type="button" aria-pressed="false" onclick="selectChar('{{ id }}')">
                         <img class="avatar-card__img" src="/static/assets/{{ img }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>
+                        <span class="relic-token" data-token="{{ id }}" aria-hidden="true"></span>
                         <span class="avatar-card__body parchment">
                             <span class="avatar-card__name" style="display:block">{{ name }}</span>
                             <span class="avatar-card__role" style="display:block">{{ role }}</span>
@@ -639,7 +643,10 @@
                 term.onData(data => socket.emit('pty-input', { input: data }));
                 term.onResize(size => socket.emit('pty-resize', { cols: size.cols, rows: size.rows }));
 
-                socket.on('pty-output', data => term.write(data.output));
+                socket.on('pty-output', data => {
+                    term.write(data.output);
+                    window.JX3D && JX3D.signal('telemetry');
+                });
 
                 socket.on('score-update', data => {
                     document.getElementById('user-points').textContent = data.new_points;
@@ -670,11 +677,14 @@
             const el = document.getElementById('link-status');
             el.className = 'pill ' + (ok ? 'pill--emerald' : 'pill--curse');
             el.innerHTML = '<span class="beat"></span> ' + (ok ? 'Link active' : 'Link lost');
+            window.JX3D && JX3D.signal('link', ok);
         }
 
         function stampSeal(avatarId) {
             const card = document.getElementById('btn-' + avatarId);
             if (!card || card.querySelector('.seal')) return;
+            // Queue the stone seal on the 3D token; it plays once the card is back on screen
+            window.JX3D && JX3D.stamp(avatarId);
             const seal = document.createElement('span');
             seal.className = 'seal is-pressing';
             seal.setAttribute('aria-label', 'Relic found');

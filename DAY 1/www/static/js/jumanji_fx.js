@@ -8,6 +8,7 @@
      JX.typeInto types a command into the PTY one key at a time
      JX.surface  makes text rise out of the orb smoke
      JX.countdown mm:ss ticker
+     JX.audio    shared Web Audio graph for jumanji_3d_engine.js
    ========================================================================== */
 (function () {
     'use strict';
@@ -150,8 +151,22 @@
             noise(0.45, 0.12, 0.06, 2600, 6);
             tone(784, 0.55, 0.7, 'sine', 0.06);
             tone(1175, 0.62, 0.7, 'sine', 0.04);
+        },
+        // Stone seal pressed onto a relic token: heavy thud plus grit
+        stamp() {
+            if (!sfx.enabled) return;
+            tone(120, 0, 0.25, 'triangle', 0.12, 45);
+            noise(0, 0.18, 0.07, 420, 0.7, 160);
+            noise(0.04, 0.3, 0.025, 2400, 2);
         }
     };
+
+    // The shared context and master bus, so the 3D engine's spatial voices obey
+    // the same volume. Creates the context lazily; call it after a user gesture.
+    function graph() {
+        const c = audio();
+        return c ? { ctx: c, out: master } : null;
+    }
 
     /* ---------- Ambient drums ---------- */
 
@@ -367,5 +382,5 @@
         return { stop: () => clearInterval(id), get remaining() { return remaining; } };
     }
 
-    window.JX = { sfx, drums, toast, copy, typeInto, surface, countdown, store };
+    window.JX = { sfx, drums, toast, copy, typeInto, surface, countdown, store, audio: { graph } };
 })();

@@ -337,6 +337,11 @@ def hub():
     day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
     user = conn.execute("SELECT * FROM users WHERE id = ?", (session['user_id'],)).fetchone()
+
+    # Check Day 2 tournament team
+    team = None
+    if day2_visible:
+        team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
     conn.close()
 
     l2_pts = user['level2_points'] or user['points'] or 0
@@ -347,9 +352,85 @@ def hub():
     can_play_l2 = day1_visible and l2_unlocked and l2_status == 'active' and l2_pts < 150
     can_play_l3 = day1_visible and l3_unlocked and l3_status == 'active' and l3_pts < 200
 
+    raw_auth = user['authorized_levels']
+    if raw_auth:
+        try:
+            auth_levels = json.loads(raw_auth)
+        except Exception:
+            auth_levels = [2, 3]
+    else:
+        auth_levels = [2, 3]
+
+    # Single-target determination for the 3D Jumanji board
+    if day2_visible and team:
+        target_level = 'day2'
+        target_name = 'The Jumanji Gauntlet'
+        target_url = url_for('day2_level2')
+        is_unlocked = True
+        is_done = False
+        riddle = "Two by two the champions stand,\nSplit keys locked by partner’s hand.\nHold the shrine, endure the curse,\nEight survivors claim the verse."
+        movement_style = 'charge'
+        steps = 18
+    elif 3 in auth_levels and 2 not in auth_levels:
+        target_level = 'l3'
+        target_name = 'Simulation Core (Mainframe)'
+        target_url = url_for('level3')
+        is_unlocked = day1_visible and l3_unlocked and l3_status == 'active'
+        is_done = l3_pts >= 200
+        riddle = "Beware the core where power hides,\nA cursed mainframe, changing tides.\nSpeak the chant and break the root,\nOr perish under Nigel’s boot."
+        movement_style = 'heavy'
+        steps = 8
+    elif 2 in auth_levels and 3 not in auth_levels:
+        target_level = 'l2'
+        target_name = 'Avatar Reconnaissance'
+        target_url = url_for('level2')
+        is_unlocked = day1_visible and l2_unlocked and l2_status == 'active'
+        is_done = l2_pts >= 150
+        riddle = "In the jungle you must wait,\nFive lost relics seal your fate.\nRecon badges, shadows deep,\nFind the secrets avatars keep."
+        movement_style = 'hop'
+        steps = 5
+    else:
+        # Dual-authorized (e.g. testing / local admin)
+        if l2_pts < 150:
+            target_level = 'l2'
+            target_name = 'Avatar Reconnaissance'
+            target_url = url_for('level2')
+            is_unlocked = day1_visible and l2_unlocked and l2_status == 'active'
+            is_done = False
+            riddle = "In the jungle you must wait,\nFive lost relics seal your fate.\nRecon badges, shadows deep,\nFind the secrets avatars keep."
+            movement_style = 'hop'
+            steps = 5
+        else:
+            target_level = 'l3'
+            target_name = 'Simulation Core (Mainframe)'
+            target_url = url_for('level3')
+            is_unlocked = day1_visible and l3_unlocked and l3_status == 'active'
+            is_done = l3_pts >= 200
+            riddle = "Beware the core where power hides,\nA cursed mainframe, changing tides.\nSpeak the chant and break the root,\nOr perish under Nigel’s boot."
+            movement_style = 'heavy'
+            steps = 8
+
+    locked_riddle = "The board is still, the drums are low;\nThe host will say when you may go."
+    completed_riddle = "Your trial is won, the relic claims its place;\nAwait the next dawn or the tournament race."
+
+    player_expedition_config = {
+        'targetLevel': target_level,
+        'targetName': target_name,
+        'targetUrl': target_url,
+        'isUnlocked': is_unlocked,
+        'isDone': is_done,
+        'riddle': riddle,
+        'lockedRiddle': locked_riddle,
+        'completedRiddle': completed_riddle,
+        'movementStyle': movement_style,
+        'steps': steps,
+        'authorizedLevels': auth_levels
+    }
+
     return render_template(
         'hub.html',
         user=user,
+        player_expedition_config=player_expedition_config,
         can_play_l2=can_play_l2,
         can_play_l3=can_play_l3,
         level2_unlocked=l2_unlocked,
@@ -399,6 +480,109 @@ def check_timer():
                 conn.commit()
                 
         conn.close()
+
+def check_level_access(user_id, level_num, is_submission=False):
+    """
+    Centralized, database-backed security and authorization verification.
+    Ensures:
+      1. User exists and is authenticated.
+      2. User is registered for the requested domain/level (authorized_levels).
+      3. Global tournament and admin locks are strictly respected.
+      4. Individual suspension or completion limits are respected.
+    Returns:
+      (True, None) if authorized to proceed.
+      (False, error_message) if access is denied.
+    """
+    if not user_id:
+        return False, "Authentication required. Please log in."
+
+    conn = get_db_connection()
+    user = conn.execute("""
+        SELECT id, username, role, authorized_levels, status, 
+               level2_status, level3_status, points, level2_points, level3_points 
+        FROM users WHERE id = ?
+    """, (user_id,)).fetchone()
+
+    if not user:
+        conn.close()
+        return False, "User account not found."
+
+    # Administrators have universal access
+    if user['role'] == 'admin':
+        conn.close()
+        return True, None
+
+    # Determine user's authorized levels list
+    raw_auth = user['authorized_levels']
+    user_levels = []
+    if raw_auth:
+        try:
+            parsed = json.loads(raw_auth)
+            user_levels = [int(x) for x in parsed if str(x).isdigit()]
+        except Exception:
+            user_levels = []
+    elif user['username'] == 'verification_pilot':
+        user_levels = [2, 3]
+
+    # Level 2 authorization check
+    if level_num in (1, 2):
+        if 2 not in user_levels and 1 not in user_levels:
+            conn.close()
+            return False, "Access Denied: Your registration is only for Day 1 Level 3 (Simulation Core Mainframe)."
+
+        l2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
+        l2_unlocked = (l2_row['value'] == '1') if l2_row else False
+        d1_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()
+        d1_vis = (d1_row['value'] == '1') if d1_row else False
+        stat = user['level2_status'] or user['status'] or 'active'
+        pts = user['level2_points'] or user['points'] or 0
+
+        conn.close()
+        if not d1_vis:
+            return False, "Day 1 has not been opened yet by the tournament host."
+        if not l2_unlocked:
+            return False, "Day 1 Level 2 is currently locked by the game master."
+        if stat == 'suspended':
+            return False, "Your Day 1 Level 2 session has ended."
+        if not is_submission and pts >= 150:
+            return False, "You have already completed Day 1 Level 2."
+        return True, None
+
+    # Level 3 authorization check
+    elif level_num == 3:
+        if 3 not in user_levels:
+            conn.close()
+            return False, "Access Denied: Your registration is only for Day 1 Level 2 (Avatar Reconnaissance)."
+
+        l3_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
+        l3_unlocked = (l3_row['value'] == '1') if l3_row else False
+        d1_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()
+        d1_vis = (d1_row['value'] == '1') if d1_row else False
+        stat = user['level3_status'] or 'active'
+        pts = user['level3_points'] or 0
+
+        conn.close()
+        if not d1_vis:
+            return False, "Day 1 has not been opened yet by the tournament host."
+        if not l3_unlocked:
+            return False, "Day 1 Level 3 is currently locked by the game master."
+        if stat == 'suspended':
+            return False, "Your Day 1 Level 3 session has ended."
+        if not is_submission and pts >= 200:
+            return False, "You have already completed Day 1 Level 3."
+        return True, None
+
+    # Day 2 Gauntlet authorization check
+    elif level_num in ('day2', 'gauntlet'):
+        d2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()
+        d2_vis = (d2_row['value'] == '1') if d2_row else False
+        conn.close()
+        if not d2_vis:
+            return False, "Day 2 has not been opened yet by the tournament host."
+        return True, None
+
+    conn.close()
+    return False, "Unknown level requested."
 
 @app.route('/auth/launch')
 def auth_launch():
@@ -508,11 +692,15 @@ def login():
             session['points'] = l2_pts
             session['level2_points'] = l2_pts
             session['level3_points'] = l3_pts
-            session['round3_points'] = l3_pts
-            try:
-                session['authorized_levels'] = json.loads(user['authorized_levels']) if user['authorized_levels'] else [2, 3]
-            except Exception:
+            if user['authorized_levels']:
+                try:
+                    session['authorized_levels'] = [int(x) for x in json.loads(user['authorized_levels']) if str(x).isdigit()]
+                except Exception:
+                    session['authorized_levels'] = []
+            elif user['role'] == 'admin' or user['username'] == 'verification_pilot':
                 session['authorized_levels'] = [2, 3]
+            else:
+                session['authorized_levels'] = []
             return redirect(url_for('index'))
         else:
             conn.close()
@@ -619,6 +807,15 @@ def google_callback():
         session['username'] = user['username']
         session['role'] = user['role']
         session['points'] = user['points']
+        if user['authorized_levels']:
+            try:
+                session['authorized_levels'] = [int(x) for x in json.loads(user['authorized_levels']) if str(x).isdigit()]
+            except Exception:
+                session['authorized_levels'] = []
+        elif user['role'] == 'admin' or user['username'] == 'verification_pilot':
+            session['authorized_levels'] = [2, 3]
+        else:
+            session['authorized_levels'] = []
         return redirect(url_for('index'))
         
     conn.close()
@@ -657,7 +854,7 @@ def choose_username():
             
         dummy_pw = secrets.token_hex(16)
         conn.execute(
-            "INSERT INTO users (username, password, role, points, status, google_id, email) VALUES (?, ?, 'player', 0, 'active', ?, ?)",
+            "INSERT INTO users (username, password, role, points, status, google_id, email, authorized_levels) VALUES (?, ?, 'player', 0, 'active', ?, ?, '[]')",
             (chosen, dummy_pw, pending['google_id'], pending['email'])
         )
         conn.commit()
@@ -669,6 +866,7 @@ def choose_username():
         session['username'] = new_user['username']
         session['role'] = new_user['role']
         session['points'] = new_user['points']
+        session['authorized_levels'] = []
         
         return redirect(url_for('index'))
         
@@ -676,24 +874,11 @@ def choose_username():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        
-        conn = get_db_connection()
-        user = conn.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
-        
-        if user:
-            flash('ERROR: Player name already taken.')
-        else:
-            conn.execute("INSERT INTO users (username, password, role, points) VALUES (?, ?, 'player', 0)", (username, password))
-            conn.commit()
-            flash('REGISTRATION SUCCESSFUL. PLEASE LOG IN.')
-            conn.close()
-            return redirect(url_for('login'))
-        conn.close()
-            
-    return render_template('register.html')
+    # Only administrators can register players
+    if session.get('role') != 'admin':
+        flash('Player registration is managed by tournament administrators.')
+        return redirect(url_for('login'))
+    return redirect(url_for('admin'))
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
@@ -704,7 +889,38 @@ def admin():
     if request.method == 'POST':
         action = request.form.get('action')
         
-        if action == 'update':
+        if action == 'create_player':
+            new_user = request.form.get('username', '').strip()
+            new_pass = request.form.get('password', '').strip()
+            pid = request.form.get('participant_id', '').strip() or None
+            full_name = request.form.get('name', '').strip() or None
+            email_val = request.form.get('email', '').strip() or None
+
+            auth_levels = []
+            if request.form.get('auth_level_2'):
+                auth_levels.append(2)
+            if request.form.get('auth_level_3'):
+                auth_levels.append(3)
+
+            if not new_user or not new_pass:
+                flash("ERROR: Username and Password are required.")
+            else:
+                existing = conn.execute("SELECT id FROM users WHERE username = ? OR (participant_id IS NOT NULL AND participant_id = ?)", (new_user, pid)).fetchone()
+                if existing:
+                    flash(f"ERROR: A player with username '{new_user}' or ID '{pid}' already exists.")
+                else:
+                    auth_json = json.dumps(auth_levels)
+                    conn.execute('''
+                        INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
+                        VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
+                    ''', (new_user, new_pass, pid, auth_json, email_val, full_name))
+                    conn.commit()
+                    level_names = []
+                    if 2 in auth_levels: level_names.append("Level 2")
+                    if 3 in auth_levels: level_names.append("Level 3")
+                    auth_desc = ", ".join(level_names) if level_names else "None"
+                    flash(f"SUCCESS: Player '{new_user}' created successfully (Authorized: {auth_desc}).")
+        elif action == 'update':
             user_id = request.form.get('user_id')
             new_points = request.form.get('points')
             level_num = str(request.form.get('level') or request.form.get('round') or '2')
@@ -955,6 +1171,115 @@ def export_scores_l3():
         headers={'Content-Disposition': 'attachment; filename=sdc_day1_level3_cybersec_scores.csv'}
     )
 
+@app.route('/admin/export-scores/day1-all')
+@app.route('/admin/export-day1-shortlist')
+def export_day1_shortlist():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    conn = get_db_connection()
+    # Export full Day 1 score matrix for SDC Games global aggregation
+    users = conn.execute('''
+        SELECT 
+            participant_id, 
+            username, 
+            COALESCE(name, '') as full_name,
+            COALESCE(email, '') as email_address,
+            COALESCE(level2_points, points, 0) as l2_pts,
+            COALESCE(level3_points, 0) as l3_pts,
+            (COALESCE(level2_points, points, 0) + COALESCE(level3_points, 0)) as total_day1_score,
+            authorized_levels,
+            start_time,
+            last_active
+        FROM users 
+        WHERE role != 'admin' 
+        ORDER BY total_day1_score DESC, id ASC
+    ''').fetchall()
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['rank', 'participantId', 'username', 'name', 'email', 'totalDay1CybersecScore', 'level2Score', 'level3Score', 'authorizedLevels', 'startTime', 'lastActive'])
+    for idx, u in enumerate(users, start=1):
+        pid = u['participant_id'] or u['username']
+        writer.writerow([
+            idx,
+            pid,
+            u['username'],
+            u['full_name'],
+            u['email_address'],
+            u['total_day1_score'],
+            u['l2_pts'],
+            u['l3_pts'],
+            u['authorized_levels'] or '[]',
+            u['start_time'] or '',
+            u['last_active'] or ''
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=sdc_day1_cybersec_score_matrix.csv'}
+    )
+
+@app.route('/admin/export-gauntlet-finalists')
+def export_gauntlet_finalists():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return redirect(url_for('login'))
+    conn = get_db_connection()
+    # Top 4 teams from Gauntlet tournament (4 teams x 2 members = 8 finalists for Coding)
+    teams = conn.execute('''
+        SELECT 
+            id, 
+            team_name, 
+            pod_id, 
+            (phase1_score + duel_score + shrine_score + lagoon_score) as total_gauntlet_score,
+            phase1_score,
+            duel_score,
+            shrine_score,
+            lagoon_score
+        FROM gauntlet_teams 
+        ORDER BY total_gauntlet_score DESC, id ASC 
+        LIMIT 4
+    ''').fetchall()
+
+    members = conn.execute('''
+        SELECT m.team_id, m.user_id, m.role, u.username, u.participant_id, u.email, u.name
+        FROM gauntlet_members m
+        JOIN users u ON m.user_id = u.id
+    ''').fetchall()
+    conn.close()
+
+    members_by_team = {}
+    for m in members:
+        members_by_team.setdefault(m['team_id'], []).append(m)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['teamRank', 'teamName', 'podId', 'totalGauntletScore', 'playerRole', 'participantId', 'username', 'fullName', 'email'])
+    for idx, t in enumerate(teams, start=1):
+        t_members = members_by_team.get(t['id'], [])
+        if not t_members:
+            writer.writerow([idx, t['team_name'], t['pod_id'], t['total_gauntlet_score'], 'team_representative', '', '', '', ''])
+        else:
+            for m in t_members:
+                writer.writerow([
+                    idx,
+                    t['team_name'],
+                    t['pod_id'],
+                    t['total_gauntlet_score'],
+                    m['role'],
+                    m['participant_id'] or m['username'],
+                    m['username'],
+                    m['name'] or '',
+                    m['email'] or ''
+                ])
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=sdc_gauntlet_top4_teams_8finalists.csv'}
+    )
+
 @app.route('/api/admin/user/<int:user_id>/flags', methods=['GET'])
 def get_user_flags(user_id):
     if 'user_id' not in session or session.get('role') != 'admin':
@@ -981,24 +1306,15 @@ def level2():
     if session.get('role') == 'admin':
         return redirect(url_for('admin'))
 
-    auth_levels = session.get('authorized_levels')
-    if auth_levels is not None and 2 not in auth_levels and 1 not in auth_levels:
-        flash('Your team is not registered for Cybersecurity in Day 1 Level 2.')
+    allowed, err_msg = check_level_access(session['user_id'], 2)
+    if not allowed:
+        flash(err_msg)
         return redirect(url_for('hub'))
         
     conn = get_db_connection()
-    l2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
-    l2_unlocked = (l2_row['value'] == '1') if l2_row else True
-    day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     user = conn.execute("SELECT start_time, level2_start_time, has_seen_intro, has_seen_l2_intro, points, level2_points, status, level2_status FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-
     pts = user['level2_points'] or user['points'] or 0
-    stat = user['level2_status'] or user['status'] or 'active'
 
-    if not day1_visible or not l2_unlocked or stat == 'suspended' or pts >= 150:
-        conn.close()
-        return redirect(url_for('hub'))
-        
     start_val = user['level2_start_time'] or user['start_time']
     if not start_val:
         start_time_iso = get_utc_now().isoformat()
@@ -1059,24 +1375,15 @@ def level3():
     if session.get('role') == 'admin':
         return redirect(url_for('admin'))
 
-    auth_levels = session.get('authorized_levels')
-    if auth_levels is not None and 3 not in auth_levels and 2 not in auth_levels:
-        flash('Your team is not registered for Cybersecurity in Day 1 Level 3.')
+    allowed, err_msg = check_level_access(session['user_id'], 3)
+    if not allowed:
+        flash(err_msg)
         return redirect(url_for('hub'))
         
     conn = get_db_connection()
-    l3_row = conn.execute("SELECT value FROM global_settings WHERE key = 'level3_unlocked'").fetchone()
-    unlocked = (l3_row['value'] == '1') if l3_row else False
-    day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     user = conn.execute("SELECT level3_start_time, level3_status, level3_points, has_seen_l3_intro FROM users WHERE id = ?", (session['user_id'],)).fetchone()
-
     pts = user['level3_points'] or 0
-    stat = user['level3_status'] or 'active'
 
-    if not day1_visible or not unlocked or stat == 'suspended' or pts >= 200:
-        conn.close()
-        return redirect(url_for('hub'))
-        
     if not user['level3_start_time']:
         remaining_seconds = 3600
     else:
@@ -1231,6 +1538,12 @@ def submit_score():
     if avatar_id not in SCORE_MATRIX:
         return jsonify({'error': 'Invalid checkpoint'}), 400
         
+    is_level3 = avatar_id in ['level3_user', 'level3_root', 'level2_user', 'level2_root', 'round3_user', 'round3_root']
+    target_lvl = 3 if is_level3 else 2
+    allowed, err_msg = check_level_access(user_id, target_lvl, is_submission=True)
+    if not allowed and session.get('role') != 'admin':
+        return jsonify({'error': f'Access Denied: {err_msg}'}), 403
+        
     expected_flag = generate_dynamic_flag(user_id, avatar_id)
     if submitted_flag != expected_flag:
         return jsonify({'status': 'invalid_flag', 'error': 'INCORRECT FLAG SUPPLIED!'}), 400
@@ -1321,13 +1634,12 @@ def gauntlet():
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
-    conn = get_db_connection()
-    day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
-    if not day2_visible and session.get('role') != 'admin':
-        conn.close()
-        flash('Day 2 has not been opened by the tournament host yet.')
+    allowed, err_msg = check_level_access(session['user_id'], 'day2')
+    if not allowed and session.get('role') != 'admin':
+        flash(err_msg)
         return redirect(url_for('hub'))
         
+    conn = get_db_connection()
     team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
     if not team:
         team = gauntlet_engine.auto_assign_user_to_team(conn, session['user_id'])
@@ -1530,18 +1842,27 @@ def start_pty(data):
     sid = request.sid
     avatar_id = data.get('avatar_id', 'bravestone')
     
+    session_id = session.get('user_id')
+    if not session_id:
+        socketio.emit('pty-output', {'output': '\r\n\x1b[31;1m[ERROR] Authentication required. Please log in.\x1b[0m\r\n'}, room=sid)
+        return
+
+    # Standardize container and environment mapping by Level
+    is_gauntlet = (avatar_id in ['gauntlet', 'day2_level2', 'day2'])
+    is_level3 = (avatar_id in ['level3', 'round3'])
+
+    target_lvl = 3 if is_level3 else ('day2' if is_gauntlet else 2)
+    allowed, err_msg = check_level_access(session_id, target_lvl)
+    if not allowed and session.get('role') != 'admin':
+        socketio.emit('pty-output', {'output': f'\r\n\x1b[31;1m[SECURITY BLOCK] {err_msg}\x1b[0m\r\n'}, room=sid)
+        return
+
     # If a previous PTY session exists for this socket, terminate and clean it up first
     if sid in clients:
         handle_stop_pty()
         
     master_fd, slave_fd = pty.openpty()
-    
-    session_id = session.get('user_id', 'anon')
     username = session.get('username', 'player')
-    
-    # Standardize container and environment mapping by Level
-    is_gauntlet = (avatar_id in ['gauntlet', 'day2_level2', 'day2'])
-    is_level3 = (avatar_id in ['level3', 'round3'])
     
     docker_mounts = []
     docker_extra_env = []

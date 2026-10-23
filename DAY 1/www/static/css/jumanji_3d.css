@@ -1,0 +1,300 @@
+/* ==========================================================================
+   JUMANJI 3D WORLD — DOM side of jumanji_3d_engine.js
+   <html>.jx3d-live      WebGL is running
+   <html>.jx3d-fallback  no WebGL: CSS 3D perspective fallback
+   ========================================================================== */
+
+/* ---------- The canvas: always behind the UI, never takes input ---------- */
+
+#jumanji-3d-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    display: block;
+    pointer-events: none;
+}
+
+/* ---------- Hub: the board replaces the SVG emblem ---------- */
+
+.jx3d-live .hub .emblem {
+    --size: min(640px, 94vw);
+    width: var(--size);
+    height: clamp(300px, 54vh, 540px);
+    aspect-ratio: auto;
+    margin-bottom: 4.4rem;
+    border-radius: 12px;
+}
+.jx3d-live .hub .emblem.is-over-board { cursor: pointer; }
+.jx3d-live .hub .emblem:focus-visible { outline-offset: 6px; }
+
+.jx3d-live .hub .emblem__ring { display: none; }
+
+/* The orb's riddle becomes the caption under the box */
+.jx3d-live .hub .emblem .orb {
+    --orb-size: min(420px, 84vw);
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, 92vw);
+    aspect-ratio: auto;
+    margin-top: 6px;
+    background: none;
+    box-shadow: none;
+    animation: none;
+    pointer-events: none;
+}
+.jx3d-live .hub .emblem .orb::before { display: none; }
+.jx3d-live .hub .emblem .orb__text {
+    width: 100%;
+    font-size: clamp(0.95rem, 2.2vw, 1.15rem);
+    line-height: 1.55;
+    text-shadow: 0 0 10px rgba(0, 255, 102, 0.75), 0 1px 3px #000, 0 0 20px rgba(2, 10, 5, 0.98);
+}
+
+/* Ensure no hero title or lede can ever overlap the central prophecy */
+.hub .hero__title,
+.hub .hero__lede,
+.jx3d-live .hub .hero__title,
+.jx3d-live .hub .hero__lede {
+    display: none !important;
+}
+
+/* ---------- Fallback: CSS 3D tilt on the existing emblem ---------- */
+
+.jx3d-fallback .hub .emblem {
+    transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease-out;
+}
+.jx3d-fallback .hub .emblem .orb { transform: translateZ(60px); }
+
+/* ---------- Level 2: relic tokens on the avatar cards ---------- */
+
+.relic-token {
+    position: relative;
+    z-index: 2;
+    align-self: flex-end;
+    width: 64px;
+    height: 64px;
+    margin: -52px 8px -12px 0;
+    pointer-events: none;
+}
+
+/* The canvas overhangs the slot so stamp dust can fly past the rim */
+.relic-token__canvas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 180%;
+    height: 180%;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(var(--sx, 0px) var(--sy, 4px) 5px rgba(43, 29, 16, 0.6));
+}
+
+/* Without WebGL the slot would be an empty hole in the card */
+.jx3d-fallback .relic-token { display: none; }
+
+body.jx3d-tokens .avatar-card {
+    transform: perspective(900px) translateY(var(--lift, 0px)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: transform 0.18s ease-out, box-shadow 0.2s ease;
+}
+body.jx3d-tokens .avatar-card:hover { --lift: -4px; }
+body.jx3d-tokens .avatar-card[aria-pressed="true"] { --lift: -8px; }
+
+/* Holographic glare that follows the pointer */
+.card-glare {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: soft-light;
+    background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 245, 210, 0.75), rgba(255, 245, 210, 0) 55%);
+    transition: opacity 0.2s ease;
+}
+.avatar-card:hover .card-glare { opacity: 1; }
+
+/* Stone seal impact */
+.avatar-card.is-impact { animation: seal-impact 0.42s cubic-bezier(0.3, 0.7, 0.4, 1); }
+@keyframes seal-impact {
+    0% { translate: 0 0; }
+    15% { translate: -3px 4px; }
+    30% { translate: 3px -2px; }
+    45% { translate: -2px 2px; }
+    60% { translate: 1px -1px; }
+    100% { translate: 0 0; }
+}
+
+/* ---------- Field rig: terminal chassis controls ---------- */
+
+/* Olive-drab ruggedized case instead of the brass bezel */
+.bezel.field-rig {
+    background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0) 0 6px, rgba(0, 0, 0, 0.06) 6px 7px),
+        linear-gradient(145deg, #4b4a2a 0%, #23230f 32%, #3a3a1c 62%, #161608 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(230, 230, 160, 0.25),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+        inset 0 0 0 2px rgba(0, 0, 0, 0.45),
+        var(--shadow-heavy);
+}
+
+/* CRT shader canvas over xterm; it only paints glow and shade */
+.crt-shader {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 6;
+    pointer-events: none;
+}
+.crt-shader[hidden] { display: none; }
+.crt-glass.has-crt-shader::after,
+.crt-glass.crt-off::after { display: none; }
+
+.rig-panel {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 10px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, #1c1c0c, #0d0d05);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(230, 230, 160, 0.12);
+    font-family: var(--font-hud);
+    font-size: var(--step--2);
+    letter-spacing: 0.06em;
+    color: #b9b98a;
+    user-select: none;
+}
+
+/* Speaker grille fills the space between LEDs and controls */
+.rig-grille {
+    flex: 1;
+    align-self: stretch;
+    min-width: 24px;
+    margin: 4px 0;
+    border-radius: 3px;
+    background: radial-gradient(circle, rgba(0, 0, 0, 0.75) 1.4px, transparent 1.8px) 0 0 / 7px 7px;
+    opacity: 0.8;
+}
+
+/* Status LEDs: glass domes over a coloured die */
+.rig-led {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.rig-led i {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.35) 0 18%, transparent 24%), #12200f;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 0 2px #2b2b14;
+    transition: background 0.12s, box-shadow 0.12s;
+}
+.rig-led[data-state="on"] i {
+    background: radial-gradient(circle at 35% 30%, #eaffef 0 18%, transparent 24%), #00c853;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px #2b2b14, 0 0 8px rgba(0, 255, 102, 0.55);
+}
+.rig-led[data-state="busy"] i {
+    background: radial-gradient(circle at 35% 30%, #ffffff 0 22%, transparent 28%), #00ff66;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px #2b2b14, 0 0 14px rgba(0, 255, 102, 0.95);
+}
+.rig-led[data-state="alarm"] i { animation: led-alarm 0.7s ease-in-out infinite; }
+@keyframes led-alarm {
+    0%, 100% {
+        background: radial-gradient(circle at 35% 30%, #ffe0e0 0 18%, transparent 24%), #ff4444;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 2px #2b2b14, 0 0 16px rgba(255, 68, 68, 0.95);
+    }
+    50% {
+        background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.3) 0 18%, transparent 24%), #5a0f0f;
+        box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.8), 0 0 0 2px #2b2b14;
+    }
+}
+.rig-led--curse[data-state="alarm"] span { color: #ff8a80; }
+
+/* Rotary knob: knurled skirt via conic-gradient; the cap turns */
+.rig-knob-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.rig-knob {
+    --angle: 27deg;
+    position: relative;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: grab;
+    touch-action: none;
+    background: repeating-conic-gradient(from 0deg, #1a1a0c 0 6deg, #3d3d22 6deg 12deg);
+    box-shadow: 0 3px 4px rgba(0, 0, 0, 0.8), inset 0 0 0 1px rgba(0, 0, 0, 0.7);
+    transform: perspective(200px) rotateX(18deg);
+}
+.rig-knob:active { cursor: grabbing; }
+.rig-knob__cap {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 30%, #6b6b45, #26260f 70%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 200, 0.25), 0 1px 2px rgba(0, 0, 0, 0.8);
+    transform: rotate(var(--angle));
+    transition: transform 0.08s linear;
+}
+.rig-knob__cap::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 2px;
+    width: 2px;
+    height: 8px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--gold-warm);
+    box-shadow: 0 0 4px rgba(255, 204, 0, 0.7);
+}
+
+/* Toggle switch: a lever that pivots in 3D on its plate */
+.rig-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px;
+    border-radius: 4px;
+}
+.rig-switch__plate {
+    position: relative;
+    width: 22px;
+    height: 30px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, #5d5d3a, #23230f);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.75), 0 2px 3px rgba(0, 0, 0, 0.7);
+    perspective: 120px;
+}
+.rig-switch__lever {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 16px;
+    margin: -16px 0 0 -3.5px;
+    border-radius: 3px 3px 2px 2px;
+    background: linear-gradient(90deg, #8f8f8f, #f0f0f0 45%, #9a9a9a);
+    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.6);
+    transform-origin: 50% 100%;
+    transform: rotateX(-38deg);
+    transition: transform 0.16s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+.rig-switch[aria-checked="false"] .rig-switch__lever { transform: rotateX(38deg) translateY(12px); }
+
+@media (max-width: 640px) {
+    .rig-panel { gap: 10px; padding: 5px 8px; }
+    .rig-grille { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.jx3d-tokens .avatar-card { transform: translateY(var(--lift, 0px)); }
+    .card-glare { display: none; }
+}

@@ -39,3 +39,7 @@ CREDENTIALS_AND_SECRETS.txt
 
 # SDC Games separate repository
 sdc-games/
+
+# Temporary scratch tests & artifacts
+scratch/
+

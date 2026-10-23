@@ -109,6 +109,7 @@
                 <p class="topbar__sub">Day 2 · Level 2 · now in {{ phase_labels.get(current_phase, current_phase) }}</p>
             </div>
             <div class="row gap-2 push wrap">
+                <a class="btn btn--gold btn--sm" href="{{ url_for('export_gauntlet_finalists') }}">Export Top 4 Teams / 8 Finalists (CSV)</a>
                 <a class="btn btn--gold btn--sm" href="{{ url_for('gauntlet_bracket') }}" target="_blank" rel="noopener">Open projector arena</a>
                 <a class="btn btn--ghost" href="{{ url_for('admin') }}">Host console</a>
             </div>
