@@ -142,3 +142,442 @@ body.auth {
     color: #d9b979;
 }
 .lid__foot a { color: var(--gold-warm); }
+
+/* ==========================================================================
+   3D login (body.auth--3d): procedural temple clearing behind a bronze
+   expedition pass. The scene lives in jumanji_login_3d.js; everything here
+   also stands on its own when WebGL is unavailable (.no-webgl).
+   ========================================================================== */
+
+body.auth--3d {
+    --moonlight: #9fb8ff;
+    --brass-light: #f3d77a;
+    --label: #e7cf96;
+    display: block;
+    place-items: normal; /* body.auth centres; block layout honours justify-items now */
+    padding: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    /* Fallback backdrop, also what shows while the scene compiles */
+    background:
+        radial-gradient(ellipse 30% 22% at 32% 56%, rgba(0, 255, 102, 0.22), transparent 70%),
+        radial-gradient(ellipse 55% 45% at 32% 60%, rgba(16, 110, 60, 0.28), transparent 70%),
+        radial-gradient(ellipse 70% 60% at 18% 0%, rgba(159, 184, 255, 0.14), transparent 65%),
+        radial-gradient(ellipse 120% 80% at 50% 110%, #0b2016 0%, var(--canopy-0) 70%),
+        var(--canopy-0);
+}
+
+@media (max-width: 959px) {
+    body.auth--3d {
+        background:
+            radial-gradient(ellipse 50% 18% at 50% 24%, rgba(0, 255, 102, 0.22), transparent 70%),
+            radial-gradient(ellipse 80% 40% at 50% 26%, rgba(16, 110, 60, 0.28), transparent 70%),
+            radial-gradient(ellipse 90% 50% at 10% 0%, rgba(159, 184, 255, 0.14), transparent 65%),
+            radial-gradient(ellipse 140% 80% at 50% 110%, #0b2016 0%, var(--canopy-0) 70%),
+            var(--canopy-0);
+    }
+}
+
+.jungle-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+}
+.is-scene-ready .jungle-canvas { opacity: 1; }
+.no-webgl .jungle-canvas { display: none; }
+
+.auth--3d .crt-overlay { opacity: 0.6; }
+
+/* ---------- Stage ---------- */
+
+.stage {
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: 1fr minmax(0, 420px);
+    grid-template-rows: auto 1fr auto auto 1fr;
+    column-gap: 48px;
+    padding: clamp(24px, 5vh, 56px) clamp(16px, 5vw, 88px);
+}
+
+.title-card { grid-column: 1; grid-row: 1; align-self: start; }
+.expedition { grid-column: 2; grid-row: 3; }
+.inscription { grid-column: 2; grid-row: 4; }
+
+/* ---------- Title card ---------- */
+
+.title-card__name {
+    font-family: var(--font-carved);
+    font-weight: 900;
+    font-size: clamp(3rem, 7.5vw, 6.4rem);
+    line-height: 0.9;
+    letter-spacing: 0.06em;
+    background: linear-gradient(180deg, #fff3c4 0%, #f2c94c 36%, #b8860b 52%, #e9bf55 70%, #7a5408 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 2px 0 #3a2700) drop-shadow(0 3px 0 #120c00) drop-shadow(0 0 28px rgba(255, 204, 0, 0.22));
+}
+
+.title-card__event {
+    margin-top: 10px;
+    padding-left: 0.2em;
+    font-family: var(--font-log);
+    font-size: var(--step-0);
+    letter-spacing: 0.04em;
+    color: var(--mist);
+    opacity: 0.8;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- Expedition pass: bronze chassis over dark glass ---------- */
+
+.expedition {
+    position: relative;
+    width: 100%;
+    padding: 30px 28px 28px;
+    border-radius: 6px;
+    border: 1px solid var(--bronze);
+    background:
+        var(--grain),
+        linear-gradient(180deg, rgba(14, 30, 21, 0.86) 0%, rgba(4, 10, 7, 0.92) 100%);
+    background-blend-mode: overlay, normal;
+    -webkit-backdrop-filter: blur(8px) saturate(1.15);
+    backdrop-filter: blur(8px) saturate(1.15);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 220, 150, 0.28),
+        inset 0 0 0 3px rgba(0, 0, 0, 0.5),
+        inset 0 0 0 4px rgba(184, 134, 11, 0.35),
+        inset 0 0 60px rgba(0, 0, 0, 0.45),
+        0 30px 60px -20px rgba(0, 0, 0, 0.95),
+        0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+.expedition__heading {
+    font-family: var(--font-carved);
+    font-weight: 900;
+    font-size: var(--step-2);
+    line-height: 1.2;
+    color: var(--brass-light);
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.7);
+}
+
+.expedition__lede {
+    margin-top: 6px;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--text-dim);
+}
+
+.expedition__divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0 4px;
+    font-size: var(--step--1);
+    color: var(--text-faint);
+}
+.expedition__divider::before,
+.expedition__divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184, 134, 11, 0.55), transparent);
+}
+
+.expedition__form {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ---------- Google ---------- */
+
+.google-btn {
+    position: relative;
+    overflow: hidden;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 16px;
+    border-radius: 4px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    color: #1f1f1f;
+    font-family: 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-weight: 500;
+    font-size: 0.95rem;
+    text-decoration: none;
+    box-shadow: 0 0 0 1px rgba(140, 98, 57, 0.6), 0 3px 10px rgba(0, 0, 0, 0.55);
+    transition: box-shadow 0.25s ease, transform 0.15s ease;
+}
+.google-btn:hover {
+    box-shadow: 0 0 0 1px var(--brass), 0 0 0 4px rgba(184, 134, 11, 0.28), 0 0 26px rgba(255, 204, 0, 0.32), 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+.google-btn:active { transform: translateY(1px); }
+.google-btn .ripple { background: rgba(66, 133, 244, 0.22); }
+
+/* ---------- Credential fields ---------- */
+
+.relic-field label {
+    display: block;
+    margin-bottom: 6px;
+    font-family: var(--font-carved);
+    font-weight: 700;
+    font-size: 0.88rem;
+    letter-spacing: 0.03em;
+    color: var(--label);
+}
+
+.relic-field__well { position: relative; }
+
+.relic-field__input {
+    width: 100%;
+    min-height: 46px;
+    padding: 11px 14px;
+    border-radius: 3px;
+    border: 1px solid #6e4e24;
+    background: linear-gradient(180deg, rgba(1, 22, 12, 0.72), rgba(3, 50, 28, 0.42));
+    color: var(--mist);
+    font-family: var(--font-log);
+    font-size: 1rem; /* 16px keeps iOS from zooming on focus */
+    letter-spacing: 0.04em;
+    caret-color: var(--emerald);
+    /* Bronze bevel: dark cut on top, warm lip below */
+    box-shadow:
+        inset 0 2px 0 rgba(0, 0, 0, 0.55),
+        inset 0 3px 10px rgba(0, 0, 0, 0.6),
+        inset 0 -1px 0 rgba(255, 200, 120, 0.14),
+        0 1px 0 rgba(255, 220, 150, 0.08);
+    transition: border-color 0.2s ease, box-shadow 0.25s ease, background 0.25s ease;
+}
+.relic-field__well .relic-field__input { padding-right: 68px; }
+
+.relic-field__input:focus {
+    outline: none;
+    border-color: var(--emerald-500);
+    background: linear-gradient(180deg, rgba(1, 26, 14, 0.8), rgba(3, 66, 36, 0.5));
+    box-shadow:
+        inset 0 2px 0 rgba(0, 0, 0, 0.55),
+        inset 0 3px 10px rgba(0, 0, 0, 0.6),
+        0 0 0 3px rgba(0, 255, 102, 0.16),
+        0 0 22px rgba(0, 255, 102, 0.22);
+}
+.relic-field__input:user-invalid { border-color: var(--curse-600); }
+
+.relic-field__reveal {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    min-width: 52px;
+    min-height: 34px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: var(--font-log);
+    font-size: var(--step--1);
+    color: var(--label);
+    background: rgba(184, 134, 11, 0.1);
+    border: 1px solid rgba(184, 134, 11, 0.35);
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.relic-field__reveal:hover { background: rgba(184, 134, 11, 0.22); color: var(--gold-warm); }
+
+/* ---------- Primary action: carved brass ---------- */
+
+.enter-btn {
+    position: relative;
+    overflow: hidden;
+    margin-top: 6px;
+    width: 100%;
+    min-height: 52px;
+    padding: 12px 18px;
+    border-radius: 4px;
+    font-family: var(--font-carved);
+    font-weight: 900;
+    font-size: 1.02rem;
+    letter-spacing: 0.04em;
+    color: #2a1800;
+    text-shadow: 0 1px 0 rgba(255, 240, 190, 0.6), 0 -1px 0 rgba(90, 55, 0, 0.35);
+    background: linear-gradient(180deg, #f8e19a 0%, #dcb04a 40%, #a8781c 56%, #c99a35 82%, #e2b958 100%);
+    border: 1px solid #6e5108;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 -2px 0 rgba(90, 60, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 230, 160, 0.25),
+        0 6px 16px rgba(0, 0, 0, 0.6);
+    transition: transform 0.15s ease, box-shadow 0.25s ease, filter 0.25s ease;
+}
+
+/* Light sweeping across the metal on hover */
+.enter-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgba(255, 250, 220, 0.55) 50%, transparent 65%);
+    transform: translateX(-120%);
+    pointer-events: none;
+}
+.enter-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 -2px 0 rgba(90, 60, 0, 0.55),
+        0 0 0 1px rgba(255, 215, 0, 0.35),
+        0 0 28px rgba(255, 204, 0, 0.4),
+        0 8px 20px rgba(0, 0, 0, 0.6);
+}
+.enter-btn:hover::before { transform: translateX(120%); transition: transform 0.9s ease; }
+.enter-btn:active { transform: translateY(1px); }
+.enter-btn[aria-busy="true"] {
+    cursor: progress;
+    animation: enter-charge 0.9s ease-in-out infinite;
+}
+
+@keyframes enter-charge {
+    0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 0 18px rgba(0, 255, 102, 0.3); }
+    50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 0 36px rgba(0, 255, 102, 0.65); }
+}
+
+.enter-btn > span { position: relative; z-index: 1; }
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 248, 210, 0.45);
+    transform: scale(0);
+    pointer-events: none;
+    animation: ripple 0.6s ease-out forwards;
+}
+@keyframes ripple {
+    to { transform: scale(1); opacity: 0; }
+}
+
+/* ---------- Field note: torn parchment drawer for flash messages ---------- */
+
+.field-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: -6px -4px 22px;
+    padding: 16px 12px 16px 16px;
+    font-family: var(--font-log);
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--ink);
+    transform: rotate(-0.8deg);
+    transform-origin: top center;
+    clip-path: polygon(
+        0% 6%, 4% 0%, 9% 5%, 15% 1%, 22% 6%, 28% 2%, 35% 5%, 42% 0%, 49% 4%, 56% 1%, 63% 6%, 70% 2%, 77% 5%, 84% 0%, 91% 4%, 96% 1%, 100% 5%,
+        100% 94%, 95% 100%, 89% 95%, 82% 99%, 75% 94%, 68% 98%, 61% 95%, 54% 100%, 47% 96%, 40% 99%, 33% 94%, 26% 98%, 19% 95%, 12% 100%, 6% 95%, 0% 98%
+    );
+    animation: note-drop 0.55s cubic-bezier(0.2, 0.8, 0.25, 1.15) both;
+}
+.field-note__body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.field-note__body p + p { margin-top: 4px; }
+.field-note__body p::before {
+    content: '';
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 8px;
+    vertical-align: 0.1em;
+    border-radius: 50%;
+    background: var(--curse-800);
+}
+
+.field-note__dismiss {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    margin-top: -4px;
+    border-radius: 50%;
+    font-size: 1.3rem;
+    line-height: 1;
+    color: var(--ink-soft);
+    transition: background 0.2s ease;
+}
+.field-note__dismiss:hover { background: rgba(107, 78, 44, 0.15); color: var(--ink); }
+
+.field-note.is-leaving { animation: note-lift 0.3s ease-in both; }
+
+@keyframes note-drop {
+    from { opacity: 0; transform: translateY(-14px) rotate(-3deg) scaleY(0.6); }
+    to { opacity: 1; transform: rotate(-0.8deg); }
+}
+@keyframes note-lift {
+    to { opacity: 0; transform: translateY(-10px) rotate(-2deg) scaleY(0.7); }
+}
+
+/* ---------- Inscription from the lid ---------- */
+
+.inscription {
+    margin-top: 18px;
+    text-align: center;
+    text-wrap: balance;
+    font-family: var(--font-carved);
+    font-weight: 700;
+    font-size: var(--step--1);
+    line-height: 1.6;
+    letter-spacing: 0.04em;
+    color: rgba(217, 185, 121, 0.62);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- Load sequence: scene rises, then the pass ---------- */
+
+.title-card,
+.expedition,
+.inscription { animation: pass-rise 1s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.title-card { animation-delay: 0.5s; }
+.expedition { animation-delay: 0.85s; }
+.inscription { animation-delay: 1.2s; }
+
+@keyframes pass-rise {
+    from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
+}
+
+/* ---------- Tablet & phone: altar above, pass below ---------- */
+
+@media (max-width: 959px) {
+    .stage {
+        grid-template-columns: minmax(0, 440px);
+        grid-template-rows: auto minmax(26vh, 1fr) auto auto;
+        justify-content: center;
+        column-gap: 0;
+        padding: 24px 16px 28px;
+    }
+    .title-card { grid-column: 1; grid-row: 1; text-align: center; }
+    .expedition { grid-column: 1; grid-row: 3; }
+    .inscription { grid-column: 1; grid-row: 4; }
+    .title-card__name { font-size: clamp(2.6rem, 13vw, 4rem); }
+    .title-card__event { padding-left: 0; font-size: var(--step--1); }
+    .expedition { padding: 26px 20px 22px; }
+}
+
+@media (max-width: 380px) {
+    .expedition { padding: 24px 16px 20px; }
+    .enter-btn { font-size: 0.92rem; letter-spacing: 0.02em; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .title-card, .expedition, .inscription, .field-note { animation: none; }
+    .jungle-canvas { transition: none; }
+    .enter-btn::before { display: none; }
+    .enter-btn[aria-busy="true"] { animation: none; }
+}

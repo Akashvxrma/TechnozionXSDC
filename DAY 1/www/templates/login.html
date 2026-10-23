@@ -3,40 +3,49 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#030705">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_auth.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" defer></script>
+    <script src="{{ url_for('static', filename='js/jumanji_login_3d.js') }}" defer></script>
     <title>Jumanji · Sign in</title>
 </head>
 
-<body class="auth scene">
+<body class="auth auth--3d">
+    <canvas id="jungle" class="jungle-canvas" aria-hidden="true"></canvas>
     <div class="crt-overlay" aria-hidden="true"></div>
 
-    <main class="lid wood">
-        <span class="rivet rivet--tl" aria-hidden="true"></span>
-        <span class="rivet rivet--tr" aria-hidden="true"></span>
-        <span class="rivet rivet--bl" aria-hidden="true"></span>
-        <span class="rivet rivet--br" aria-hidden="true"></span>
+    <div class="stage">
+        <header class="title-card">
+            <h1 class="title-card__name">Jumanji</h1>
+            <p class="title-card__event">Technozion X SDC cyber tournament</p>
+        </header>
 
-        <h1 class="carved lid__title">Jumanji</h1>
-        <p class="lid__sub">Technozion X SDC Cyber Tournament</p>
-
-        <section class="pass parchment">
-            <h2 class="pass__heading">Sign in to play</h2>
-            <p class="pass__lede">Use the Google account you registered with.</p>
+        <main class="expedition" aria-labelledby="pass-heading">
+            <span class="rivet rivet--tl" aria-hidden="true"></span>
+            <span class="rivet rivet--tr" aria-hidden="true"></span>
+            <span class="rivet rivet--bl" aria-hidden="true"></span>
+            <span class="rivet rivet--br" aria-hidden="true"></span>
 
             {% with messages = get_flashed_messages() %}
             {% if messages %}
-            <div class="notice" role="alert">
-                {% for message in messages %}<p>{{ message }}</p>{% endfor %}
-            </div>
+            <aside class="field-note parchment" role="alert">
+                <div class="field-note__body">
+                    {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+                </div>
+                <button type="button" class="field-note__dismiss" data-dismiss aria-label="Dismiss note">&times;</button>
+            </aside>
             {% endif %}
             {% endwith %}
 
-            <a href="{{ url_for('google_login') }}" class="btn btn--google google-btn btn--block" style="margin-top: 18px;">
+            <h2 class="expedition__heading" id="pass-heading">Sign in to play</h2>
+            <p class="expedition__lede">Players sign in with the Google account they registered with.</p>
+
+            <a href="{{ url_for('google_login') }}" class="google-btn" data-google data-ripple>
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -46,21 +55,28 @@
                 <span>Continue with Google</span>
             </a>
 
-            <p class="divider">or use a host account</p>
+            <p class="expedition__divider">or use a host account</p>
 
-            <form action="{{ url_for('login') }}" method="POST">
-                <div>
+            <form class="expedition__form" action="{{ url_for('login') }}" method="POST" data-login-form>
+                <div class="relic-field">
                     <label for="username">Username</label>
-                    <input class="field" type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                    <input class="relic-field__input" type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
-                <div>
+                <div class="relic-field">
                     <label for="password">Password</label>
-                    <input class="field" type="password" id="password" name="password" autocomplete="current-password" required>
+                    <div class="relic-field__well">
+                        <input class="relic-field__input" type="password" id="password" name="password" autocomplete="current-password" required>
+                        <button type="button" class="relic-field__reveal" data-reveal aria-controls="password" aria-pressed="false">Show</button>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn--gold btn--block">Sign in</button>
+                <button type="submit" class="enter-btn" data-ripple>
+                    <span data-label="Sign in to Enter the Jungle">Sign in to Enter the Jungle</span>
+                </button>
             </form>
-        </section>
-    </main>
+        </main>
+
+        <p class="inscription">A game for those who seek to find a way to leave their world behind</p>
+    </div>
 </body>
 
 </html>
