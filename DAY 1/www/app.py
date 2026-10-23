@@ -587,7 +587,6 @@ def check_level_access(user_id, level_num, is_submission=False):
 @app.route('/auth/launch')
 def auth_launch():
     token_str = request.args.get('token')
-    target_level = request.args.get('level', type=int)
     if not token_str:
         flash('Missing arena launch token.')
         return redirect(url_for('login'))
@@ -600,11 +599,25 @@ def auth_launch():
     participant_id = payload.get('participantId')
     email = payload.get('email', '')
     name = payload.get('name', '')
-    req_level = target_level or payload.get('targetLevel', 2)
-    authorized_levels = payload.get('authorizedLevels', [2, 3])
+    
+    # Determine target level and day
+    raw_level_param = str(request.args.get('level', payload.get('targetLevel', '2'))).lower()
+    target_day = payload.get('targetDay', 1)
+    is_day2 = target_day == 2 or raw_level_param in ['day2-l2', 'day-2-l2', 'day2', 'gauntlet']
+    is_level3 = raw_level_param in ['3', 'round3', 'r3', 'level3', 'l3', 'day1-l3', 'day-1-l3'] or payload.get('targetLevel') == 3
 
-    if req_level not in authorized_levels:
-        flash(f'Your registration does not include Cybersecurity for Level {req_level}.')
+    authorized_levels = payload.get('authorizedLevels', [2, 3])
+    auth_normalized = [str(x).lower() for x in authorized_levels]
+
+    if is_day2:
+        req_allowed = any(k in auth_normalized for k in ['day2-l2', 'day2', 'gauntlet', '2'])
+    elif is_level3:
+        req_allowed = any(k in auth_normalized for k in ['3', 'round3', 'level3', 'day1-l3', 'day-1-l3'])
+    else:
+        req_allowed = any(k in auth_normalized for k in ['2', '1', 'level2', 'day1-l2', 'day-1-l2'])
+
+    if not req_allowed:
+        flash('Your registration does not include Cybersecurity for the requested level.')
         return redirect(url_for('hub'))
 
     conn = get_db_connection()
@@ -614,7 +627,14 @@ def auth_launch():
     if not user and email:
         user = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
 
-    auth_levels_json = json.dumps(authorized_levels)
+    # Store normalized integers in authorized_levels where possible
+    db_auth_levels = []
+    for x in authorized_levels:
+        if str(x).isdigit():
+            db_auth_levels.append(int(x))
+    if is_day2 and 2 not in db_auth_levels:
+        db_auth_levels.append(2)
+    auth_levels_json = json.dumps(db_auth_levels)
 
     if not user:
         base_username = (participant_id or 'player').lower().replace('-', '_')
@@ -645,7 +665,7 @@ def auth_launch():
     session['username'] = user['username']
     session['participant_id'] = participant_id
     session['role'] = user['role']
-    session['authorized_levels'] = authorized_levels
+    session['authorized_levels'] = db_auth_levels
     l2_pts = user['level2_points'] or user['points'] or 0
     l3_pts = user['level3_points'] or 0
     session['points'] = l2_pts
@@ -653,10 +673,9 @@ def auth_launch():
     session['level3_points'] = l3_pts
     session['round3_points'] = l3_pts
 
-    target_param = str(request.args.get('level', '')).lower()
-    if target_param in ['3', 'round3', 'r3', 'level3', 'l3', 'day1-l3', 'day-1-l3'] or req_level == 3:
+    if is_level3:
         return redirect(url_for('level3'))
-    elif target_param in ['day2-l2', 'day-2-l2', 'day2', 'gauntlet']:
+    elif is_day2:
         return redirect(url_for('day2_level2'))
     else:
         return redirect(url_for('level2'))
@@ -1726,6 +1745,27 @@ def gauntlet_relic_solve():
     
     if res.get('status') == 'success':
         socketio.emit('gauntlet-sync', {'team_id': team_id, 'relic_id': res.get('relic_id'), 'points': res.get('points_awarded')})
+        
+        # Real-time automated score ingestion into SDC Games for Day 2 Level 2 (Gauntlet)
+        conn = get_db_connection()
+        members = conn.execute('''
+            SELECT u.participant_id, u.username
+            FROM gauntlet_members m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.team_id = ?
+        ''', (team_id,)).fetchall()
+        conn.close()
+
+        total_pts = res.get('total_points', 0)
+        relic_name = res.get('relic_id', 'relic')
+        awarded_pts = res.get('points_awarded', 0)
+
+        for m in members:
+            p_id = m['participant_id'] or m['username']
+            if p_id:
+                success = dispatch_score_to_sdc_games(p_id, 'day-2-l2', total_pts, relic_name, awarded_pts)
+                if not success:
+                    record_pending_sync(p_id, 'day-2-l2', total_pts, relic_name, awarded_pts)
         
     return jsonify(res)
 
