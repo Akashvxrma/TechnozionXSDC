@@ -55,6 +55,7 @@
                     <div class="switch__name">{{ name }}</div>
                     <div class="switch__state"><span class="switch__lamp" aria-hidden="true"></span>{{ on_text if on else off_text }}</div>
                     <form action="{{ url_for('admin') }}" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="{{ action }}">
                         <button type="submit" class="btn btn--sm btn--block {{ 'btn--ghost' if on else 'btn--gold' }}">{{ off_cta if on else on_cta }}</button>
                     </form>
@@ -67,7 +68,7 @@
             <div class="tabs" role="tablist" aria-label="Console sections">
                 <button class="tab" role="tab" id="tabbtn-level2" aria-controls="tab-level2" aria-selected="true">Level 2 leaderboard</button>
                 <button class="tab" role="tab" id="tabbtn-level3" aria-controls="tab-level3" aria-selected="false">Level 3 leaderboard</button>
-                <button class="tab" role="tab" id="tabbtn-sdc" aria-controls="tab-sdc" aria-selected="false">SDC Games sync</button>
+                <button class="tab" role="tab" id="tabbtn-sdc" aria-controls="tab-sdc" aria-selected="false">MongoDB sync</button>
             </div>
 
             <!-- Level 2 (Avatars) -->
@@ -96,6 +97,7 @@
                                 <td><span class="status {{ 'status--suspended' if l2_status == 'suspended' else 'status--active' }}">{{ l2_status }}</span></td>
                                 <td>
                                     <form action="{{ url_for('admin') }}" method="POST" class="points-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="level" value="2">
@@ -107,18 +109,21 @@
                                     {% if user.role != 'admin' %}
                                     <div class="row-actions">
                                         <form action="{{ url_for('admin') }}" method="POST">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
                                             <input type="hidden" name="level" value="2">
                                             <button type="submit" class="btn btn--ghost btn--xs">{{ 'Unsuspend' if l2_status == 'suspended' else 'Suspend' }}</button>
                                         </form>
                                         <form action="{{ url_for('admin') }}" method="POST" data-confirm="Reset the 60-minute Level 2 timer for {{ user.username }}?">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="action" value="reset_timer">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
                                             <input type="hidden" name="level" value="2">
                                             <button type="submit" class="btn btn--ghost btn--xs">Reset timer</button>
                                         </form>
                                         <form action="{{ url_for('admin') }}" method="POST" data-confirm="Disqualify and delete {{ user.username }}? This can't be undone.">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
                                             <button type="submit" class="btn btn--danger-ghost btn--xs">Delete</button>
@@ -161,6 +166,7 @@
                                 <td><span class="status {{ 'status--suspended' if l3_status == 'suspended' else 'status--active' }}">{{ l3_status }}</span></td>
                                 <td>
                                     <form action="{{ url_for('admin') }}" method="POST" class="points-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="action" value="update">
                                         <input type="hidden" name="user_id" value="{{ user.id }}">
                                         <input type="hidden" name="level" value="3">
@@ -172,12 +178,14 @@
                                     {% if user.role != 'admin' %}
                                     <div class="row-actions">
                                         <form action="{{ url_for('admin') }}" method="POST">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="action" value="toggle_status">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
                                             <input type="hidden" name="level" value="3">
                                             <button type="submit" class="btn btn--ghost btn--xs">{{ 'Unsuspend' if l3_status == 'suspended' else 'Suspend' }}</button>
                                         </form>
                                         <form action="{{ url_for('admin') }}" method="POST" data-confirm="Reset the 60-minute Level 3 timer for {{ user.username }}?">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <input type="hidden" name="action" value="reset_timer">
                                             <input type="hidden" name="user_id" value="{{ user.id }}">
                                             <input type="hidden" name="level" value="3">
@@ -195,13 +203,14 @@
                 </div>
             </div>
 
-            <!-- SDC Games -->
+            <!-- Direct MongoDB Roster Sync -->
             <div class="tab-panel" role="tabpanel" id="tab-sdc" aria-labelledby="tabbtn-sdc" hidden>
-                <h2 class="block-title">SDC Games integration</h2>
-                <p class="lede">Players sign in through SDC Games and scores sync automatically as they solve. Pull the latest roster or download the official CSVs here.</p>
+                <h2 class="block-title">Direct MongoDB Roster Sync</h2>
+                <p class="lede">Fetch participants directly from the SDC Games MongoDB cluster into the CTF tournament database. Scores remain securely and exclusively inside the CTF platform.</p>
                 <div class="sync-actions">
                     <form action="{{ url_for('sync_sdc_roster') }}" method="POST">
-                        <button type="submit" class="btn btn--gold">Sync SDC roster</button>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn--gold">Sync Roster from MongoDB</button>
                     </form>
                     <a class="btn btn--gold" href="{{ url_for('export_day1_shortlist') }}">Day 1 Cybersec Score Matrix (CSV)</a>
                     <a class="btn btn--gold" href="{{ url_for('export_gauntlet_finalists') }}">Day 2 Gauntlet Finalists (Top 4 Teams / 8 Finalists CSV)</a>
@@ -237,14 +246,15 @@
         </div>
         <div class="flags__body">
             <form action="{{ url_for('admin') }}" method="POST" class="stack gap-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="create_player">
                 <div>
                     <label for="new_username">Username / Codename *</label>
                     <input class="field" type="text" id="new_username" name="username" placeholder="e.g. sdc_2026_0050" required autocomplete="off">
                 </div>
                 <div>
-                    <label for="new_password">Password *</label>
-                    <input class="field" type="text" id="new_password" name="password" value="ShadowDrop2026!" required>
+                    <label for="new_password">Password (Optional - Players authenticate via Google OAuth)</label>
+                    <input class="field" type="text" id="new_password" name="password" placeholder="Defaults to OAuth-only token">
                 </div>
                 <div>
                     <label for="new_participant_id">SDC Participant ID (Optional)</label>

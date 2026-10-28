@@ -8,7 +8,8 @@ import secrets
 import json
 from datetime import datetime, timedelta, timezone
 
-SECRET = "8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
+import os
+SECRET = os.environ.get('CTF_MASTER_SECRET', '8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3')
 
 CURSE_CONFIG = {
     'quicksand': {'duration': 45, 'name': 'Quicksand', 'desc': 'Terminal locked for 45s'},
@@ -96,6 +97,31 @@ def init_gauntlet_db(conn):
             UNIQUE(user_id)
         )
     ''')
+
+    # Migration: enforce strict 2 players per squad (UNIQUE(team_id, role))
+    try:
+        cur = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='gauntlet_members'")
+        row = cur.fetchone()
+        if row and 'UNIQUE(team_id, role)' not in row[0]:
+            conn.execute('''
+                CREATE TABLE gauntlet_members_temp (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    team_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    role TEXT NOT NULL CHECK(role IN ('navigator', 'cartographer')),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(team_id) REFERENCES gauntlet_teams(id) ON DELETE CASCADE,
+                    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(team_id, role),
+                    UNIQUE(user_id)
+                )
+            ''')
+            conn.execute("INSERT OR IGNORE INTO gauntlet_members_temp (id, team_id, user_id, role, created_at) SELECT id, team_id, user_id, role, created_at FROM gauntlet_members WHERE role IN ('navigator', 'cartographer')")
+            conn.execute("DROP TABLE gauntlet_members")
+            conn.execute("ALTER TABLE gauntlet_members_temp RENAME TO gauntlet_members")
+            conn.commit()
+    except Exception:
+        pass
 
     conn.execute('''
         CREATE TABLE IF NOT EXISTS gauntlet_matches (
@@ -235,21 +261,61 @@ def auto_assign_user_to_team(conn, user_id):
         return existing
         
     teams = conn.execute("SELECT * FROM gauntlet_teams ORDER BY id ASC").fetchall()
+    
+    # Pass 1: Try to place on a team missing a navigator
     for t in teams:
-        members = conn.execute("SELECT role FROM gauntlet_members WHERE team_id = ?", (t['id'],)).fetchall()
-        roles_taken = [m['role'] for m in members]
-        if 'navigator' not in roles_taken:
-            conn.execute("INSERT INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, 'navigator')", (t['id'], user_id))
-            conn.commit()
-            return get_team_for_user(conn, user_id)
-        elif 'cartographer' not in roles_taken:
-            conn.execute("INSERT INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, 'cartographer')", (t['id'], user_id))
+        has_nav = conn.execute("SELECT 1 FROM gauntlet_members WHERE team_id = ? AND role = 'navigator'", (t['id'],)).fetchone()
+        if not has_nav:
+            conn.execute("INSERT OR IGNORE INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, 'navigator')", (t['id'], user_id))
             conn.commit()
             return get_team_for_user(conn, user_id)
             
-    # If all 16 teams are full, place on Team 1 as observer
-    t1 = teams[0]['id'] if teams else 1
-    return {'id': t1, 'team_name': 'Team Jaguar', 'role': 'navigator', 'phase': 'phase1_pods'}
+    # Pass 2: Try to place on a team missing a cartographer
+    for t in teams:
+        has_cart = conn.execute("SELECT 1 FROM gauntlet_members WHERE team_id = ? AND role = 'cartographer'", (t['id'],)).fetchone()
+        if not has_cart:
+            conn.execute("INSERT OR IGNORE INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, 'cartographer')", (t['id'], user_id))
+            conn.commit()
+            return get_team_for_user(conn, user_id)
+            
+    # Strictly capped at 32 players (16 teams of 2 players: 1 navigator, 1 cartographer)
+    # If all 32 slots are filled, tournament roster is strictly full
+    return None
+
+def get_top_4_teams(conn):
+    """
+    Fetch the top 4 teams in the Gauntlet tournament with full member roster.
+    Ranked by total score: (phase1_score + duel_score + shrine_score + lagoon_score) DESC.
+    """
+    teams = conn.execute('''
+        SELECT 
+            t.id, 
+            t.team_name, 
+            t.pod_id, 
+            t.phase,
+            t.phase1_score,
+            t.duel_score,
+            t.shrine_score,
+            t.lagoon_score,
+            (t.phase1_score + t.duel_score + t.shrine_score + t.lagoon_score) as total_gauntlet_score
+        FROM gauntlet_teams t
+        ORDER BY total_gauntlet_score DESC, t.id ASC
+        LIMIT 4
+    ''').fetchall()
+    
+    result = []
+    for t in teams:
+        td = dict(t)
+        members = conn.execute('''
+            SELECT m.role, u.id as user_id, u.username, u.participant_id, u.name, u.email
+            FROM gauntlet_members m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.team_id = ?
+            ORDER BY m.role DESC
+        ''', (t['id'],)).fetchall()
+        td['members'] = [dict(m) for m in members]
+        result.append(td)
+    return result
 
 def verify_relic_submission(conn, team_id, flag_input, part2=None, user_id=None):
     """
@@ -458,9 +524,11 @@ def advance_tournament_phase(conn, target_phase=None):
         advanced = []
         for pod in pods:
             top_teams = conn.execute('''
-                SELECT id FROM gauntlet_teams
-                WHERE pod_id = ?
-                ORDER BY phase1_score DESC, id ASC
+                SELECT t.id FROM gauntlet_teams t
+                LEFT JOIN gauntlet_solved_relics s ON t.id = s.team_id
+                WHERE t.pod_id = ?
+                GROUP BY t.id
+                ORDER BY t.phase1_score DESC, COUNT(s.id) DESC, MIN(s.solved_at) ASC, t.id ASC
                 LIMIT 2
             ''', (pod,)).fetchall()
             for r in top_teams:
@@ -486,7 +554,7 @@ def advance_tournament_phase(conn, target_phase=None):
                 ''', (f"QF_{idx}", ta, tb, get_utc_now().isoformat()))
 
     elif next_phase == 'phase3_shrine':
-        # Advance 4 duel winners
+        # Advance 4 duel winners (Top 4 Teams)
         matches = conn.execute("SELECT * FROM gauntlet_matches WHERE phase = 'phase2_duels'").fetchall()
         winners = []
         for m in matches:
@@ -495,9 +563,18 @@ def advance_tournament_phase(conn, target_phase=None):
                 w = m['team_a_id'] if m['score_a'] >= m['score_b'] else m['team_b_id']
             winners.append(w)
         
+        # Fallback if advancing directly or duels incomplete: choose top 4 teams by score
+        if len(winners) < 4:
+            top4_rows = conn.execute('''
+                SELECT id FROM gauntlet_teams
+                ORDER BY (phase1_score + duel_score + shrine_score + lagoon_score) DESC, id ASC
+                LIMIT 4
+            ''').fetchall()
+            winners = [r['id'] for r in top4_rows]
+
         if winners:
             conn.execute("UPDATE gauntlet_teams SET phase = 'phase3_shrine' WHERE id IN ({})".format(','.join(map(str, winners))))
-            conn.execute("UPDATE gauntlet_teams SET phase = 'lagoon' WHERE phase = 'phase2_duels' AND id NOT IN ({})".format(','.join(map(str, winners))))
+            conn.execute("UPDATE gauntlet_teams SET phase = 'lagoon' WHERE id NOT IN ({})".format(','.join(map(str, winners))))
 
     elif next_phase == 'phase4_final':
         # Top 2 from Shrine

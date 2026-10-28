@@ -123,6 +123,73 @@
         {% endif %}
         {% endwith %}
 
+        <!-- Top 4 Qualifiers & 32-Player Roster Status -->
+        <section class="card" aria-labelledby="top4-title" style="border-color: var(--gold-warm); box-shadow: var(--glow-gold); margin-bottom: 18px;">
+            <div class="card__head">
+                <div>
+                    <h2 class="block-title carved" id="top4-title" style="color: var(--gold-warm);">🏆 TOP 4 TEAMS — FINAL QUALIFIERS</h2>
+                    <p class="lede" style="margin-bottom: 0;">Strict tournament limit: 32 players total (16 squads × 2 players). Top 4 squads qualify for the Grand Final.</p>
+                </div>
+                <div class="row gap-2 push wrap">
+                    <span class="pill pill--gold">ROSTER: {{ assigned_count or 0 }} / 32 SLOTS FILLED</span>
+                    <a class="btn btn--gold btn--sm" href="{{ url_for('export_gauntlet_finalists') }}">Export Top 4 (8 Finalists CSV)</a>
+                </div>
+            </div>
+
+            <div class="table-wrap" style="margin-top: 12px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Squad Name</th>
+                            <th>Pod</th>
+                            <th>Navigator (P1)</th>
+                            <th>Cartographer (P2)</th>
+                            <th>Score Breakdown (Pods / Duels / Shrine / Lagoon)</th>
+                            <th>Total PTS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in top_4_teams %}
+                        {% set nav = (t.members | selectattr('role', 'equalto', 'navigator') | list | first) %}
+                        {% set cart = (t.members | selectattr('role', 'equalto', 'cartographer') | list | first) %}
+                        <tr style="background: rgba(184, 134, 11, 0.08);">
+                            <td class="num" style="color: var(--gold-warm); font-weight: 900; font-size: 1.1em;">#{{ loop.index }}</td>
+                            <td style="font-weight: 700; color: #fff;">{{ t.team_name }}</td>
+                            <td><span class="pill pill--sm pill--stone">{{ t.pod_id | upper }}</span></td>
+                            <td>
+                                {% if nav %}
+                                <strong style="color: var(--emerald);">{{ nav.username }}</strong>
+                                <span style="font-size: 0.85em; color: var(--text-dim);">({{ nav.participant_id or nav.name or 'Player' }})</span>
+                                {% else %}
+                                <span style="color: var(--text-faint); font-style: italic;">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cart %}
+                                <strong style="color: var(--ley);">{{ cart.username }}</strong>
+                                <span style="font-size: 0.85em; color: var(--text-dim);">({{ cart.participant_id or cart.name or 'Player' }})</span>
+                                {% else %}
+                                <span style="color: var(--text-faint); font-style: italic;">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-size: 0.85em; color: var(--text-dim);">
+                                P:{{ t.phase1_score }} · D:{{ t.duel_score }} · S:{{ t.shrine_score }} · L:{{ t.lagoon_score }}
+                            </td>
+                            <td class="num total" style="font-size: 1.15em;">{{ t.total_gauntlet_score }} PTS</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-dim); padding: 18px;">
+                                No scores recorded yet. Scores will populate live as relics are secured.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <!-- Phases -->
         <section class="card" aria-labelledby="phases-title">
             <h2 class="block-title" id="phases-title">Tournament phases</h2>
@@ -143,6 +210,7 @@
                     <span class="phase-step__state">{% if state == 'is-current' %}In progress{% elif state == 'is-done' %}Finished{% else %}Not started{% endif %}</span>
                     <form action="{{ url_for('gauntlet_admin_action') }}" method="POST"
                         {% if state %}data-confirm="Restart the {{ name }} phase? Players will be moved back to it."{% endif %}>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="set_phase">
                         <input type="hidden" name="target_phase" value="{{ key }}">
                         <button type="submit" class="btn btn--sm btn--block {{ 'btn--gold' if loop.index0 == current_index + 1 else 'btn--ghost' }}">{{ 'Restart' if state else cta }}</button>
@@ -158,6 +226,7 @@
                 <h2 class="block-title" id="shrine-title">Shrine holder</h2>
                 <p class="lede" style="margin-bottom: 14px;">Hand the Shrine to a team by hand, for example after a dispute.</p>
                 <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="set_shrine_ruler">
                     <div class="grow">
                         <label for="shrine-team">Team</label>
@@ -192,6 +261,7 @@
                                 <td class="num">{{ c.expires_at[11:19] if c.expires_at else '' }}</td>
                                 <td>
                                     <form action="{{ url_for('gauntlet_admin_action') }}" method="POST">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="hidden" name="action" value="dismiss_curse">
                                         <input type="hidden" name="curse_id" value="{{ c.id }}">
                                         <button type="submit" class="btn btn--danger-ghost btn--xs">Lift curse</button>
@@ -214,6 +284,7 @@
                 <span class="table-tools__count" style="margin-left: 0;">{{ teams | length }} teams</span>
                 <form action="{{ url_for('gauntlet_admin_action') }}" method="POST" class="push"
                     data-confirm="Re-seed the roster with the 16 default teams?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="action" value="seed_teams">
                     <button type="submit" class="btn btn--ghost btn--xs">Re-seed roster</button>
                 </form>
@@ -256,6 +327,7 @@
             </div>
             <form action="{{ url_for('gauntlet_admin_action') }}" method="POST"
                 data-confirm="Reset the whole tournament? Every score, match and curse will be deleted. This can't be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="reset_gauntlet">
                 <button type="submit" class="btn btn--curse">Reset tournament</button>
             </form>

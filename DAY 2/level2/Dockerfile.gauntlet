@@ -1,19 +1,11 @@
-FROM debian:bookworm-slim
+FROM jumanji-level3:latest
 
-# Install necessary tools for Day 2 Level 2: The Jumanji Gauntlet
-RUN apt-get update && apt-get install -y \
-    curl dnsutils grep coreutils jq bash python3 \
-    nfs-common ftp openssh-client sudo net-tools procps \
-    sqlite3 gcc make \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create tournament users
-RUN useradd -m -s /bin/bash recon_user
-RUN useradd -m -s /bin/bash shrine_guardian
+# Create shrine guardian user
+RUN id -u shrine_guardian >/dev/null 2>&1 || useradd -m -s /bin/bash shrine_guardian
 
 # Setup directories
 RUN mkdir -p /gauntlet /shrine /opt/jungle
-RUN chown -R recon_user:recon_user /gauntlet /home/recon_user
+RUN chown -R recon_user:recon_user /gauntlet /home/recon_user 2>/dev/null || true
 RUN chmod 777 /shrine
 
 # Setup Sudo privileges for Gauntlet

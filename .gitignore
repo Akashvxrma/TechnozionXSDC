@@ -30,6 +30,8 @@ CREDENTIALS_AND_SECRETS.txt
 */CREDENTIALS_AND_SECRETS.txt
 .env
 .env.local
+.flask_secret
+*/.flask_secret
 *.pem
 *.key
 
@@ -40,6 +42,7 @@ CREDENTIALS_AND_SECRETS.txt
 # SDC Games separate repository
 sdc-games/
 
-# Temporary scratch tests & artifacts
+# Temporary scratch tests, editor configs & artifacts
 scratch/
+.claude/
 

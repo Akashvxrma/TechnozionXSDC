@@ -2,7 +2,7 @@
 
 # setup_level2.sh
 # Injected vars: PLAYER_ID, PLAYER_USERNAME, CTF_TOKEN
-SECRET="8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
+SECRET="${CTF_MASTER_SECRET:-${SECRET:-8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3}}"
 
 if [ -n "$CTF_TOKEN" ]; then
     echo -n "$CTF_TOKEN" > /etc/ctf_token
@@ -83,3 +83,8 @@ echo "    Welcome to the Jungle, $PLAYER_USERNAME!"
 echo "    If you get lost, type: parrot_hint <1-5>"
 echo "    To submit a flag: complete JUMANJI{...}"
 echo "==================================================="
+
+# Security hardening: Remove setup scripts so secrets cannot be inspected by recon_user
+rm -f /usr/local/bin/setup_level*.sh 2>/dev/null || true
+unset SECRET CTF_MASTER_SECRET
+

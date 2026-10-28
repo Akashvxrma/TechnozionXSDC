@@ -26,36 +26,164 @@ _D2_L2_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.pat
 if _D2_L2_DIR not in sys.path:
     sys.path.insert(0, _D2_L2_DIR)
 import gauntlet_engine
+import mongo_sync
 
 def get_utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-app = Flask(__name__)
-app.config['TEMPLATES_AUTO_RELOAD'] = True
-socketio = SocketIO(app, cors_allowed_origins="*")
-app.secret_key = 'e5b9f7c41a238d6b9f47a192c34d8e5f'
+# 1. Early environment configuration loader
+def load_ctf_env():
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+    if os.path.exists(_env_path):
+        try:
+            with open(_env_path, 'r', encoding='utf-8') as _f:
+                for _line in _f:
+                    _line = _line.strip()
+                    if _line and not _line.startswith('#') and '=' in _line:
+                        _k, _v = _line.split('=', 1)
+                        os.environ.setdefault(_k.strip(), _v.strip())
+        except Exception:
+            pass
 
-# Try loading .env if present
-_env_path = os.path.join(os.path.dirname(__file__), '.env')
-if os.path.exists(_env_path):
-    try:
-        with open(_env_path) as _f:
-            for _line in _f:
-                _line = _line.strip()
-                if _line and not _line.startswith('#') and '=' in _line:
-                    _k, _v = _line.split('=', 1)
-                    os.environ.setdefault(_k.strip(), _v.strip())
-    except Exception:
-        pass
+load_ctf_env()
 
-# SDC Games & Cybersec Configuration
+# 2. Canonical Master Secret & Shared Key
+CTF_MASTER_SECRET = os.environ.get('CTF_MASTER_SECRET', '8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3')
 CYBERSEC_SHARED_SECRET = os.environ.get('CYBERSEC_SHARED_SECRET', 'jumanji_cybersec_secret_key_2026_xyz')
-SDC_GAMES_API_URL = os.environ.get('SDC_GAMES_API_URL', 'http://127.0.0.1:4000').rstrip('/')
+SDC_MONGODB_URI = os.environ.get('SDC_MONGODB_URI', '')
+SDC_MONGODB_DB_NAME = os.environ.get('SDC_MONGODB_DB_NAME', 'test')
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIENT_SECRET')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://127.0.0.1:8080/auth/callback')
+
+app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Derive or load persistent Flask Secret Key
+_flask_sec = os.environ.get('FLASK_SECRET_KEY')
+if not _flask_sec or _flask_sec == 'e5b9f7c41a238d6b9f47a192c34d8e5f':
+    _sec_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.flask_secret')
+    if os.path.exists(_sec_file):
+        try:
+            with open(_sec_file, 'r', encoding='utf-8') as _sf:
+                _flask_sec = _sf.read().strip()
+        except Exception:
+            _flask_sec = None
+    if not _flask_sec or len(_flask_sec) < 32:
+        _flask_sec = secrets.token_hex(32)
+        try:
+            with open(_sec_file, 'w', encoding='utf-8') as _sf:
+                _sf.write(_flask_sec)
+            os.chmod(_sec_file, 0o600)
+        except Exception:
+            pass
+app.secret_key = _flask_sec
+
+# 3. Origin verification for Socket.IO and CSRF
+def is_allowed_origin(origin):
+    if not origin:
+        return True
+    try:
+        parsed = urllib.parse.urlparse(origin)
+        host = (parsed.hostname or '').lower()
+        if host in ('127.0.0.1', 'localhost', '::1') or host.endswith('.nip.io'):
+            return True
+        # Check private IPv4 literals
+        parts = host.split('.')
+        if len(parts) == 4 and all(p.isdigit() for p in parts):
+            a, b = int(parts[0]), int(parts[1])
+            if a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168):
+                return True
+        web_origins = [o.strip() for o in os.environ.get('WEB_ORIGIN', '').split(',') if o.strip()]
+        for wo in web_origins:
+            if wo == '*' or (urllib.parse.urlparse(wo).hostname or '').lower() == host or wo.lower() == host:
+                return True
+    except Exception:
+        pass
+    return False
+
+socketio = SocketIO(app, cors_allowed_origins=is_allowed_origin)
+
+# 4. In-Memory Flag Submission Rate Limiter
+import collections
+_SUBMISSION_HISTORY = collections.defaultdict(list)
+
+def is_submission_rate_limited(identifier: str, max_attempts: int = 30, window_sec: int = 60) -> bool:
+    now = time.time()
+    valid = [t for t in _SUBMISSION_HISTORY[identifier] if now - t < window_sec]
+    if len(valid) >= max_attempts:
+        _SUBMISSION_HISTORY[identifier] = valid
+        return True
+    valid.append(now)
+    _SUBMISSION_HISTORY[identifier] = valid
+    return False
+
+# 5. Anti-CSRF Session Token Helper
+def get_csrf_token():
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+    return session['csrf_token']
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=get_csrf_token)
+
+# 6. Security & Subnet Protection Middleware
+@app.before_request
+def enforce_security_and_csrf():
+    client_ip = request.remote_addr or ''
+    # Docker default bridge subnets: block container users from admin & auth portals
+    if client_ip.startswith('172.17.') or client_ip.startswith('172.18.'):
+        if request.path.startswith('/admin') or request.path in ('/login', '/register', '/choose-username'):
+            return jsonify({'error': 'Administrative access blocked from container networks'}), 403
+
+    if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+        # Token-based CLI flag submissions (/api/score with token) don't carry browser cookies
+        if request.path == '/api/score' and request.is_json and request.json and request.json.get('token'):
+            return
+
+        # Validate Origin header if present
+        origin = request.headers.get('Origin')
+        if origin and not is_allowed_origin(origin):
+            return jsonify({'error': 'Cross-origin request rejected'}), 403
+
+        # Validate CSRF token on admin form submissions
+        if request.path.startswith('/admin') and request.form:
+            token = request.form.get('csrf_token')
+            expected = session.get('csrf_token')
+            if not expected or not token or not hmac.compare_digest(token, expected):
+                flash("Security verification failed: Invalid or missing CSRF token.")
+                return redirect(request.referrer or url_for('admin'))
+
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+
+# 7. Canonical Score Resolution Helper
+def get_user_scores(user_row):
+    """Canonical score resolution for CTF participants across all levels."""
+    if isinstance(user_row, sqlite3.Row):
+        u = dict(user_row)
+    elif isinstance(user_row, dict):
+        u = user_row
+    else:
+        return {'level1': 0, 'level2': 0, 'level3': 0, 'total': 0}
+    l2 = u.get('level2_points') if u.get('level2_points') is not None else u.get('points', 0)
+    l3 = u.get('level3_points') or 0
+    l1 = u.get('level1_points') or 0
+    return {
+        'level1': l1,
+        'level2': l2,
+        'level3': l3,
+        'total': l1 + l2 + l3
+    }
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jumanji_auth.db')
 
@@ -240,71 +368,6 @@ def verify_launch_token(token_str, secret):
     except Exception as e:
         print("[Token Verification] Failed:", e)
         return None
-
-def dispatch_score_to_sdc_games(participant_id, round_id, raw_score, checkpoint, checkpoint_points):
-    if not participant_id:
-        return True
-    try:
-        url = f"{SDC_GAMES_API_URL}/api/internal/scores/update"
-        payload = {
-            'participantId': participant_id,
-            'roundId': round_id,
-            'domainId': 'cybersecurity',
-            'rawScore': int(raw_score),
-            'checkpoint': str(checkpoint),
-            'checkpointPoints': int(checkpoint_points),
-            'timestamp': get_utc_now().isoformat()
-        }
-        headers = {
-            'X-Internal-Secret': CYBERSEC_SHARED_SECRET,
-            'Content-Type': 'application/json'
-        }
-        res = requests.post(url, json=payload, headers=headers, timeout=3.5)
-        if res.status_code == 200:
-            print(f"[Score Sync] Successfully dispatched {checkpoint} ({checkpoint_points} pts) for {participant_id}")
-            return True
-        else:
-            print(f"[Score Sync] SDC Games returned HTTP {res.status_code}: {res.text}")
-            return False
-    except Exception as e:
-        print(f"[Score Sync] Network exception reaching SDC Games: {e}")
-        return False
-
-def record_pending_sync(participant_id, round_id, raw_score, checkpoint, checkpoint_points):
-    try:
-        conn = get_db_connection()
-        conn.execute('''
-            INSERT INTO pending_score_syncs (participant_id, round_id, raw_score, checkpoint, checkpoint_points, status, retries, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', 0, ?)
-        ''', (participant_id, round_id, raw_score, checkpoint, checkpoint_points, get_utc_now().isoformat()))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print("[Pending Sync] Failed to record pending sync:", e)
-
-def process_pending_score_syncs():
-    while True:
-        try:
-            conn = get_db_connection()
-            pending = conn.execute("SELECT * FROM pending_score_syncs WHERE status = 'pending' ORDER BY id ASC LIMIT 10").fetchall()
-            for row in pending:
-                success = dispatch_score_to_sdc_games(
-                    row['participant_id'],
-                    row['round_id'],
-                    row['raw_score'],
-                    row['checkpoint'],
-                    row['checkpoint_points']
-                )
-                if success:
-                    conn.execute("UPDATE pending_score_syncs SET status = 'synced' WHERE id = ?", (row['id'],))
-                    conn.commit()
-                else:
-                    conn.execute("UPDATE pending_score_syncs SET retries = retries + 1 WHERE id = ?", (row['id'],))
-                    conn.commit()
-            conn.close()
-        except Exception:
-            pass
-        socketio.sleep(15)
 
 @socketio.on('ping')
 def handle_ping():
@@ -644,10 +707,11 @@ def auth_launch():
             username = f"{base_username}_{suffix}"
             suffix += 1
 
+        unusable_pw = f"!OAUTH_ONLY!_{secrets.token_hex(16)}"
         conn.execute('''
             INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
             VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
-        ''', (username, 'ShadowDrop2026!', participant_id, auth_levels_json, email, name))
+        ''', (username, unusable_pw, participant_id, auth_levels_json, email, name))
         conn.commit()
         user = conn.execute("SELECT * FROM users WHERE participant_id = ?", (participant_id,)).fetchone()
     else:
@@ -687,11 +751,18 @@ def login():
         password = request.form['password'].strip()
         
         conn = get_db_connection()
+        # Enforce Google Sign-In for participants: Block direct password login for player accounts / participant IDs
+        p_check = conn.execute("SELECT id, role, participant_id FROM users WHERE participant_id = ? OR (username = ? AND role != 'admin' AND username != 'verification_pilot')", (username, username)).fetchone()
+        if p_check:
+            conn.close()
+            flash('Participant password login is disabled. Please click "Continue with Google" above to sign in with your registered email.')
+            return render_template('login.html')
+
         user = conn.execute('''
             SELECT id, username, participant_id, role, points, level2_points, level3_points, start_time, level2_start_time, level3_start_time, status, level2_status, level3_status, authorized_levels 
             FROM users 
-            WHERE (username = ? OR participant_id = ?) AND password = ?
-        ''', (username, username, password)).fetchone()
+            WHERE username = ? AND password = ? AND (role = 'admin' OR username = 'verification_pilot')
+        ''', (username, password)).fetchone()
         
         if user:
             l2_pts = user['level2_points'] or user['points'] or 0
@@ -921,9 +992,10 @@ def admin():
             if request.form.get('auth_level_3'):
                 auth_levels.append(3)
 
-            if not new_user or not new_pass:
-                flash("ERROR: Username and Password are required.")
+            if not new_user:
+                flash("ERROR: Username is required.")
             else:
+                assigned_pass = new_pass if new_pass and new_pass != 'ShadowDrop2026!' else f"!OAUTH_ONLY!_{secrets.token_hex(16)}"
                 existing = conn.execute("SELECT id FROM users WHERE username = ? OR (participant_id IS NOT NULL AND participant_id = ?)", (new_user, pid)).fetchone()
                 if existing:
                     flash(f"ERROR: A player with username '{new_user}' or ID '{pid}' already exists.")
@@ -932,7 +1004,7 @@ def admin():
                     conn.execute('''
                         INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
                         VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
-                    ''', (new_user, new_pass, pid, auth_json, email_val, full_name))
+                    ''', (new_user, assigned_pass, pid, auth_json, email_val, full_name))
                     conn.commit()
                     level_names = []
                     if 2 in auth_levels: level_names.append("Level 2")
@@ -1095,54 +1167,20 @@ def admin():
     )
 
 @app.route('/admin/sync-sdc-roster', methods=['POST'])
+@app.route('/admin/sync-mongo-roster', methods=['POST'])
 def sync_sdc_roster():
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'error': 'Unauthorized'}), 401
     
-    url = f"{SDC_GAMES_API_URL}/api/internal/cybersec/roster"
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'sync_from_mongodb.py')
     try:
-        res = requests.get(url, headers={'X-Internal-Secret': CYBERSEC_SHARED_SECRET}, timeout=5.0)
-        if res.status_code != 200:
-            flash(f"Failed to fetch roster from SDC Games: HTTP {res.status_code}")
-            return redirect(url_for('admin'))
-        data = res.json()
-        participants = data.get('participants', [])
-        conn = get_db_connection()
-        synced_count = 0
-        for p in participants:
-            pid = p.get('participantId')
-            email = p.get('email', '')
-            name = p.get('name', '')
-            auth_levels = json.dumps(p.get('authorizedLevels', []))
-            
-            existing = None
-            if pid:
-                existing = conn.execute("SELECT * FROM users WHERE participant_id = ?", (pid,)).fetchone()
-            if not existing and email:
-                existing = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-                
-            if not existing:
-                base_username = (pid or 'player').lower().replace('-', '_')
-                username = base_username
-                suffix = 1
-                while conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-                    username = f"{base_username}_{suffix}"
-                    suffix += 1
-                conn.execute('''
-                    INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, participant_id, authorized_levels, email, name)
-                    VALUES (?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 0, 0, 0, ?, ?, ?, ?)
-                ''', (username, 'ShadowDrop2026!', pid, auth_levels, email, name))
-                synced_count += 1
-            else:
-                conn.execute('''
-                    UPDATE users SET participant_id = ?, authorized_levels = ?, email = COALESCE(NULLIF(email, ''), ?), name = COALESCE(NULLIF(name, ''), ?)
-                    WHERE id = ?
-                ''', (pid, auth_levels, email, name, existing['id']))
-        conn.commit()
-        conn.close()
-        flash(f"Successfully synced {len(participants)} participants from SDC Games ({synced_count} newly registered)!")
+        res = subprocess.run([sys.executable, script_path], capture_output=True, text=True, timeout=15)
+        if res.returncode == 0:
+            flash("Successfully synced roster directly from MongoDB Atlas!")
+        else:
+            flash(f"MongoDB roster sync failed: {res.stderr or res.stdout}")
     except Exception as e:
-        flash(f"Roster sync error: {e}")
+        flash(f"Roster sync execution error: {e}")
     return redirect(url_for('admin'))
 
 @app.route('/admin/export-scores/level2')
@@ -1478,7 +1516,7 @@ SCORE_MATRIX = {
 import hashlib
 
 def generate_dynamic_flag(user_id, avatar_id):
-    secret = "8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
+    secret = CTF_MASTER_SECRET
     
     if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
         hash_input = f"{user_id}:user:{secret}"
@@ -1517,7 +1555,7 @@ INTERNAL_TOKENS = {}
 
 @app.route('/api/score', methods=['POST'])
 def submit_score():
-    data = request.get_json()
+    data = request.get_json() or {}
     token = data.get('token')
     
     if token and token in INTERNAL_TOKENS:
@@ -1528,6 +1566,10 @@ def submit_score():
         sid = None
     else:
         return jsonify({'error': 'Unauthorized'}), 401
+
+    rate_key = token or f"user_{user_id}"
+    if is_submission_rate_limited(rate_key, max_attempts=30, window_sec=60):
+        return jsonify({'status': 'error', 'error': 'Submission rate limit exceeded. Please wait a moment.'}), 429
         
     data = request.get_json()
     avatar_id = data.get('avatar_id')
@@ -1604,15 +1646,6 @@ def submit_score():
         session['points'] = new_points
         sdc_round_id = 'day-1-l2'
 
-    # Real-time automated score ingestion into SDC Games
-    user_row = conn.execute("SELECT participant_id FROM users WHERE id = ?", (user_id,)).fetchone()
-    p_id = (user_row['participant_id'] if user_row and user_row['participant_id'] else session.get('participant_id'))
-
-    if p_id:
-        success = dispatch_score_to_sdc_games(p_id, sdc_round_id, new_points, avatar_id, points_to_add)
-        if not success:
-            record_pending_sync(p_id, sdc_round_id, new_points, avatar_id, points_to_add)
-    
     if sid:
         if is_level3:
             l3_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_user', 'level2_user', 'round3_user')", (user_id,)).fetchone()
@@ -1657,11 +1690,14 @@ def gauntlet():
     if not allowed and session.get('role') != 'admin':
         flash(err_msg)
         return redirect(url_for('hub'))
-        
     conn = get_db_connection()
     team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
     if not team:
         team = gauntlet_engine.auto_assign_user_to_team(conn, session['user_id'])
+    if not team:
+        conn.close()
+        flash("Day 2 Level 2 (The Jumanji Gauntlet) is strictly limited to 32 players (16 squads of 2 players). The tournament roster is currently full.")
+        return redirect(url_for('hub'))
         
     current_phase = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
     active_relics = gauntlet_engine.PHASE_RELICS.get(current_phase, gauntlet_engine.PHASE_RELICS['phase1_pods'])
@@ -1672,9 +1708,15 @@ def gauntlet():
     curse_inventory = conn.execute("SELECT * FROM gauntlet_curse_inventory WHERE team_id = ? AND is_used = 0", (team['id'],)).fetchall()
     active_curses = gauntlet_engine.get_active_curses_for_team(conn, team['id'])
     
+    active_match_id = 1
+    if current_phase == 'phase2_duels':
+        m_row = conn.execute("SELECT id FROM gauntlet_matches WHERE (team_a_id = ? OR team_b_id = ?) AND status = 'active' LIMIT 1", (team['id'], team['id'])).fetchone()
+        if m_row:
+            active_match_id = m_row['id']
+
     cart_keys = {}
     for r_id in active_relics.keys():
-        cart_keys[r_id] = gauntlet_engine.generate_split_keys(team['id'], 1, r_id)['cart_part']
+        cart_keys[r_id] = gauntlet_engine.generate_split_keys(team['id'], active_match_id, r_id)['cart_part']
         
     conn.close()
     return render_template(
@@ -1724,16 +1766,30 @@ def gauntlet_bracket():
 
 @app.route('/gauntlet/relic/solve', methods=['POST'])
 def gauntlet_relic_solve():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'status': 'error', 'error': 'Authentication required'}), 401
+
+    if is_submission_rate_limited(f"gauntlet_{user_id}", max_attempts=30, window_sec=60):
+        return jsonify({'status': 'error', 'error': 'Submission rate limit exceeded. Please wait a moment.'}), 429
+
     data = request.get_json() or {}
     flag = data.get('flag', '').strip()
     part2 = data.get('part2', '').strip()
     team_id = data.get('team_id')
-    user_id = session.get('user_id')
     
     conn = get_db_connection()
-    if not team_id and user_id:
-        t = gauntlet_engine.get_team_for_user(conn, user_id)
-        if t:
+    t = gauntlet_engine.get_team_for_user(conn, user_id)
+    if session.get('role') != 'admin':
+        if not t:
+            conn.close()
+            return jsonify({'status': 'error', 'error': 'User not assigned to any team'}), 403
+        if team_id and int(team_id) != t['id']:
+            conn.close()
+            return jsonify({'status': 'error', 'error': 'Unauthorized team operation'}), 403
+        team_id = t['id']
+    else:
+        if not team_id and t:
             team_id = t['id']
             
     if not team_id:
@@ -1746,40 +1802,39 @@ def gauntlet_relic_solve():
     if res.get('status') == 'success':
         socketio.emit('gauntlet-sync', {'team_id': team_id, 'relic_id': res.get('relic_id'), 'points': res.get('points_awarded')})
         
-        # Real-time automated score ingestion into SDC Games for Day 2 Level 2 (Gauntlet)
-        conn = get_db_connection()
-        members = conn.execute('''
-            SELECT u.participant_id, u.username
-            FROM gauntlet_members m
-            JOIN users u ON m.user_id = u.id
-            WHERE m.team_id = ?
-        ''', (team_id,)).fetchall()
-        conn.close()
-
-        total_pts = res.get('total_points', 0)
-        relic_name = res.get('relic_id', 'relic')
-        awarded_pts = res.get('points_awarded', 0)
-
-        for m in members:
-            p_id = m['participant_id'] or m['username']
-            if p_id:
-                success = dispatch_score_to_sdc_games(p_id, 'day-2-l2', total_pts, relic_name, awarded_pts)
-                if not success:
-                    record_pending_sync(p_id, 'day-2-l2', total_pts, relic_name, awarded_pts)
+        pass
         
     return jsonify(res)
 
 @app.route('/gauntlet/curse/cast', methods=['POST'])
 def gauntlet_curse_cast():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'status': 'error', 'error': 'Authentication required'}), 401
+
     data = request.get_json() or {}
     team_id = data.get('team_id')
     curse_type = data.get('curse_type')
     target_id = data.get('target_team_id')
     
+    conn = get_db_connection()
+    t = gauntlet_engine.get_team_for_user(conn, user_id)
+    if session.get('role') != 'admin':
+        if not t:
+            conn.close()
+            return jsonify({'status': 'error', 'error': 'User not assigned to any team'}), 403
+        if team_id and int(team_id) != t['id']:
+            conn.close()
+            return jsonify({'status': 'error', 'error': 'Unauthorized team operation'}), 403
+        team_id = t['id']
+    else:
+        if not team_id and t:
+            team_id = t['id']
+            
     if not team_id or not curse_type:
+        conn.close()
         return jsonify({'status': 'error', 'error': 'Missing team_id or curse_type'}), 400
         
-    conn = get_db_connection()
     res = gauntlet_engine.cast_curse(conn, team_id, curse_type, target_id)
     conn.close()
     
@@ -1807,6 +1862,8 @@ def gauntlet_admin():
     ''').fetchall()
     
     shrine_active = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'shrine_active_team'").fetchone()['value']
+    top_4_teams = gauntlet_engine.get_top_4_teams(conn)
+    assigned_count = conn.execute("SELECT COUNT(*) as cnt FROM gauntlet_members").fetchone()['cnt']
     conn.close()
     
     return render_template(
@@ -1814,7 +1871,9 @@ def gauntlet_admin():
         current_phase=current_phase,
         teams=teams,
         active_curses=active_curses_raw,
-        active_shrine_team_id=shrine_active
+        active_shrine_team_id=shrine_active,
+        top_4_teams=top_4_teams,
+        assigned_count=assigned_count
     )
 
 @app.route('/admin/gauntlet/action', methods=['POST'])
@@ -1902,7 +1961,8 @@ def start_pty(data):
         handle_stop_pty()
         
     master_fd, slave_fd = pty.openpty()
-    username = session.get('username', 'player')
+    raw_username = session.get('username', 'player')
+    username = re.sub(r'[^a-zA-Z0-9_\-]', '', raw_username) or 'player'
     
     docker_mounts = []
     docker_extra_env = []
@@ -1912,24 +1972,28 @@ def start_pty(data):
         team = gauntlet_engine.get_team_for_user(conn, session_id)
         if not team:
             team = gauntlet_engine.auto_assign_user_to_team(conn, session_id)
+        if not team:
+            conn.close()
+            socketio.emit('pty-output', {'output': '\r\n\x1b[31;1m[-] Access Denied: The Gauntlet tournament roster is strictly limited to 32 players (16 squads of 2 players). Roster is currently full.\x1b[0m\r\n'}, room=sid)
+            return
         current_ph = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
         conn.close()
         
-        t_id = team['id'] if team else 1
-        t_name = team['team_name'] if team else 'Team Jaguar'
+        t_id = team['id']
+        t_name = team['team_name']
         t_role = team.get('role', 'navigator')
+        clean_tname = re.sub(r'[^a-zA-Z0-9_\-]', '', t_name.lower().replace(' ', '-')) or 'team'
         
         container_name = f"jumanji_day2_level2_{session_id}_{sid}"
         image_name = "jumanji-gauntlet:latest"
-        gauntlet_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'DAY 2', 'level2')
-        docker_mounts = ["-v", f"{gauntlet_dir}:/gauntlet_src:ro"]
+        docker_mounts = []
         docker_extra_env = [
             "-e", f"TEAM_ID={t_id}",
             "-e", f"TEAM_NAME={t_name}",
             "-e", f"TEAM_ROLE={t_role}",
             "-e", f"PHASE={current_ph}"
         ]
-        init_cmd = f"if [ -f /gauntlet_src/setup_gauntlet.sh ]; then sudo -E bash /gauntlet_src/setup_gauntlet.sh; else sudo -E /usr/local/bin/setup_gauntlet.sh; fi && echo -e \"PS1='{username}@{t_name.lower().replace(' ', '-')}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
+        init_cmd = f"sudo -E /usr/local/bin/setup_gauntlet.sh && echo -e \"PS1='{username}@{clean_tname}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
         working_dir = "/gauntlet"
     elif is_level3:
         container_name = f"jumanji_day1_level3_{session_id}_{sid}"
@@ -1965,7 +2029,6 @@ def start_pty(data):
     
     docker_cmd = [
         "docker", "run", "-it", "--rm", "--name", container_name,
-        "--cap-add", "SYS_ADMIN", "--security-opt", "apparmor=unconfined",
         "--memory=512m", "--cpus=0.75", "--pids-limit=100",
         "-u", "recon_user"
     ] + docker_mounts + docker_extra_env + [
@@ -2103,8 +2166,7 @@ def disconnect():
 if __name__ == '__main__':
     try:
         init_db()
-        socketio.start_background_task(process_pending_score_syncs)
         socketio.start_background_task(process_gauntlet_shrine_ticks)
     except Exception as e:
         print("DB Init failed:", e)
-    socketio.run(app, host='0.0.0.0', port=8080, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8080, debug=False)

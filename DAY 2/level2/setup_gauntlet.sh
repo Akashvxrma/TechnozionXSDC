@@ -3,7 +3,7 @@
 # Variables passed via environment:
 # TEAM_ID, TEAM_NAME, TEAM_ROLE, MATCH_ID, PHASE, CTF_TOKEN, SECRET
 
-SECRET="${SECRET:-8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3}"
+SECRET="${CTF_MASTER_SECRET:-${SECRET:-8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3}}"
 TEAM_ID="${TEAM_ID:-1}"
 MATCH_ID="${MATCH_ID:-1}"
 PHASE="${PHASE:-phase1_pods}"
@@ -193,3 +193,8 @@ echo "   THE JUMANJI GAUNTLET - TEAM $TEAM_NAME (#$TEAM_ID)"
 echo "   Role: $TEAM_ROLE | Phase: $PHASE"
 echo "   Submit relics with: complete JUMANJI{...}"
 echo "==================================================="
+
+# Security hardening: Remove setup scripts so secrets cannot be inspected by players
+rm -f /usr/local/bin/setup_gauntlet.sh /usr/local/bin/setup_shrine.sh 2>/dev/null || true
+unset SECRET CTF_MASTER_SECRET
+
