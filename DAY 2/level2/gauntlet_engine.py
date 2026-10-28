@@ -535,8 +535,10 @@ def advance_tournament_phase(conn, target_phase=None):
                 advanced.append(r['id'])
         
         # Advance top 8 to duels, remaining to lagoon
-        conn.execute("UPDATE gauntlet_teams SET phase = 'phase2_duels' WHERE id IN ({})".format(','.join(map(str, advanced))))
-        conn.execute("UPDATE gauntlet_teams SET phase = 'lagoon' WHERE id NOT IN ({})".format(','.join(map(str, advanced))))
+        if advanced:
+            ph = ','.join(['?'] * len(advanced))
+            conn.execute(f"UPDATE gauntlet_teams SET phase = 'phase2_duels' WHERE id IN ({ph})", advanced)
+            conn.execute(f"UPDATE gauntlet_teams SET phase = 'lagoon' WHERE id NOT IN ({ph})", advanced)
         
         # Create 4 Quarterfinal matches
         conn.execute("DELETE FROM gauntlet_matches WHERE phase = 'phase2_duels'")
@@ -573,8 +575,9 @@ def advance_tournament_phase(conn, target_phase=None):
             winners = [r['id'] for r in top4_rows]
 
         if winners:
-            conn.execute("UPDATE gauntlet_teams SET phase = 'phase3_shrine' WHERE id IN ({})".format(','.join(map(str, winners))))
-            conn.execute("UPDATE gauntlet_teams SET phase = 'lagoon' WHERE id NOT IN ({})".format(','.join(map(str, winners))))
+            ph = ','.join(['?'] * len(winners))
+            conn.execute(f"UPDATE gauntlet_teams SET phase = 'phase3_shrine' WHERE id IN ({ph})", winners)
+            conn.execute(f"UPDATE gauntlet_teams SET phase = 'lagoon' WHERE id NOT IN ({ph})", winners)
 
     elif next_phase == 'phase4_final':
         # Top 2 from Shrine

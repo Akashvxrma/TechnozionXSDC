@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
 import sqlite3
 import os
 import pty
@@ -19,6 +21,8 @@ import time
 import csv
 import io
 import sys
+import ipaddress
+import collections
 from flask_socketio import SocketIO
 from datetime import datetime, timedelta, timezone
 
@@ -59,9 +63,12 @@ GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIEN
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'http://127.0.0.1:8080/auth/callback')
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if os.environ.get('WEB_ORIGIN', '').startswith('https://') or os.environ.get('ENVIRONMENT') == 'production':
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 # Derive or load persistent Flask Secret Key
 _flask_sec = os.environ.get('FLASK_SECRET_KEY')
@@ -108,9 +115,9 @@ def is_allowed_origin(origin):
 
 socketio = SocketIO(app, cors_allowed_origins=is_allowed_origin)
 
-# 4. In-Memory Flag Submission Rate Limiter
-import collections
+# 4. In-Memory Rate Limiters (Sliding Window with Cleanup)
 _SUBMISSION_HISTORY = collections.defaultdict(list)
+_LOGIN_HISTORY = collections.defaultdict(list)
 
 def is_submission_rate_limited(identifier: str, max_attempts: int = 30, window_sec: int = 60) -> bool:
     now = time.time()
@@ -120,7 +127,25 @@ def is_submission_rate_limited(identifier: str, max_attempts: int = 30, window_s
         return True
     valid.append(now)
     _SUBMISSION_HISTORY[identifier] = valid
+    if len(_SUBMISSION_HISTORY) > 1000:
+        dead_keys = [k for k, v in _SUBMISSION_HISTORY.items() if not v or now - v[-1] > 3600]
+        for dk in dead_keys:
+            _SUBMISSION_HISTORY.pop(dk, None)
     return False
+
+def is_login_rate_limited(ip: str, max_attempts: int = 15, window_sec: int = 60) -> bool:
+    if ip in ('127.0.0.1', '::1'):
+        return False
+    now = time.time()
+    valid = [t for t in _LOGIN_HISTORY[ip] if now - t < window_sec]
+    if len(valid) >= max_attempts:
+        _LOGIN_HISTORY[ip] = valid
+        return True
+    return False
+
+def record_failed_login(ip: str):
+    if ip not in ('127.0.0.1', '::1'):
+        _LOGIN_HISTORY[ip].append(time.time())
 
 # 5. Anti-CSRF Session Token Helper
 def get_csrf_token():
@@ -133,13 +158,22 @@ def inject_csrf_token():
     return dict(csrf_token=get_csrf_token)
 
 # 6. Security & Subnet Protection Middleware
+DOCKER_BRIDGE_NETWORKS = [
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('10.0.0.0/8')
+]
+
 @app.before_request
 def enforce_security_and_csrf():
-    client_ip = request.remote_addr or ''
-    # Docker default bridge subnets: block container users from admin & auth portals
-    if client_ip.startswith('172.17.') or client_ip.startswith('172.18.'):
-        if request.path.startswith('/admin') or request.path in ('/login', '/register', '/choose-username'):
-            return jsonify({'error': 'Administrative access blocked from container networks'}), 403
+    client_ip_str = request.remote_addr or ''
+    # Docker default & custom bridge subnets: block container users from admin & auth portals
+    try:
+        ip_obj = ipaddress.ip_address(client_ip_str)
+        if not ip_obj.is_loopback and any(ip_obj in net for net in DOCKER_BRIDGE_NETWORKS):
+            if request.path.startswith('/admin') or request.path in ('/login', '/register', '/choose-username'):
+                return jsonify({'error': 'Administrative access blocked from container networks'}), 403
+    except ValueError:
+        pass
 
     if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
         # Token-based CLI flag submissions (/api/score with token) don't carry browser cookies
@@ -308,13 +342,18 @@ def init_db():
         )
     ''')
 
-    # Insert default admin user if not exists
+    # Insert default admin user if not exists (with secure password hashing)
+    admin_env_pass = os.environ.get('ADMIN_PASSWORD', 'Admin_ShadowDrop!2026')
     user = conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
     if not user:
-        conn.execute("INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro) VALUES ('admin', 'Admin_ShadowDrop!2026', 'admin', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1)")
+        hashed_admin = generate_password_hash(admin_env_pass)
+        conn.execute("INSERT INTO users (username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro) VALUES ('admin', ?, 'admin', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1)", (hashed_admin,))
     else:
-        # Enforce new secure admin password even if already exists
-        conn.execute("UPDATE users SET password = 'Admin_ShadowDrop!2026' WHERE username = 'admin'")
+        # Transparently upgrade existing plaintext password to secure hash
+        cur_pwd = user['password']
+        if not cur_pwd or not (cur_pwd.startswith('scrypt:') or cur_pwd.startswith('pbkdf2:')):
+            hashed_admin = generate_password_hash(cur_pwd or admin_env_pass)
+            conn.execute("UPDATE users SET password = ? WHERE username = 'admin'", (hashed_admin,))
 
     # Day 1 Level 2 (Avatars) & Level 3 (Mainframe) settings
     conn.execute('''
@@ -747,6 +786,11 @@ def auth_launch():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
+        client_ip = request.remote_addr or '127.0.0.1'
+        if is_login_rate_limited(client_ip, max_attempts=15, window_sec=60):
+            flash('Too many login attempts. Please wait 60 seconds before trying again.')
+            return render_template('login.html'), 429
+
         username = request.form['username'].strip()
         password = request.form['password'].strip()
         
@@ -759,12 +803,25 @@ def login():
             return render_template('login.html')
 
         user = conn.execute('''
-            SELECT id, username, participant_id, role, points, level2_points, level3_points, start_time, level2_start_time, level3_start_time, status, level2_status, level3_status, authorized_levels 
+            SELECT id, username, password, participant_id, role, points, level2_points, level3_points, start_time, level2_start_time, level3_start_time, status, level2_status, level3_status, authorized_levels 
             FROM users 
-            WHERE username = ? AND password = ? AND (role = 'admin' OR username = 'verification_pilot')
-        ''', (username, password)).fetchone()
+            WHERE username = ? AND (role = 'admin' OR username = 'verification_pilot')
+        ''', (username,)).fetchone()
         
+        is_authenticated = False
         if user:
+            stored_pwd = user['password'] or ''
+            if stored_pwd.startswith('scrypt:') or stored_pwd.startswith('pbkdf2:'):
+                is_authenticated = check_password_hash(stored_pwd, password)
+            else:
+                is_authenticated = (stored_pwd == password)
+                if is_authenticated:
+                    # Upgrade plaintext to secure password hash
+                    new_h = generate_password_hash(password)
+                    conn.execute("UPDATE users SET password = ? WHERE id = ?", (new_h, user['id']))
+                    conn.commit()
+
+        if user and is_authenticated:
             l2_pts = user['level2_points'] or user['points'] or 0
             l3_pts = user['level3_points'] or 0
             l2_stat = user['level2_status'] or user['status']
@@ -794,6 +851,7 @@ def login():
             return redirect(url_for('index'))
         else:
             conn.close()
+            record_failed_login(client_ip)
             flash('ACCESS DENIED: Invalid credentials.')
             
     return render_template('login.html')
@@ -1042,7 +1100,12 @@ def admin():
             conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round3_unlocked', ?)", (new_val,))
             conn.commit()
             if new_val == '0':
-                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level3_' --filter 'name=jumanji_r3_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    c_ids = subprocess.check_output(["docker", "ps", "-q", "--filter", "name=jumanji_day1_level3_", "--filter", "name=jumanji_r3_"], text=True).split()
+                    if c_ids:
+                        subprocess.run(["docker", "rm", "-f"] + c_ids, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
             flash(f"Day 1 Level 3 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
         elif action in ('toggle_level2', 'toggle_level1', 'toggle_round2'):
             current = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
@@ -1053,7 +1116,12 @@ def admin():
             conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('round2_unlocked', ?)", (new_val,))
             conn.commit()
             if new_val == '0':
-                subprocess.run("docker ps -q --filter 'name=jumanji_day1_level2_' --filter 'name=jumanji_day1_level1_' --filter 'name=jumanji_r2_' | xargs -r docker rm -f", shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    c_ids = subprocess.check_output(["docker", "ps", "-q", "--filter", "name=jumanji_day1_level2_", "--filter", "name=jumanji_day1_level1_", "--filter", "name=jumanji_r2_"], text=True).split()
+                    if c_ids:
+                        subprocess.run(["docker", "rm", "-f"] + c_ids, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    pass
             flash(f"Day 1 Level 2 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
         elif action in ('toggle_day1', 'toggle_day2'):
             key = 'day1_visible' if action == 'toggle_day1' else 'day2_visible'
@@ -1534,10 +1602,13 @@ def generate_dynamic_flag(user_id, avatar_id):
 
 @app.route('/api/whois', methods=['POST'])
 def proxy_whois():
-    data = request.json
-    target = data.get('target', '')
-    if not target:
-        return jsonify({'response': 'Usage: whois [target]'})
+    if 'user_id' not in session and session.get('role') != 'admin':
+        return jsonify({'error': 'Authentication required'}), 401
+        
+    data = request.get_json() or {}
+    target = data.get('target', '').strip()
+    if not target or not re.match(r'^[a-zA-Z0-9.-]{1,64}$', target):
+        return jsonify({'response': 'Usage: whois [valid-hostname-or-ip]'})
     
     try:
         import socket
@@ -1559,8 +1630,13 @@ def submit_score():
     token = data.get('token')
     
     if token and token in INTERNAL_TOKENS:
-        user_id = INTERNAL_TOKENS[token]['user_id']
-        sid = INTERNAL_TOKENS[token]['sid']
+        token_info = INTERNAL_TOKENS[token]
+        # Enforce token expiration (2 hours max lifetime)
+        if time.time() - token_info.get('created_at', time.time()) > 7200:
+            INTERNAL_TOKENS.pop(token, None)
+            return jsonify({'error': 'Submission token expired. Please refresh your session.'}), 401
+        user_id = token_info['user_id']
+        sid = token_info['sid']
     elif 'user_id' in session:
         user_id = session['user_id']
         sid = None
@@ -2024,7 +2100,8 @@ def start_pty(data):
     token = secrets.token_hex(16)
     INTERNAL_TOKENS[token] = {
         'user_id': session_id,
-        'sid': sid
+        'sid': sid,
+        'created_at': time.time()
     }
     
     docker_cmd = [
@@ -2088,6 +2165,12 @@ def read_and_forward_pty(fd, sid):
         if container_name:
             subprocess.run(["docker", "rm", "-f", container_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         clients.pop(sid, None)
+
+        # Active cleanup: evict tokens belonging to this socket and expired tokens
+        now = time.time()
+        tokens_to_prune = [t for t, meta in INTERNAL_TOKENS.items() if meta.get('sid') == sid or (now - meta.get('created_at', now) > 7200)]
+        for pt in tokens_to_prune:
+            INTERNAL_TOKENS.pop(pt, None)
 
 @socketio.on('pty-input')
 def pty_input(data):
@@ -2158,6 +2241,12 @@ def handle_stop_pty():
             ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         clients.pop(sid, None)
+
+        # Active cleanup: evict tokens belonging to this socket and expired tokens
+        now = time.time()
+        tokens_to_prune = [t for t, meta in INTERNAL_TOKENS.items() if meta.get('sid') == sid or (now - meta.get('created_at', now) > 7200)]
+        for pt in tokens_to_prune:
+            INTERNAL_TOKENS.pop(pt, None)
 
 @socketio.on('disconnect')
 def disconnect():
