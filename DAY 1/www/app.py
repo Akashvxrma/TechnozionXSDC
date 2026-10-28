@@ -176,8 +176,8 @@ def enforce_security_and_csrf():
         pass
 
     if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
-        # Token-based CLI flag submissions (/api/score with token) don't carry browser cookies
-        if request.path == '/api/score' and request.is_json and request.json and request.json.get('token'):
+        # Token-based CLI flag submissions (/api/score and /gauntlet/relic/solve with token) don't carry browser cookies
+        if request.path in ('/api/score', '/gauntlet/relic/solve') and request.is_json and request.json and request.json.get('token'):
             return
 
         # Validate Origin header if present
@@ -1842,8 +1842,18 @@ def gauntlet_bracket():
 
 @app.route('/gauntlet/relic/solve', methods=['POST'])
 def gauntlet_relic_solve():
-    user_id = session.get('user_id')
-    if not user_id:
+    data = request.get_json() or {}
+    token = data.get('token')
+    
+    if token and token in INTERNAL_TOKENS:
+        token_info = INTERNAL_TOKENS[token]
+        if time.time() - token_info.get('created_at', time.time()) > 7200:
+            INTERNAL_TOKENS.pop(token, None)
+            return jsonify({'status': 'error', 'error': 'Submission token expired. Please refresh your session.'}), 401
+        user_id = token_info['user_id']
+    elif 'user_id' in session:
+        user_id = session['user_id']
+    else:
         return jsonify({'status': 'error', 'error': 'Authentication required'}), 401
 
     if is_submission_rate_limited(f"gauntlet_{user_id}", max_attempts=30, window_sec=60):
