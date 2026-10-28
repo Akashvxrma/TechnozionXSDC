@@ -22,14 +22,30 @@ generate_override() {
     echo "OVERRIDE-${level^^}-${hash}"
 }
 
+generate_override_hash() {
+    local level=$1
+    echo -n "${PLAYER_ID}:${level}:${SECRET}" | md5sum | cut -d' ' -f1 | head -c 8
+}
+
 # 1. Mainframe Database Setup (Database Enum Challenge)
 mkdir -p /level3 /level2
 cd /level3 || exit 1
 rm -f mainframe.db
-sqlite3 mainframe.db "CREATE TABLE overrides (id INTEGER PRIMARY KEY, target TEXT, code TEXT);"
-sqlite3 mainframe.db "INSERT INTO overrides (target, code) VALUES ('admin_access', '$(generate_override user)');"
-sqlite3 mainframe.db "INSERT INTO overrides (target, code) VALUES ('decoy_1', 'OVERRIDE-USER-invalid1');"
-sqlite3 mainframe.db "INSERT INTO overrides (target, code) VALUES ('decoy_2', 'OVERRIDE-USER-invalid2');"
+
+USER_HASH=$(generate_override_hash user)
+H1="${USER_HASH:0:4}"
+H2="${USER_HASH:4:4}"
+
+sqlite3 mainframe.db "CREATE TABLE _mainframe_vault (id INTEGER PRIMARY KEY, subsystem TEXT, tier_tag TEXT, token_seg1 TEXT, token_seg2 TEXT);"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (1, 'admin_access', 'USER', '$H1', '$H2');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (2, 'telemetry_sink', 'DECOY', 'fa10', '9bc2');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (3, 'aux_matrix', 'DECOY', 'c73e', '82a1');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (4, 'grid_monitor', 'DECOY', '910b', '44f0');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (5, 'core_cooling', 'DECOY', 'e52a', '118c');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (6, 'comm_relays', 'DECOY', '3d77', 'b001');"
+sqlite3 mainframe.db "INSERT INTO _mainframe_vault VALUES (7, 'sensor_pod', 'DECOY', '702f', 'a894');"
+
+sqlite3 mainframe.db "CREATE VIEW overrides AS SELECT id, subsystem AS target, ('OVERRIDE-' || tier_tag || '-' || token_seg1 || token_seg2) AS code FROM _mainframe_vault;"
 chmod 444 mainframe.db
 
 # Hidden .env file with mainframe DB config
