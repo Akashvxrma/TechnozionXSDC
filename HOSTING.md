@@ -78,6 +78,20 @@ python3 app.py
 
 ### B. Production Systemd Daemon (`jumanji-ctf.service`)
 
+Create the server launcher script `/home/ubuntu/ctf-platform/start_server.sh`:
+
+```bash
+#!/bin/bash
+set -e
+cd "/home/ubuntu/ctf-platform/DAY 1/www"
+exec "/home/ubuntu/ctf-platform/DAY 1/www/venv/bin/python3" app.py
+```
+
+Make it executable:
+```bash
+chmod +x /home/ubuntu/ctf-platform/start_server.sh
+```
+
 Create `/etc/systemd/system/jumanji-ctf.service`:
 
 ```ini
@@ -89,12 +103,12 @@ Requires=docker.service
 [Service]
 Type=simple
 User=ubuntu
-Group=docker
-WorkingDirectory=/home/ubuntu/ctf-platform/DAY 1/www
-EnvironmentFile=/home/ubuntu/ctf-platform/DAY 1/www/.env
-ExecStart=/home/ubuntu/ctf-platform/DAY 1/www/venv/bin/python3 app.py
+Group=ubuntu
+SupplementaryGroups=docker
+WorkingDirectory=/home/ubuntu/ctf-platform
+ExecStart=/home/ubuntu/ctf-platform/start_server.sh
 Restart=always
-RestartSec=5
+RestartSec=3
 StandardOutput=append:/var/log/jumanji-ctf.log
 StandardError=append:/var/log/jumanji-ctf.error.log
 LimitNOFILE=65535
@@ -106,8 +120,59 @@ WantedBy=multi-user.target
 Enable and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable jumanji-ctf
-sudo systemctl start jumanji-ctf
+sudo systemctl enable --now jumanji-ctf
+```
+
+---
+
+## 5. Nginx Reverse Proxy Configuration
+
+Create `/etc/nginx/sites-available/jumanji-ctf`:
+
+```nginx
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    server_name _;
+
+    client_max_body_size 50M;
+
+    # WebSocket Proxy for interactive terminal PTY
+    location /socket.io/ {
+        proxy_pass http://127.0.0.1:8080/socket.io/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+
+    # Main CTF application
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+}
+```
+
+Enable and reload:
+```bash
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -sf /etc/nginx/sites-available/jumanji-ctf /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 ---
