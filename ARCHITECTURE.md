@@ -225,3 +225,29 @@ The platform employs real-time bidirectional WebSocket events:
   - Sourced from environment (`CTF_MASTER_SECRET`) with automated environment loading via `load_ctf_env()`.
   - Container setup scripts (`setup_level2.sh`, `setup_level3.sh`, `setup_gauntlet.sh`) source the master secret, bake flags into isolated filesystem locations, execute `unset SECRET CTF_MASTER_SECRET`, and execute `rm -f /usr/local/bin/setup_*.sh` upon container start.
 
+### 6.6 Database Concurrency & High Throughput (SQLite WAL Mode)
+- **WAL Journaling**:
+  - Configured Write-Ahead Logging (`PRAGMA journal_mode = WAL;`) and synchronous normal mode (`PRAGMA synchronous = NORMAL;`).
+  - Allows concurrent read operations without blocking writes, eliminating SQLite concurrency bottlenecks during multi-user tournament bursts.
+- **Extended Busy Timeout**:
+  - `sqlite3.connect(..., timeout=30.0)` paired with `PRAGMA busy_timeout = 30000;` ensures high-concurrency requests safely queue and retry rather than throwing `database is locked` operational errors.
+
+### 6.7 Single-Active-Container Constraint & Denial-of-Service Defense
+- **Per-User Concurrency Guard**:
+  - To prevent Out-Of-Memory (OOM) host crashes from multi-tab browser sessions or automated connection floods, each user is strictly constrained to at most one active Docker container.
+  - Starting a new PTY session or calling `/logout` immediately terminates any previous subprocess, closes file descriptors, and forcefully cleans up lingering user containers (`docker rm -f`).
+- **Resource Limits**:
+  - Challenge containers are constrained via `--memory=512m`, `--cpus=0.75`, and `--pids-limit=100`.
+
+### 6.8 Double-Scoring Race Condition Prevention
+- **Canonical ID Normalization**:
+  - Aliased checkpoint names (`round3_user`, `level3_user`, `level2_user`) are mapped to canonical identifiers (`level3_user`, `level3_root`) prior to database transactions.
+- **Atomic Insertion & Error Handling**:
+  - Flag submissions and relic captures use atomic unique constraints (`user_id, challenge_id` and `team_id, relic_id`).
+  - Concurrent requests racing past `SELECT` checks are caught by `try / except sqlite3.IntegrityError`, rolling back and returning `already_solved` without score inflation or 500 crashes.
+
+### 6.9 CSV Formula Injection Sanitization (OWASP CWE-1236)
+- **Safe Spreadsheet Exports**:
+  - All admin CSV export routes (`/admin/export-scores/*`, `/admin/export-day1-shortlist`, `/admin/export-gauntlet-finalists`) pass all string values through `sanitize_csv_cell()`.
+  - Cells beginning with `=`, `+`, `-`, `@`, `\t`, or `\r` are prefixed with `'` to prevent command execution or formula calculation when opened in Microsoft Excel or Google Sheets.
+

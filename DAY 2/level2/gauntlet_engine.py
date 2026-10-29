@@ -404,12 +404,16 @@ def verify_relic_submission(conn, team_id, flag_input, part2=None, user_id=None)
     if already:
         return {'status': 'already_solved', 'message': 'Relic already secured by your team.'}
 
-    # Record solution
+    # Record solution (guarded against concurrent submission race conditions)
     now_str = get_utc_now().isoformat()
-    conn.execute('''
-        INSERT INTO gauntlet_solved_relics (team_id, relic_id, phase, points, solved_at, solved_by_user_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (team_id, identified_relic, current_phase, points, now_str, user_id))
+    try:
+        conn.execute('''
+            INSERT INTO gauntlet_solved_relics (team_id, relic_id, phase, points, solved_at, solved_by_user_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (team_id, identified_relic, current_phase, points, now_str, user_id))
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        return {'status': 'already_solved', 'message': 'Relic already secured by your team.'}
 
     # Update team score
     if current_phase == 'phase1_pods':
@@ -459,6 +463,9 @@ def get_active_curses_for_team(conn, team_id):
 
 def cast_curse(conn, from_team_id, curse_type, target_team_id=None):
     """Spend a Curse Card from inventory and apply it against an opponent."""
+    if curse_type not in CURSE_CONFIG:
+        return {'status': 'error', 'error': 'Invalid curse type'}
+
     inv = conn.execute('''
         SELECT id FROM gauntlet_curse_inventory
         WHERE team_id = ? AND curse_type = ? AND is_used = 0

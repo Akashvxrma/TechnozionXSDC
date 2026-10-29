@@ -23,6 +23,7 @@ import io
 import sys
 import ipaddress
 import collections
+import threading
 from flask_socketio import SocketIO
 from datetime import datetime, timedelta, timezone
 
@@ -115,9 +116,23 @@ def is_allowed_origin(origin):
 
 socketio = SocketIO(app, cors_allowed_origins=is_allowed_origin)
 
-# 4. In-Memory Rate Limiters (Sliding Window with Cleanup)
+# 4. In-Memory Rate Limiters (Sliding Window with Cleanup) & Real IP Resolution
 _SUBMISSION_HISTORY = collections.defaultdict(list)
 _LOGIN_HISTORY = collections.defaultdict(list)
+
+def get_real_client_ip() -> str:
+    """Safely resolve real client IP when behind reverse proxies (Nginx/ALB)."""
+    peer = request.remote_addr or '127.0.0.1'
+    if peer in ('127.0.0.1', '::1'):
+        xfwd = request.headers.get('X-Forwarded-For')
+        if xfwd:
+            client_ip = xfwd.split(',')[0].strip()
+            if client_ip:
+                return client_ip
+        xreal = request.headers.get('X-Real-IP')
+        if xreal:
+            return xreal.strip()
+    return peer
 
 def is_submission_rate_limited(identifier: str, max_attempts: int = 30, window_sec: int = 60) -> bool:
     now = time.time()
@@ -134,8 +149,6 @@ def is_submission_rate_limited(identifier: str, max_attempts: int = 30, window_s
     return False
 
 def is_login_rate_limited(ip: str, max_attempts: int = 15, window_sec: int = 60) -> bool:
-    if ip in ('127.0.0.1', '::1'):
-        return False
     now = time.time()
     valid = [t for t in _LOGIN_HISTORY[ip] if now - t < window_sec]
     if len(valid) >= max_attempts:
@@ -144,8 +157,12 @@ def is_login_rate_limited(ip: str, max_attempts: int = 15, window_sec: int = 60)
     return False
 
 def record_failed_login(ip: str):
-    if ip not in ('127.0.0.1', '::1'):
-        _LOGIN_HISTORY[ip].append(time.time())
+    now = time.time()
+    _LOGIN_HISTORY[ip].append(now)
+    if len(_LOGIN_HISTORY) > 1000:
+        dead_keys = [k for k, v in _LOGIN_HISTORY.items() if not v or now - v[-1] > 3600]
+        for dk in dead_keys:
+            _LOGIN_HISTORY.pop(dk, None)
 
 # 5. Anti-CSRF Session Token Helper
 def get_csrf_token():
@@ -165,7 +182,7 @@ DOCKER_BRIDGE_NETWORKS = [
 
 @app.before_request
 def enforce_security_and_csrf():
-    client_ip_str = request.remote_addr or ''
+    client_ip_str = get_real_client_ip()
     # Docker default & custom bridge subnets: block container users from admin & auth portals
     try:
         ip_obj = ipaddress.ip_address(client_ip_str)
@@ -222,12 +239,15 @@ def get_user_scores(user_row):
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'jumanji_auth.db')
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000;")
     return conn
 
 def init_db():
     conn = get_db_connection()
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
     conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -795,13 +815,19 @@ def auth_launch():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        client_ip = request.remote_addr or '127.0.0.1'
+        client_ip = get_real_client_ip()
         if is_login_rate_limited(client_ip, max_attempts=15, window_sec=60):
             flash('Too many login attempts. Please wait 60 seconds before trying again.')
             return render_template('login.html'), 429
 
         identifier = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
+
+        # Enforce input bounds to prevent password hash CPU exhaustion DoS
+        if len(identifier) > 128 or len(password) > 256:
+            record_failed_login(client_ip)
+            flash('ACCESS DENIED: Invalid credentials.')
+            return render_template('login.html'), 400
         
         conn = get_db_connection()
         # Allow authentication via username OR SDC participant_id (case-insensitive)
@@ -839,6 +865,7 @@ def login():
                 return render_template('login.html')
                 
             conn.close()
+            session.clear()
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['participant_id'] = user['participant_id']
@@ -1069,6 +1096,8 @@ def admin():
 
             if not new_user:
                 flash("ERROR: Username is required.")
+            elif len(new_user) > 64 or (new_pass and len(new_pass) > 256):
+                flash("ERROR: Username must be <= 64 characters and password <= 256 characters.")
             else:
                 assigned_pass = generate_password_hash(new_pass) if new_pass else generate_password_hash('ShadowDrop2026!')
                 existing = conn.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR (participant_id IS NOT NULL AND LOWER(participant_id) = LOWER(?))", (new_user, pid)).fetchone()
@@ -1427,6 +1456,15 @@ def sync_sdc_roster():
         flash(f"Roster sync execution error: {e}")
     return redirect(url_for('admin'))
 
+def sanitize_csv_cell(val):
+    """Mitigate CSV formula injection (OWASP CWE-1236) by escaping formula prefix chars."""
+    if val is None:
+        return ''
+    s = str(val)
+    if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
+        return "'" + s
+    return s
+
 @app.route('/admin/export-scores/level2')
 @app.route('/admin/export-scores/level1')
 @app.route('/admin/export-scores/round2')
@@ -1441,7 +1479,7 @@ def export_scores_l2():
     writer = csv.writer(output)
     writer.writerow(['participantId', 'score'])
     for u in users:
-        pid = u['participant_id'] or u['username']
+        pid = sanitize_csv_cell(u['participant_id'] or u['username'])
         writer.writerow([pid, u['score'] or 0])
         
     return Response(
@@ -1463,7 +1501,7 @@ def export_scores_l3():
     writer = csv.writer(output)
     writer.writerow(['participantId', 'score'])
     for u in users:
-        pid = u['participant_id'] or u['username']
+        pid = sanitize_csv_cell(u['participant_id'] or u['username'])
         writer.writerow([pid, u['score'] or 0])
         
     return Response(
@@ -1501,19 +1539,19 @@ def export_day1_shortlist():
     writer = csv.writer(output)
     writer.writerow(['rank', 'participantId', 'username', 'name', 'email', 'totalDay1CybersecScore', 'level2Score', 'level3Score', 'authorizedLevels', 'startTime', 'lastActive'])
     for idx, u in enumerate(users, start=1):
-        pid = u['participant_id'] or u['username']
+        pid = sanitize_csv_cell(u['participant_id'] or u['username'])
         writer.writerow([
             idx,
             pid,
-            u['username'],
-            u['full_name'],
-            u['email_address'],
+            sanitize_csv_cell(u['username']),
+            sanitize_csv_cell(u['full_name']),
+            sanitize_csv_cell(u['email_address']),
             u['total_day1_score'],
             u['l2_pts'],
             u['l3_pts'],
-            u['authorized_levels'] or '[]',
-            u['start_time'] or '',
-            u['last_active'] or ''
+            sanitize_csv_cell(u['authorized_levels'] or '[]'),
+            sanitize_csv_cell(u['start_time'] or ''),
+            sanitize_csv_cell(u['last_active'] or '')
         ])
 
     return Response(
@@ -1560,19 +1598,19 @@ def export_gauntlet_finalists():
     for idx, t in enumerate(teams, start=1):
         t_members = members_by_team.get(t['id'], [])
         if not t_members:
-            writer.writerow([idx, t['team_name'], t['pod_id'], t['total_gauntlet_score'], 'team_representative', '', '', '', ''])
+            writer.writerow([idx, sanitize_csv_cell(t['team_name']), sanitize_csv_cell(t['pod_id']), t['total_gauntlet_score'], 'team_representative', '', '', '', ''])
         else:
             for m in t_members:
                 writer.writerow([
                     idx,
-                    t['team_name'],
-                    t['pod_id'],
+                    sanitize_csv_cell(t['team_name']),
+                    sanitize_csv_cell(t['pod_id']),
                     t['total_gauntlet_score'],
-                    m['role'],
-                    m['participant_id'] or m['username'],
-                    m['username'],
-                    m['name'] or '',
-                    m['email'] or ''
+                    sanitize_csv_cell(m['role']),
+                    sanitize_csv_cell(m['participant_id'] or m['username']),
+                    sanitize_csv_cell(m['username']),
+                    sanitize_csv_cell(m['name'] or ''),
+                    sanitize_csv_cell(m['email'] or '')
                 ])
 
     return Response(
@@ -1799,18 +1837,47 @@ def proxy_whois():
         return jsonify({'response': f"Error: Could not connect to WHOIS daemon on port 4343."})
 
 INTERNAL_TOKENS = {}
+_TOKENS_LOCK = threading.Lock()
+
+def get_token_info(token: str):
+    """Thread-safe lookup and TTL expiry check for internal CLI submission tokens."""
+    if not token:
+        return None
+    with _TOKENS_LOCK:
+        info = INTERNAL_TOKENS.get(token)
+        if not info:
+            return None
+        if time.time() - info.get('created_at', time.time()) > 7200:
+            INTERNAL_TOKENS.pop(token, None)
+            return None
+        return dict(info)
+
+def set_internal_token(token: str, user_id: int, sid: str):
+    """Thread-safe registration of active CLI submission token."""
+    with _TOKENS_LOCK:
+        INTERNAL_TOKENS[token] = {
+            'user_id': user_id,
+            'sid': sid,
+            'created_at': time.time()
+        }
+
+def prune_internal_tokens(sid: str = None):
+    """Thread-safe eviction of expired or disconnected socket tokens."""
+    now = time.time()
+    with _TOKENS_LOCK:
+        to_prune = [t for t, meta in INTERNAL_TOKENS.items() if (sid and meta.get('sid') == sid) or (now - meta.get('created_at', now) > 7200)]
+        for pt in to_prune:
+            INTERNAL_TOKENS.pop(pt, None)
 
 @app.route('/api/score', methods=['POST'])
 def submit_score():
     data = request.get_json() or {}
     token = data.get('token')
     
-    if token and token in INTERNAL_TOKENS:
-        token_info = INTERNAL_TOKENS[token]
-        # Enforce token expiration (2 hours max lifetime)
-        if time.time() - token_info.get('created_at', time.time()) > 7200:
-            INTERNAL_TOKENS.pop(token, None)
-            return jsonify({'error': 'Submission token expired. Please refresh your session.'}), 401
+    token_info = get_token_info(token) if token else None
+    if token:
+        if not token_info:
+            return jsonify({'error': 'Submission token expired or invalid. Please refresh your session.'}), 401
         user_id = token_info['user_id']
         sid = token_info['sid']
     elif 'user_id' in session:
@@ -1863,11 +1930,18 @@ def submit_score():
         
     points_to_add = SCORE_MATRIX[avatar_id]
     
-    conn = get_db_connection()
-    alias_ids = [avatar_id]
+    # Normalize canonical checkpoint ID to eliminate alias race condition bypasses
+    canonical_id = avatar_id
     if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
-        alias_ids = ['level3_user', 'level2_user', 'round3_user']
+        canonical_id = 'level3_user'
     elif avatar_id in ('level3_root', 'level2_root', 'round3_root'):
+        canonical_id = 'level3_root'
+
+    conn = get_db_connection()
+    alias_ids = [canonical_id]
+    if canonical_id == 'level3_user':
+        alias_ids = ['level3_user', 'level2_user', 'round3_user']
+    elif canonical_id == 'level3_root':
         alias_ids = ['level3_root', 'level2_root', 'round3_root']
 
     placeholders = ', '.join(['?'] * len(alias_ids))
@@ -1877,11 +1951,16 @@ def submit_score():
         conn.close()
         return jsonify({'status': 'already_solved', 'message': 'Checkpoint already completed.'})
         
-    # Award points
+    # Award points atomically - prevent double-awarding via unique constraint and integrity error handling
     solved_time = get_utc_now().isoformat()
-    conn.execute("INSERT INTO solved_challenges (user_id, challenge_id, solved_at) VALUES (?, ?, ?)", (user_id, avatar_id, solved_time))
+    try:
+        conn.execute("INSERT INTO solved_challenges (user_id, challenge_id, solved_at) VALUES (?, ?, ?)", (user_id, canonical_id, solved_time))
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        conn.close()
+        return jsonify({'status': 'already_solved', 'message': 'Checkpoint already completed.'})
     
-    is_level3 = avatar_id in ['level3_user', 'level3_root', 'level2_user', 'level2_root', 'round3_user', 'round3_root']
+    is_level3 = canonical_id in ['level3_user', 'level3_root']
     
     if is_level3:
         conn.execute("UPDATE users SET level3_points = COALESCE(level3_points, 0) + ? WHERE id = ?", (points_to_add, user_id))
@@ -1917,7 +1996,7 @@ def submit_score():
                 conn.commit()
                 socketio.emit('game-win', {}, room=sid)
             
-        socketio.emit('flag-solved', {'avatar_id': avatar_id}, room=sid)
+        socketio.emit('flag-solved', {'avatar_id': canonical_id}, room=sid)
             
     conn.close()
     return jsonify({'status': 'success', 'points_awarded': points_to_add, 'total_points': new_points})
@@ -1928,6 +2007,38 @@ def day2_level2():
 
 @app.route('/logout')
 def logout():
+    uid = session.get('user_id')
+    if uid:
+        # Actively terminate active PTY subprocess and Docker container for this logging-out user
+        stale_sids = [s for s, c in list(clients.items()) if c.get('user_id') == uid]
+        for s in stale_sids:
+            c = clients.pop(s, None)
+            if c:
+                try:
+                    proc = c.get('process')
+                    if proc and proc.poll() is None:
+                        proc.terminate()
+                except Exception:
+                    pass
+                c_name = c.get('container_name')
+                if c_name:
+                    subprocess.run(["docker", "rm", "-f", c_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                try:
+                    fd = c.get('fd')
+                    if fd is not None:
+                        os.close(fd)
+                except OSError:
+                    pass
+            prune_internal_tokens(s)
+        try:
+            out = subprocess.check_output(
+                ["docker", "ps", "-a", "-q", "--filter", f"name=jumanji_.*_{uid}_"],
+                text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            if out:
+                subprocess.run(["docker", "rm", "-f"] + out.split(), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
     session.clear()
     return redirect(url_for('login'))
 
@@ -2021,11 +2132,10 @@ def gauntlet_relic_solve():
     data = request.get_json() or {}
     token = data.get('token')
     
-    if token and token in INTERNAL_TOKENS:
-        token_info = INTERNAL_TOKENS[token]
-        if time.time() - token_info.get('created_at', time.time()) > 7200:
-            INTERNAL_TOKENS.pop(token, None)
-            return jsonify({'status': 'error', 'error': 'Submission token expired. Please refresh your session.'}), 401
+    token_info = get_token_info(token) if token else None
+    if token:
+        if not token_info:
+            return jsonify({'status': 'error', 'error': 'Submission token expired or invalid. Please refresh your session.'}), 401
         user_id = token_info['user_id']
     elif 'user_id' in session:
         user_id = session['user_id']
@@ -2093,9 +2203,9 @@ def gauntlet_curse_cast():
         if not team_id and t:
             team_id = t['id']
             
-    if not team_id or not curse_type:
+    if not team_id or not curse_type or curse_type not in gauntlet_engine.CURSE_CONFIG:
         conn.close()
-        return jsonify({'status': 'error', 'error': 'Missing team_id or curse_type'}), 400
+        return jsonify({'status': 'error', 'error': 'Invalid team_id or unsupported curse_type'}), 400
         
     res = gauntlet_engine.cast_curse(conn, team_id, curse_type, target_id)
     conn.close()
@@ -2237,9 +2347,27 @@ def start_pty(data):
         socketio.emit('pty-output', {'output': f'\r\n\x1b[31;1m[SECURITY BLOCK] {err_msg}\x1b[0m\r\n'}, room=sid)
         return
 
-    # If a previous PTY session exists for this socket, terminate and clean it up first
-    if sid in clients:
-        handle_stop_pty()
+    # If previous PTY session(s) exist for this user or socket, terminate and clean them up first
+    stale_sids = [s for s, c in list(clients.items()) if c.get('user_id') == session_id or s == sid]
+    for s in stale_sids:
+        c = clients.pop(s, None)
+        if c:
+            try:
+                proc = c.get('process')
+                if proc and proc.poll() is None:
+                    proc.terminate()
+            except Exception:
+                pass
+            c_name = c.get('container_name')
+            if c_name:
+                subprocess.run(["docker", "rm", "-f", c_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                fd = c.get('fd')
+                if fd is not None:
+                    os.close(fd)
+            except OSError:
+                pass
+            prune_internal_tokens(s)
         
     master_fd, slave_fd = pty.openpty()
     raw_username = session.get('username', 'player')
@@ -2289,6 +2417,16 @@ def start_pty(data):
         init_cmd = f"(sudo -E /usr/local/bin/setup_level2.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level1.sh) && echo -e \"PS1='{username}@sdc-day1-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
     
     # Prune any previous container for this user/sid
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "-a", "-q", "--filter", f"name=jumanji_.*_{session_id}_"],
+            text=True, stderr=subprocess.DEVNULL
+        ).strip()
+        if out:
+            subprocess.run(["docker", "rm", "-f"] + out.split(), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
     subprocess.run([
         "docker", "rm", "-f",
         f"jumanji_day1_level1_{session_id}_{sid}",
@@ -2301,13 +2439,8 @@ def start_pty(data):
         f"jumanji_session_{session_id}_{sid}"
     ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
-    import secrets
     token = secrets.token_hex(16)
-    INTERNAL_TOKENS[token] = {
-        'user_id': session_id,
-        'sid': sid,
-        'created_at': time.time()
-    }
+    set_internal_token(token, session_id, sid)
     
     docker_cmd = [
         "docker", "run", "-it", "--rm", "--name", container_name,
@@ -2338,7 +2471,8 @@ def start_pty(data):
     clients[sid] = {
         'fd': master_fd,
         'process': p,
-        'container_name': container_name
+        'container_name': container_name,
+        'user_id': session_id
     }
     
     socketio.start_background_task(read_and_forward_pty, master_fd, sid)
@@ -2370,12 +2504,7 @@ def read_and_forward_pty(fd, sid):
         if container_name:
             subprocess.run(["docker", "rm", "-f", container_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         clients.pop(sid, None)
-
-        # Active cleanup: evict tokens belonging to this socket and expired tokens
-        now = time.time()
-        tokens_to_prune = [t for t, meta in INTERNAL_TOKENS.items() if meta.get('sid') == sid or (now - meta.get('created_at', now) > 7200)]
-        for pt in tokens_to_prune:
-            INTERNAL_TOKENS.pop(pt, None)
+        prune_internal_tokens(sid)
 
 @socketio.on('pty-input')
 def pty_input(data):
@@ -2421,37 +2550,30 @@ def handle_stop_pty():
         p = clients[sid].get('process')
         fd = clients[sid].get('fd')
         container_name = clients[sid].get('container_name')
+        session_id = clients[sid].get('user_id') or session.get('user_id', 'anon')
         try:
-            if p:
+            if p and p.poll() is None:
                 p.terminate()
-            if fd:
+            if fd is not None:
                 os.close(fd)
         except Exception:
             pass
         
-        session_id = session.get('user_id', 'anon')
         if container_name:
             subprocess.run(["docker", "rm", "-f", container_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run([
-                "docker", "rm", "-f",
-                f"jumanji_day1_level1_{session_id}_{sid}",
-                f"jumanji_day1_level2_{session_id}_{sid}",
-                f"jumanji_day1_level3_{session_id}_{sid}",
-                f"jumanji_day2_level2_{session_id}_{sid}",
-                f"jumanji_r2_{session_id}_{sid}",
-                f"jumanji_r3_{session_id}_{sid}",
-                f"jumanji_gauntlet_{session_id}_{sid}",
-                f"jumanji_session_{session_id}_{sid}"
-            ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        try:
+            out = subprocess.check_output(
+                ["docker", "ps", "-a", "-q", "--filter", f"name=jumanji_.*_{session_id}_{sid}"],
+                text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            if out:
+                subprocess.run(["docker", "rm", "-f"] + out.split(), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
         
         clients.pop(sid, None)
-
-        # Active cleanup: evict tokens belonging to this socket and expired tokens
-        now = time.time()
-        tokens_to_prune = [t for t, meta in INTERNAL_TOKENS.items() if meta.get('sid') == sid or (now - meta.get('created_at', now) > 7200)]
-        for pt in tokens_to_prune:
-            INTERNAL_TOKENS.pop(pt, None)
+        prune_internal_tokens(sid)
 
 @socketio.on('disconnect')
 def disconnect():

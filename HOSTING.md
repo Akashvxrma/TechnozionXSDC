@@ -263,3 +263,10 @@ sudo systemctl reload nginx
 3. Log in with admin credentials (`admin` / `ADMIN_PASSWORD`).
 4. Click on the **"Day 2 Gauntlet leaderboard"** tab in `/admin` and confirm all 16 squads, assigned player IDs, and scores are displayed.
 5. Click **"Register New Player"** and verify the Day 2 Level 2 allotment checkbox and squad dropdown.
+
+### Step 8: Run Automated Security Verification Suite
+Verify all patches against race conditions, rate-limiting, and concurrency locks:
+```bash
+python3 test_security.py
+```
+Expected output: **`TEST RESULTS: 8/8 TESTS PASSED`**.

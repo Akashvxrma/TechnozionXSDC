@@ -40,7 +40,14 @@ This document provides an exhaustive, function-by-function reference of all serv
 | :--- | :--- | :--- | :--- |
 | `load_ctf_env()` | App startup / Module import | `pathlib.Path`, `os.environ` | Loads `.env` file key-value pairs into `os.environ` if not already set. |
 | `is_allowed_origin(origin)` | SocketIO CORS validator | `urllib.parse`, `ipaddress` | Strictly allows loopback, RFC 1918 private IPv4 subnets, `.nip.io`, and `WEB_ORIGIN`. |
+| `get_real_client_ip()` | Rate limiters & Security middleware | `request.headers`, `request.remote_addr` | Safely extracts real client IP from `X-Forwarded-For` / `X-Real-IP` behind trusted proxies. |
+| `is_login_rate_limited(ip, max_attempts, window_sec)` | `/login` handler | `_LOGIN_HISTORY`, `time.time` | Sliding-window brute force rate limiter (15 attempts/min) per resolved client IP. |
+| `record_failed_login(ip)` | `/login` handler | `_LOGIN_HISTORY` | Records timestamp of failed authentication and prunes expired IP records. |
 | `is_submission_rate_limited(key, limit, window_sec)` | Submission routes | `collections.deque`, `time.time` | Sliding-window rate limiter (30 req/min) guarding `/api/score` and relic solves. |
+| `sanitize_csv_cell(val)` | Admin CSV export endpoints | String formatting | Escapes spreadsheet formula injection (OWASP CWE-1236) by prefixing `=`, `+`, `-`, `@` with `'`. |
+| `get_token_info(token)` | `/api/score`, `/gauntlet/relic/solve` | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe retrieval and 2-hour TTL expiration check for CLI submission tokens. |
+| `set_internal_token(token, user_id, sid)` | `start_pty` | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe registration of active container CLI submission tokens. |
+| `prune_internal_tokens(sid)` | Disconnect / Logout / Stop PTY | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe eviction of expired tokens or tokens belonging to disconnected sockets. |
 | `get_csrf_token()` | Session init / Form render | `secrets.token_hex(32)`, `session` | Generates or retrieves session-bound 32-byte cryptographic CSRF token. |
 | `enforce_security_and_csrf()` | `@app.before_request` | `hmac.compare_digest` | Blocks container subnets from auth/admin; enforces CSRF/Origin checks on admin POSTs. |
 | `get_user_scores(user_row)` | Scoring routes / Admin views | Database row tuple/dict | Canonical score resolver returning `(total_score, level2_pts, level3_pts)`. |

@@ -38,17 +38,17 @@ The platform coordinates isolated player sandbox containers with a central scori
 - **Admin Control Center (`/admin` & `/admin/gauntlet`)**: Real-time multi-level leaderboards (Day 1 Level 2, Level 3, and Day 2 Gauntlet squads showing assigned player IDs), user creation with Day 2 Level 2 squad allotments, password resets, round locking/unlocking, MongoDB roster sync trigger, Top 4 Teams showcase, and bracket phase advancement.
 - **Direct MongoDB Atlas Roster Sync**: Seamless one-way participant roster ingestion from MongoDB Atlas (`sync_from_mongodb.py`). Scores remain strictly in the local CTF SQLite database.
 - **Dual Authentication (Google OAuth 2.0 & ID/Password Login)**: Players can sign in via Google OAuth or using their assigned Username / SDC Participant ID with password. Game administrators authenticate with secure hashed credentials.
-- **Container Isolation & Security**: Containers run under default AppArmor restrictions without `SYS_ADMIN` capability. Dynamic flag generation scripts self-destruct upon container startup to protect the master secret.
-- **Enterprise Security Hardening**: Subnet-level request filtering blocking Docker bridge pivots to admin endpoints, anti-CSRF token verification across all administrative forms, strict Socket.IO CORS domain lockdown, in-memory sliding-window rate limiting on flag submissions, and high-entropy persistent session keys.
+- **Container Isolation & Security**: Containers run under default AppArmor restrictions without `SYS_ADMIN` capability. Dynamic flag generation scripts self-destruct upon container startup to protect the master secret. Strict single-active-container constraint per user prevents multi-tab DoS.
+- **Enterprise Security Hardening**: Subnet-level request filtering blocking Docker bridge pivots to admin endpoints, anti-CSRF token verification across all administrative forms, strict Socket.IO CORS domain lockdown, proxy-aware sliding-window rate limiting on logins and flag submissions, thread-safe CLI tokens, SQLite WAL mode with 30s busy timeout, and OWASP CWE-1236 CSV injection sanitization.
 
 ---
 
 ## 📚 Master Documentation Index
 
-All platform documentation is consolidated into **exactly 7 authoritative markdown files**:
+All platform documentation is consolidated into **authoritative markdown files**:
 
 1. [**`README.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/README.md): Primary tournament overview, module summary, and architecture introduction.
-2. [**`SECURITY.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/SECURITY.md): Comprehensive production security audit report for the **SDC Games** platform (`prod` branch, commit `daadf1f`), covering threat modeling, CVSS v3.1 scoring, and patch diffs.
+2. [**`SECURITY.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/SECURITY.md): Comprehensive production security audit report covering threat modeling, 18 identified vulnerabilities (SEC-01 to SEC-18), CVSS v3.1 scoring, and patch diffs.
 3. [**`WALKTHROUGH.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/WALKTHROUGH.md): Step-by-step challenge solutions, avatar exploit commands, and Gauntlet split-key formulas.
 4. [**`HOSTING.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/HOSTING.md): Complete operations manual, Docker build commands, port bindings, and daemon execution cheatsheet.
 5. [**`FUNCTIONS.md`**](file:///Users/akashverma/Desktop/TechnozionXSDC/FUNCTIONS.md): Exhaustive function catalog, cross-file caller-callee call graphs, and dead code audit log.
@@ -62,12 +62,13 @@ All platform documentation is consolidated into **exactly 7 authoritative markdo
 ```
 TechnozionXSDC/
 ├── README.md                      <-- Master platform documentation (this file)
-├── SECURITY_AUDIT.md              <-- Full defensive security audit and exploit analysis
+├── SECURITY.md                    <-- Full defensive security audit and exploit analysis
 ├── WALKTHROUGH.md                 <-- Comprehensive challenge solutions & walkthrough
 ├── HOSTING.md                     <-- Deployment, Docker, ports, and operations manual
 ├── FUNCTIONS.md                   <-- Complete function catalog & call graph
 ├── DECISIONS.md                   <-- Architecture Decision Records (ADRs)
 ├── ARCHITECTURE.md                <-- System topology, database schemas & socket specs
+├── test_security.py               <-- Automated 8-check defensive security & stress suite
 ├── CREDENTIALS_AND_SECRETS.txt     <-- Administrator credentials & secret tokens
 ├── .env.example                   <-- Environment variables template
 ├── sync_from_mongodb.py           <-- Direct MongoDB Atlas player roster sync CLI
@@ -99,7 +100,12 @@ source venv/bin/activate
 python3 app.py
 ```
 
-### 3. Run Automated 52-Check Verification Suite
+### 3. Run Automated Security & Stress Test Suite
+```bash
+python3 test_security.py
+```
+
+### 4. Run Automated 52-Check End-to-End Verification Suite
 ```bash
 ./verify_all.sh
 ```
