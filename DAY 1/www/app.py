@@ -1,3 +1,12 @@
+if __name__ == '__main__':
+    # Flask-SocketIO runs on gevent here; without patching, blocking calls (docker CLI, OAuth requests, select)
+    # stall every connected player. Must run before any other import. Skipped when imported by test suites.
+    try:
+        from gevent import monkey
+        monkey.patch_all()
+    except ImportError:
+        pass
+
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -16,6 +25,7 @@ import re
 import hmac
 import hashlib
 import base64
+import codecs
 import json
 import time
 import csv
@@ -174,24 +184,52 @@ def get_csrf_token():
 def inject_csrf_token():
     return dict(csrf_token=get_csrf_token)
 
-# Static asset cache-busting: url_for('static', ...) gets ?v=<content hash> so Nginx can serve it as immutable
+# Static asset cache-busting: url_for('static', ...) points at the minified, content-hashed build in static/dist/
+# (tools/build_static.py) when it matches the current source, else adds ?v=<content hash>. Nginx serves both as immutable.
 _STATIC_VERSIONS = {}
+_STATIC_MANIFEST = {'mtime': None, 'entries': {}}
 
-@app.url_defaults
-def add_static_version(endpoint, values):
-    if endpoint != 'static' or 'filename' not in values or 'v' in values:
-        return
-    path = os.path.join(app.static_folder, values['filename'])
+def _static_file_hash(path):
     try:
         mtime = os.path.getmtime(path)
     except OSError:
-        return
+        return None
     cached = _STATIC_VERSIONS.get(path)
     if not cached or cached[0] != mtime:
         with open(path, 'rb') as f:
             cached = (mtime, hashlib.md5(f.read()).hexdigest()[:10])
         _STATIC_VERSIONS[path] = cached
-    values['v'] = cached[1]
+    return cached[1]
+
+def _static_manifest():
+    path = os.path.join(app.static_folder, 'dist', 'manifest.json')
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    if _STATIC_MANIFEST['mtime'] != mtime:
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                entries = json.load(f)
+        except (OSError, ValueError):
+            entries = {}
+        _STATIC_MANIFEST.update(mtime=mtime, entries=entries)
+    return _STATIC_MANIFEST['entries']
+
+@app.url_defaults
+def add_static_version(endpoint, values):
+    if endpoint != 'static' or 'filename' not in values or 'v' in values:
+        return
+    filename = values['filename']
+    src_hash = _static_file_hash(os.path.join(app.static_folder, filename))
+    if src_hash is None:
+        return
+    # A build made from an older source is ignored, so an un-rebuilt edit can never serve stale minified code
+    entry = _static_manifest().get(filename)
+    if entry and entry.get('src_md5') == src_hash and os.path.exists(os.path.join(app.static_folder, entry['file'])):
+        values['filename'] = entry['file']
+        return
+    values['v'] = src_hash
 
 # 6. Security & Subnet Protection Middleware
 DOCKER_BRIDGE_NETWORKS = [
@@ -2371,6 +2409,7 @@ def start_pty(data):
     for s in stale_sids:
         c = clients.pop(s, None)
         if c:
+            close_pty_db(c)
             try:
                 proc = c.get('process')
                 if proc and proc.poll() is None:
@@ -2498,57 +2537,92 @@ def start_pty(data):
 
 def read_and_forward_pty(fd, sid):
     max_read_bytes = 1024 * 20
-    while True:
-        socketio.sleep(0.01)
+    max_batch_bytes = 1024 * 64
+    # Incremental decoder keeps multi-byte UTF-8 characters intact across read boundaries
+    decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+    eof = False
+    while not eof:
         try:
-            r, _, _ = select.select([fd], [], [], 0.0)
+            # Under gevent monkey-patching this select is cooperative: the greenlet sleeps until output arrives
+            r, _, _ = select.select([fd], [], [], 1.0)
         except (OSError, ValueError):
             break
-        if fd in r:
-            try:
-                output_bytes = os.read(fd, max_read_bytes)
-                if output_bytes:
-                    socketio.emit('pty-output', {'output': output_bytes.decode('utf-8', errors='replace')}, room=sid)
-                else:
-                    break
-            except OSError:
+        if fd not in r:
+            if sid not in clients or clients[sid].get('fd') != fd:
                 break
-    # Clean up when PTY session ends
+            continue
+        chunks = []
+        size = 0
+        try:
+            # Drain whatever is already buffered so bursts go out as one frame instead of many
+            while size < max_batch_bytes:
+                # Ownership check right before the read: once a session is unregistered its fd number
+                # may be reused by another player's PTY, so never read from it again
+                if sid not in clients or clients[sid].get('fd') != fd:
+                    eof = True
+                    break
+                output_bytes = os.read(fd, max_read_bytes)
+                if not output_bytes:
+                    eof = True
+                    break
+                chunks.append(output_bytes)
+                size += len(output_bytes)
+                r, _, _ = select.select([fd], [], [], 0.0)
+                if fd not in r:
+                    break
+        except OSError:
+            eof = True
+        if chunks:
+            text = decoder.decode(b''.join(chunks))
+            if text:
+                socketio.emit('pty-output', {'output': text}, room=sid)
+    # Clean up when PTY session ends (unregister before closing so the fd number can't be read after reuse)
     if sid in clients and clients[sid].get('fd') == fd:
+        c = clients.pop(sid)
+        close_pty_db(c)
         try:
             os.close(fd)
         except OSError:
             pass
-        container_name = clients[sid].get('container_name')
+        container_name = c.get('container_name')
         if container_name:
             subprocess.run(["docker", "rm", "-f", container_name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        clients.pop(sid, None)
         prune_internal_tokens(sid)
+
+def close_pty_db(c):
+    db = c.get('db')
+    if db is not None:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 @socketio.on('pty-input')
 def pty_input(data):
     sid = request.sid
+    c = clients.get(sid)
+    if c is None:
+        return
     # Check if this user's team is under Quicksand curse
     if 'user_id' in session:
         try:
-            conn = get_db_connection()
+            # One SQLite connection per PTY session instead of one per keystroke; autocommit reads still see fresh curses
+            conn = c.get('db')
+            if conn is None:
+                conn = c['db'] = get_db_connection()
             team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
             if team:
                 active_curses = gauntlet_engine.get_active_curses_for_team(conn, team['id'])
-                for c in active_curses:
-                    if c['curse_type'] == 'quicksand':
-                        conn.close()
+                for curse in active_curses:
+                    if curse['curse_type'] == 'quicksand':
                         return  # Ignore input during quicksand freeze
-            conn.close()
         except Exception:
             pass
 
-    if sid in clients:
-        fd = clients[sid]['fd']
-        try:
-            os.write(fd, data['input'].encode('utf-8'))
-        except OSError:
-            pass
+    try:
+        os.write(c['fd'], data['input'].encode('utf-8'))
+    except OSError:
+        pass
 
 @socketio.on('resize')
 @socketio.on('pty-resize')
@@ -2565,11 +2639,14 @@ def handle_pty_resize(data):
 @socketio.on('stop-pty')
 def handle_stop_pty():
     sid = request.sid
-    if sid in clients:
-        p = clients[sid].get('process')
-        fd = clients[sid].get('fd')
-        container_name = clients[sid].get('container_name')
-        session_id = clients[sid].get('user_id') or session.get('user_id', 'anon')
+    # Unregister first: docker calls below yield under gevent, and the reader must stop before the fd number is reused
+    c = clients.pop(sid, None)
+    if c:
+        close_pty_db(c)
+        p = c.get('process')
+        fd = c.get('fd')
+        container_name = c.get('container_name')
+        session_id = c.get('user_id') or session.get('user_id', 'anon')
         try:
             if p and p.poll() is None:
                 p.terminate()
@@ -2590,8 +2667,7 @@ def handle_stop_pty():
                 subprocess.run(["docker", "rm", "-f"] + out.split(), check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
-        
-        clients.pop(sid, None)
+
         prune_internal_tokens(sid)
 
 @socketio.on('disconnect')

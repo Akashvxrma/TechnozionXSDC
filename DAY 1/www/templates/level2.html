@@ -1,3 +1,4 @@
+{% import 'partials/_media.html' as media -%}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5,19 +6,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jumanji · Avatar Reconnaissance</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/orbitron-yMJRMIlzdpvBhQQL_Qq7dy1biN15.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/hud.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_3d.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" defer></script>
+    <script src="{{ url_for('static', filename='vendor/three.min.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/jumanji_3d_engine.js') }}" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <style>
         body.l1 {
             --scene: url('{{ url_for('static', filename='assets/jumanji_bg.jpg') }}');
@@ -62,7 +60,7 @@
             align-items: center;
             justify-content: center;
             gap: 24px;
-            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)), url('{{ url_for('static', filename='assets/jumanji_bg.jpg') }}') center / cover;
+            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)), var(--scene) center / cover;
         }
         .win__title { font-size: clamp(2.2rem, 7vw, 4.5rem); text-align: center; }
 
@@ -332,6 +330,7 @@
             .topbar__sub { display: none; }
         }
     </style>
+    {{ media.scene('body.l1', 'jumanji_bg') }}
 </head>
 
 <body class="l1 scene" data-world="ambient">
@@ -401,7 +400,7 @@
                 {% for id, name, role, img, pts in roster %}
                 <li>
                     <button class="avatar-card" id="btn-{{ id }}" type="button" aria-pressed="false" onclick="selectChar('{{ id }}')">
-                        <img class="avatar-card__img" src="{{ url_for('static', filename='assets/' ~ img) }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>
+                        {% if img.endswith('.jpg') %}{{ media.picture(img[:-4], 'jpg', '', 'avatar-card__img', style=('object-position: center 35%;' if id == 'seaplane' else '')) }}{% else %}<img class="avatar-card__img" src="{{ url_for('static', filename='assets/' ~ img) }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>{% endif %}
                         <span class="relic-token" data-token="{{ id }}" aria-hidden="true"></span>
                         <span class="avatar-card__body parchment">
                             <span class="avatar-card__name" style="display:block">{{ name }}</span>
@@ -480,6 +479,9 @@
     <audio id="drum-hit" src="{{ url_for('static', filename='assets/drum.mp3') }}" preload="auto"></audio>
 
     <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/xterm-addon-fit.js') }}"></script>
     <script>
         const AVATARS = {
             bravestone: { name: 'Dr. Smolder Bravestone', actor: 'Dwayne Johnson', role: 'Fearless explorer', skill: 'Heuristic analysis', weakness: 'None', quote: "Don't cry. Don't cry. Don't cry.", img: '{{ url_for('static', filename='assets/real_bravestone.png') }}', pts: 20, hint: 1,
@@ -575,6 +577,12 @@
             });
         }
 
+        // Reuse whichever format the roster card already loaded (AVIF/WebP/original) so it comes from cache
+        function avatarSrc(charId) {
+            const cardImg = document.querySelector('#btn-' + charId + ' .avatar-card__img');
+            return (cardImg && cardImg.currentSrc) || AVATARS[charId].img;
+        }
+
         function selectChar(charId) {
             const a = AVATARS[charId];
             if (!a) return;
@@ -585,7 +593,7 @@
 
             avatarPlaceholder.hidden = true;
             avatarImg.hidden = false;
-            avatarImg.src = a.img;
+            avatarImg.src = avatarSrc(charId);
             avatarImg.alt = a.name;
 
             const found = !!document.querySelector('#btn-' + charId + ' .seal');
@@ -607,7 +615,9 @@
         }
 
         // --- Terminal ---
-        const socket = io();
+        // Connect straight over WebSocket (skips the polling handshake); fall back to polling if the network blocks it
+        const socket = io({ transports: ['websocket'] });
+        socket.on('connect_error', () => { socket.io.opts.transports = ['polling', 'websocket']; });
         setInterval(() => { if (socket.connected) socket.emit('ping'); }, 10000);
 
         let term = null;
@@ -715,7 +725,7 @@
             setTimeout(() => {
                 JX.drums.pause();
                 dashboardWrapper.classList.remove('is-shown', 'is-visible', 'is-leaving');
-                document.getElementById('term-avatar-cameo').src = a.img;
+                document.getElementById('term-avatar-cameo').src = avatarSrc(selectedAvatarId);
                 document.getElementById('term-avatar-name').textContent = a.name;
                 document.getElementById('parchment-avatar-lore').textContent = a.lore;
                 document.querySelectorAll('.hint-key').forEach(k => k.classList.toggle('is-active', k.dataset.avatar === selectedAvatarId));

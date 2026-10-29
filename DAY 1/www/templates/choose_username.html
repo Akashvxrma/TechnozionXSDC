@@ -1,16 +1,18 @@
+{% import 'partials/_media.html' as media -%}
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/core.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_auth.css') }}">
     <title>Jumanji · Choose your codename</title>
     <style>body.auth { --scene: url('{{ url_for('static', filename='assets/choose_username_bg.jpg') }}'); }</style>
+    {{ media.scene('body.auth', 'choose_username_bg') }}
 </head>
 
 <body class="auth scene">

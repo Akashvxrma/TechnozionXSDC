@@ -1,3 +1,4 @@
+{% import 'partials/_media.html' as media -%}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -6,13 +7,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jumanji Gauntlet · Projector Live Arena</title>
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/orbitron-yMJRMIlzdpvBhQQL_Qq7dy1biN15.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/hud.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
 
     <style>
         body.arena {
@@ -273,6 +273,7 @@
             border-radius: 999px;
         }
     </style>
+    {{ media.scene('body.arena', 'gauntlet_jungle_bg') }}
 </head>
 
 <body class="arena scene">
@@ -478,8 +479,12 @@
     <!-- In-page Toast Notifications Container -->
     <div class="toast-stack" id="toast-stack"></div>
 
+    <script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
     <script>
-        const socket = io();
+        // Connect straight over WebSocket (skips the polling handshake); fall back to polling if the network blocks it
+        const socket = io({ transports: ['websocket'] });
+        socket.on('connect_error', () => { socket.io.opts.transports = ['polling', 'websocket']; });
 
         socket.on('connect', () => {
             console.log('[Projector] Connected to live Gauntlet stream');

@@ -1,3 +1,4 @@
+{% import 'partials/_media.html' as media -%}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5,11 +6,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jumanji · Host Console</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/orbitron-yMJRMIlzdpvBhQQL_Qq7dy1biN15.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/hud.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_admin.css') }}">
+    {{ media.scene('body.admin', 'jumanji_expedition_desk') }}
 </head>
 
 <body class="admin scene">

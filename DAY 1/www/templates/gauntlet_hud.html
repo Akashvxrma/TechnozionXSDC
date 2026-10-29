@@ -1,3 +1,4 @@
+{% import 'partials/_media.html' as media -%}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -6,20 +7,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jumanji Gauntlet · {{ team.team_name }} Station</title>
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/static/vendor/fonts/orbitron-yMJRMIlzdpvBhQQL_Qq7dy1biN15.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/hud.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/xterm.css') }}" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_3d.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" defer></script>
+    <script src="{{ url_for('static', filename='vendor/three.min.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/jumanji_3d_engine.js') }}" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
-    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
 
     <style>
         body.hud {
@@ -425,6 +422,7 @@
             line-height: 1.5;
         }
     </style>
+    {{ media.scene('body.hud', 'gauntlet_jungle_bg') }}
 </head>
 
 <body class="hud scene" data-world="ambient">
@@ -570,7 +568,7 @@
                         <!-- Relic 1: Sun Compass -->
                         <div class="relic-pedestal {% if 'compass' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="{{ url_for('static', filename='assets/relic_sun_compass.jpg') }}" alt="Sun Compass" class="relic-img">
+                                {{ media.picture('relic_sun_compass-240', 'jpg', 'Sun Compass', 'relic-img', 240, 240) }}
                             </div>
                             <div class="relic-name">Sun Compass</div>
                             <div class="relic-pts numeral">+25 PTS</div>
@@ -582,7 +580,7 @@
                         <!-- Relic 2: Obsidian Blade -->
                         <div class="relic-pedestal {% if 'blade' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="{{ url_for('static', filename='assets/relic_obsidian_blade.jpg') }}" alt="Obsidian Blade" class="relic-img">
+                                {{ media.picture('relic_obsidian_blade-240', 'jpg', 'Obsidian Blade', 'relic-img', 240, 240) }}
                             </div>
                             <div class="relic-name">Obsidian Blade</div>
                             <div class="relic-pts numeral">+35 PTS</div>
@@ -594,7 +592,7 @@
                         <!-- Relic 3: Jaguar Fang -->
                         <div class="relic-pedestal {% if 'jaguar' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="{{ url_for('static', filename='assets/relic_jaguar_fang.jpg') }}" alt="Jaguar Fang" class="relic-img">
+                                {{ media.picture('relic_jaguar_fang-240', 'jpg', 'Jaguar Fang', 'relic-img', 240, 240) }}
                             </div>
                             <div class="relic-name">Jaguar Fang</div>
                             <div class="relic-pts numeral">+40 PTS</div>
@@ -606,7 +604,7 @@
                         <!-- Relic 4: Golden Idol -->
                         <div class="relic-pedestal {% if 'idol' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="{{ url_for('static', filename='assets/relic_golden_idol.jpg') }}" alt="Golden Idol" class="relic-img">
+                                {{ media.picture('relic_golden_idol-240', 'jpg', 'Golden Idol', 'relic-img', 240, 240) }}
                             </div>
                             <div class="relic-name">Golden Idol</div>
                             <div class="relic-pts numeral">+50 PTS</div>
@@ -631,11 +629,11 @@
                         {% for c in curse_inventory %}
                         <div class="tarot-card">
                             {% if c.curse_type == 'quicksand' %}
-                            <img src="{{ url_for('static', filename='assets/curse_quicksand_card.jpg') }}" alt="Quicksand" class="tarot-thumb">
+                            {{ media.picture('curse_quicksand_card-540', 'jpg', 'Quicksand', 'tarot-thumb', 362, 540) }}
                             {% elif c.curse_type == 'monsoon' %}
-                            <img src="{{ url_for('static', filename='assets/curse_monsoon_card.jpg') }}" alt="Monsoon" class="tarot-thumb">
+                            {{ media.picture('curse_monsoon_card-540', 'jpg', 'Monsoon', 'tarot-thumb', 362, 540) }}
                             {% else %}
-                            <img src="{{ url_for('static', filename='assets/curse_stampede_card.jpg') }}" alt="Stampede" class="tarot-thumb">
+                            {{ media.picture('curse_stampede_card-540', 'jpg', 'Stampede', 'tarot-thumb', 362, 540) }}
                             {% endif %}
                             <div class="tarot-info">
                                 <div class="tarot-title">{{ c.curse_type | upper }}</div>
@@ -712,8 +710,14 @@
     <!-- Toast Notifications Container -->
     <div class="toast-stack" id="toast-stack"></div>
 
+    <script src="{{ url_for('static', filename='vendor/socket.io.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/xterm.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/xterm-addon-fit.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
     <script>
-        const socket = io();
+        // Connect straight over WebSocket (skips the polling handshake); fall back to polling if the network blocks it
+        const socket = io({ transports: ['websocket'] });
+        socket.on('connect_error', () => { socket.io.opts.transports = ['polling', 'websocket']; });
         const TEAM_ID = {{ team.id }};
         const USER_ROLE = "{{ team.role }}";
 
@@ -818,9 +822,7 @@
 
                 if (data.curse_type === 'quicksand' && term) {
                     isFrozen = true;
-                    term.write("\r
-\x1b[1;31m[☠] ANCIENT QUICKSAND CURSE TRIGGERED! CONTROLS HARD-FROZEN!\x1b[0m\r
-");
+                    term.write("\r\n\x1b[1;31m[☠] ANCIENT QUICKSAND CURSE TRIGGERED! CONTROLS HARD-FROZEN!\x1b[0m\r\n");
                 }
 
                 setTimeout(() => {
@@ -828,9 +830,7 @@
                     banner.style.display = 'none';
                     if (isFrozen && term) {
                         isFrozen = false;
-                        term.write("\r
-\x1b[1;32m[+] QUICKSAND DISSIPATED. EXPEDITION CONTROLS RESTORED.\x1b[0m\r
-");
+                        term.write("\r\n\x1b[1;32m[+] QUICKSAND DISSIPATED. EXPEDITION CONTROLS RESTORED.\x1b[0m\r\n");
                     }
                     JX.sfx.unlock();
                     JX.toast('Curse dissipated. Systems nominal.', 'success');

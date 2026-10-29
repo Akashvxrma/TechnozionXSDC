@@ -46,3 +46,7 @@ sdc-games/
 scratch/
 .claude/
 
+
+# Built by tools/build_static.py during deploy
+DAY 1/www/static/dist/
+tools/bin/
