@@ -53,13 +53,13 @@ This document provides an exhaustive, function-by-function reference of all serv
 | `hub()` | `GET /hub` | `check_level_access()`, `get_db_connection()` | Renders main Expedition Command Center displaying unlocked rounds. |
 | `check_timer()` | `GET /api/timer` | `get_db_connection()`, `get_utc_now()` | Returns remaining countdown seconds for Level 2 or Level 3 sessions. |
 | `check_level_access(user_id, level)` | Internal security gateway | `get_db_connection()`, `json.loads()` | Validates user registration (`authorized_levels`), global lock, and status. |
-| `login()` | `GET/POST /login` | `get_db_connection()` | Renders 3D login portal and processes administrator authentication. |
+| `login()` | `GET/POST /login` | `get_db_connection()`, `check_password_hash()` | Renders 3D login portal and processes player & admin ID/password authentication. |
 | `get_google_redirect_uri()` | OAuth helper | `request.host_url` | Resolves standard Google OAuth callback URI dynamically. |
 | `google_login()` | `GET /auth/google` | Google OAuth2 API | Redirects participant to Google Accounts authentication. |
 | `google_callback()` | `GET /auth/callback` | `get_db_connection()`, Google Token API | Exchanges auth code for Google user profile and establishes session. |
 | `choose_username()` | `GET/POST /auth/choose-username` | `get_db_connection()` | Prompts first-time OAuth players to configure an in-game codename. |
 | `register()` | `GET /register` | `login()` | Deprecated legacy route redirecting directly to `/login`. |
-| `admin()` | `GET /admin` | `get_db_connection()` | Host management console for level locking, timers, and score matrix. |
+| `admin()` | `GET/POST /admin` | `get_db_connection()` | Host management console for level locking, timers, Day 2 Gauntlet leaderboard & player squad allotments, and score matrix. |
 | `sync_sdc_roster()` | `POST /admin/sync-sdc-roster` | `mongo_sync.sync_roster_from_mongodb()` | Triggers manual roster synchronization directly from MongoDB. |
 | `export_scores_l2()` | `GET /admin/export-scores/level2`| `get_db_connection()`, `csv.writer` | Streams CSV of Day 1 Level 2 (Avatar) participant rankings. |
 | `export_scores_l3()` | `GET /admin/export-scores/level3`| `get_db_connection()`, `csv.writer` | Streams CSV of Day 1 Level 3 (Mainframe) privilege escalation ranks. |

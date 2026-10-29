@@ -66,7 +66,7 @@ However, the audit identified **12 actionable security vulnerabilities** ranging
 ### SEC-01: Missing Brute-Force Rate Limiting on Admin Login
 - **Severity**: **HIGH** (CVSS: 7.5 — `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`)
 - **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L747-L766) (`login()`)
-- **Description**: While participant authentication enforces Google OAuth, the `/login` route permits password authentication for `admin`. Unlike the flag submission endpoints, the `/login` route has zero rate limiting or account lockout mechanism.
+- **Description**: The `/login` route permits password authentication for users and administrators. To protect against automated dictionary or credential-stuffing attacks, sliding-window IP rate limiting and salted scrypt/pbkdf2 password hashing are strictly enforced.
 - **Impact**: An attacker can execute automated dictionary or credential-stuffing attacks at thousands of requests per second against the administrative interface.
 - **Remediation**: Implement a sliding-window rate limiter per client IP on `/login` (e.g., maximum 5 failed attempts per 15 minutes, with exponential backoff).
 
@@ -234,3 +234,4 @@ Every patch must be verified against the **52-test automated regression suite** 
 2. **Challenge Containers**: Verify Day 1 Level 2, Day 1 Level 3 SUID privilege escalation, and Day 2 Gauntlet split-key logic.
 3. **Admin Controls**: Verify locks, resets, and phase advancement.
 4. **Target Benchmark**: **52/52 PASS (0 regressions)**.
+

@@ -214,3 +214,52 @@ docker ps -a --filter "name=jumanji_" -q | xargs docker rm -f
 ```bash
 ./verify_all.sh
 ```
+
+---
+
+## 7. Applying Updates to AWS EC2 Hosting (Production Deployment Guide)
+
+When updating the CTF platform with new features (such as ID/Password player authentication, Day 2 Gauntlet leaderboards, or squad allotments), follow these steps on your AWS EC2 instance:
+
+### Step 1: Connect to AWS EC2 Instance via SSH
+```bash
+ssh -i /path/to/your-key.pem ubuntu@<AWS_EC2_PUBLIC_IP>
+```
+
+### Step 2: Navigate to CTF Project Directory & Pull Changes
+```bash
+cd /home/ubuntu/ctf-platform
+git pull origin main
+```
+
+### Step 3: Verify Environment Configuration (`DAY 1/www/.env`)
+Ensure `DAY 1/www/.env` contains your correct `WEB_ORIGIN`, `ADMIN_PASSWORD`, and OAuth secrets:
+```bash
+cat "DAY 1/www/.env"
+```
+
+### Step 4: Restart the Systemd Game Service
+The SQLite database schema and tables will automatically initialize upon server start:
+```bash
+sudo systemctl restart jumanji-ctf
+```
+
+### Step 5: Check Service Status and Logs
+Ensure the CTF game server booted cleanly on port 8080:
+```bash
+sudo systemctl status jumanji-ctf --no-pager
+sudo journalctl -u jumanji-ctf -n 40 --no-pager
+```
+
+### Step 6: Verify Nginx Reverse Proxy
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Step 7: Post-Deployment Smoke Verification
+1. Open `http://<AWS_EC2_PUBLIC_IP>/login` in your browser.
+2. Verify dual sign-in options are visible: **"Continue with Google"** and **"Sign in with ID & Password"**.
+3. Log in with admin credentials (`admin` / `ADMIN_PASSWORD`).
+4. Click on the **"Day 2 Gauntlet leaderboard"** tab in `/admin` and confirm all 16 squads, assigned player IDs, and scores are displayed.
+5. Click **"Register New Player"** and verify the Day 2 Level 2 allotment checkbox and squad dropdown.

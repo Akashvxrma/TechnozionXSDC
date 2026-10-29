@@ -295,15 +295,33 @@
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>ID</th><th>Team</th><th>Access code</th><th>Pod</th><th>Phase</th><th>Pods</th><th>Duels</th><th>Shrine</th><th>Lagoon</th><th>Total</th></tr>
+                        <tr><th>ID</th><th>Team</th><th>Access code</th><th>Pod</th><th>Navigator (P1)</th><th>Cartographer (P2)</th><th>Phase</th><th>Pods</th><th>Duels</th><th>Shrine</th><th>Lagoon</th><th>Total</th></tr>
                     </thead>
                     <tbody id="team-body">
                         {% for t in teams %}
-                        <tr data-name="{{ t.team_name | lower }} {{ t.access_code | lower }}">
+                        {% set nav = t.navigator %}
+                        {% set cart = t.cartographer %}
+                        <tr data-name="{{ t.team_name | lower }} {{ t.access_code | lower }} {{ (nav.username if nav else '') | lower }} {{ (cart.username if cart else '') | lower }}">
                             <td class="num">{{ t.id }}</td>
-                            <td style="color: #fff;">{{ t.team_name }}</td>
+                            <td style="color: #fff; font-weight: 700;">{{ t.team_name }}</td>
                             <td><code>{{ t.access_code }}</code></td>
                             <td>{{ (t.pod_id or '') | replace('pod_', '') | capitalize }}</td>
+                            <td>
+                                {% if nav %}
+                                <strong style="color: var(--emerald);">ID #{{ nav.user_id }}: {{ nav.username }}</strong>
+                                <span style="font-size: 0.8em; color: var(--text-dim);">({{ nav.participant_id or 'Player' }})</span>
+                                {% else %}
+                                <span style="color: var(--text-faint); font-style: italic;">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cart %}
+                                <strong style="color: var(--ley);">ID #{{ cart.user_id }}: {{ cart.username }}</strong>
+                                <span style="font-size: 0.8em; color: var(--text-dim);">({{ cart.participant_id or 'Player' }})</span>
+                                {% else %}
+                                <span style="color: var(--text-faint); font-style: italic;">Unassigned</span>
+                                {% endif %}
+                            </td>
                             <td>{{ phase_labels.get(t.phase, (t.phase or '') | replace('_', ' ') | capitalize) }}</td>
                             <td class="num">{{ t.phase1_score or 0 }}</td>
                             <td class="num">{{ t.duel_score or 0 }}</td>
@@ -312,7 +330,7 @@
                             <td class="total numeral">{{ (t.phase1_score or 0) + (t.duel_score or 0) + (t.shrine_score or 0) + (t.lagoon_score or 0) }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="10" class="dim">No teams yet. Use Re-seed roster to create the 16 default teams.</td></tr>
+                        <tr><td colspan="12" class="dim">No teams yet. Use Re-seed roster to create the 16 default teams.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

@@ -43,7 +43,7 @@
             {% endwith %}
 
             <h2 class="expedition__heading" id="pass-heading">Sign in to play</h2>
-            <p class="expedition__lede">Players sign in with the Google account they registered with.</p>
+            <p class="expedition__lede">Sign in using Google or enter your Username / SDC Participant ID and password below.</p>
 
             <a href="{{ url_for('google_login') }}" class="google-btn" data-google data-ripple>
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -55,12 +55,12 @@
                 <span>Continue with Google</span>
             </a>
 
-            <p class="expedition__divider">Host & Game Master Access</p>
+            <p class="expedition__divider">Sign in with ID &amp; Password</p>
 
             <form class="expedition__form" action="{{ url_for('login') }}" method="POST" data-login-form>
                 <div class="relic-field">
-                    <label for="username">Admin Username</label>
-                    <input class="relic-field__input" type="text" id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+                    <label for="username">Username or Participant ID</label>
+                    <input class="relic-field__input" type="text" id="username" name="username" placeholder="e.g. sdc_2026_0050 or admin" autocomplete="username" autocapitalize="none" spellcheck="false" required>
                 </div>
                 <div class="relic-field">
                     <label for="password">Password</label>

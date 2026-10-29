@@ -1,4 +1,3 @@
-
 # 🧭 Technozion SDC Games: Master Challenge Walkthrough
 
 This document provides the definitive, step-by-step solver guide and cheat-sheet for all challenges across **Day 1 Level 2 (Avatars)**, **Day 1 Level 3 (Simulation Core Mainframe)**, and **Day 2 Level 2 (The Jumanji Gauntlet)**.
