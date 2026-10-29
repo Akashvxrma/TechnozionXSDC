@@ -51,11 +51,11 @@ parrot_hint 5    # Seaplane McDonough clue
 ### Challenge 2.3: Franklin "Mouse" Finbar (25 PTS)
 
 - **Concept**: Sudo misconfiguration enumeration.
-- **Enumeration**: `sudo -l` reveals `(finbar_admin) NOPASSWD: /usr/bin/find`
+- **Enumeration**: `sudo -l` reveals `(finbar_admin) NOPASSWD: /bin/cat /home/finbar_admin/flag.txt`
 - **Solve Command**:
   ```bash
-  sudo -u finbar_admin find /home/finbar_admin -name "flag.txt" -exec cat {} +
-  complete $(sudo -u finbar_admin find /home/finbar_admin -name "flag.txt" -exec cat {} +)
+  sudo -u finbar_admin cat /home/finbar_admin/flag.txt
+  complete $(sudo -u finbar_admin cat /home/finbar_admin/flag.txt)
   ```
 
 ### Challenge 2.4: Professor Shelly Oberon (35 PTS)
