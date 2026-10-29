@@ -7,6 +7,8 @@
     <title>Jumanji · Avatar Reconnaissance</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
@@ -18,7 +20,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
     <style>
         body.l1 {
-            --scene: url('/static/assets/jumanji_bg.jpg');
+            --scene: url('{{ url_for('static', filename='assets/jumanji_bg.jpg') }}');
             height: 100vh;
             overflow: hidden;
         }
@@ -60,7 +62,7 @@
             align-items: center;
             justify-content: center;
             gap: 24px;
-            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)), url('/static/assets/jumanji_bg.jpg') center / cover;
+            background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)), url('{{ url_for('static', filename='assets/jumanji_bg.jpg') }}') center / cover;
         }
         .win__title { font-size: clamp(2.2rem, 7vw, 4.5rem); text-align: center; }
 
@@ -350,7 +352,7 @@
 
     <!-- 2. Intro video -->
     <div id="video-screen" class="screen">
-        <video id="jumanji-video" src="/static/assets/jumanji_intro.mp4" playsinline preload="metadata"></video>
+        <video id="jumanji-video" src="{{ url_for('static', filename='assets/jumanji_intro.mp4') }}" playsinline preload="metadata"></video>
     </div>
 
     <!-- 3. Avatar select -->
@@ -399,7 +401,7 @@
                 {% for id, name, role, img, pts in roster %}
                 <li>
                     <button class="avatar-card" id="btn-{{ id }}" type="button" aria-pressed="false" onclick="selectChar('{{ id }}')">
-                        <img class="avatar-card__img" src="/static/assets/{{ img }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>
+                        <img class="avatar-card__img" src="{{ url_for('static', filename='assets/' ~ img) }}" alt=""{% if id == 'seaplane' %} style="object-position: center 35%;"{% endif %}>
                         <span class="relic-token" data-token="{{ id }}" aria-hidden="true"></span>
                         <span class="avatar-card__body parchment">
                             <span class="avatar-card__name" style="display:block">{{ name }}</span>
@@ -419,7 +421,7 @@
         <header class="topbar chassis">
             <span class="rivet rivet--tl" aria-hidden="true"></span>
             <span class="rivet rivet--bl" aria-hidden="true"></span>
-            <img id="term-avatar-cameo" class="cameo" src="/static/assets/real_bravestone.png" alt="">
+            <img id="term-avatar-cameo" class="cameo" src="{{ url_for('static', filename='assets/real_bravestone.png') }}" alt="">
             <div>
                 <div class="topbar__sub">Field terminal</div>
                 <div class="topbar__title" id="term-avatar-name">Dr. Smolder Bravestone</div>
@@ -474,21 +476,21 @@
         </div>
     </div>
 
-    <audio id="drum-audio" src="/static/assets/drum.mp3" preload="auto" loop></audio>
-    <audio id="drum-hit" src="/static/assets/drum.mp3" preload="auto"></audio>
+    <audio id="drum-audio" src="{{ url_for('static', filename='assets/drum.mp3') }}" preload="auto" loop></audio>
+    <audio id="drum-hit" src="{{ url_for('static', filename='assets/drum.mp3') }}" preload="auto"></audio>
 
     <script src="{{ url_for('static', filename='js/jumanji_fx.js') }}"></script>
     <script>
         const AVATARS = {
-            bravestone: { name: 'Dr. Smolder Bravestone', actor: 'Dwayne Johnson', role: 'Fearless explorer', skill: 'Heuristic analysis', weakness: 'None', quote: "Don't cry. Don't cry. Don't cry.", img: '/static/assets/real_bravestone.png', pts: 20, hint: 1,
+            bravestone: { name: 'Dr. Smolder Bravestone', actor: 'Dwayne Johnson', role: 'Fearless explorer', skill: 'Heuristic analysis', weakness: 'None', quote: "Don't cry. Don't cry. Don't cry.", img: '{{ url_for('static', filename='assets/real_bravestone.png') }}', pts: 20, hint: 1,
                 lore: 'Bravestone always searches where others dare not. Look beneath the surface in /opt/jungle/ruins for hidden relics.' },
-            oberon: { name: 'Prof. Sheldon Oberon', actor: 'Jack Black', role: 'Cartographer and cryptographer', skill: 'Sensor probes', weakness: 'Endurance', quote: "I think I'm having a mild heart attack!", img: '/static/assets/real_oberon.png', pts: 25, hint: 2,
+            oberon: { name: 'Prof. Sheldon Oberon', actor: 'Jack Black', role: 'Cartographer and cryptographer', skill: 'Sensor probes', weakness: 'Endurance', quote: "I think I'm having a mild heart attack!", img: '{{ url_for('static', filename='assets/real_oberon.png') }}', pts: 25, hint: 2,
                 lore: "Oberon's mind is always running in the background. Inspect active processes with ps aux | grep oberon." },
-            ruby: { name: 'Ruby Roundhouse', actor: 'Karen Gillan', role: 'Killer of men', skill: 'Classified logs', weakness: 'Venom', quote: 'Why am I wearing half a shirt and short shorts in the jungle?', img: '/static/assets/real_ruby.png', pts: 30, hint: 3,
+            ruby: { name: 'Ruby Roundhouse', actor: 'Karen Gillan', role: 'Killer of men', skill: 'Classified logs', weakness: 'Venom', quote: 'Why am I wearing half a shirt and short shorts in the jungle?', img: '{{ url_for('static', filename='assets/real_ruby.png') }}', pts: 30, hint: 3,
                 lore: 'Ruby fights to a rhythm of 64 beats. Check ~/Documents and decode the rhythm with base64 -d.' },
-            finbar: { name: "Franklin 'Mouse' Finbar", actor: 'Kevin Hart', role: 'Weapons valet and zoologist', skill: 'WHOIS intel', weakness: 'Cake', quote: "I'm a backpack guy!", img: '/static/assets/real_finbar.png', pts: 25, hint: 4,
+            finbar: { name: "Franklin 'Mouse' Finbar", actor: 'Kevin Hart', role: 'Weapons valet and zoologist', skill: 'WHOIS intel', weakness: 'Cake', quote: "I'm a backpack guy!", img: '{{ url_for('static', filename='assets/real_finbar.png') }}', pts: 25, hint: 4,
                 lore: 'Mouse guards his pack tightly. Check your elevated abilities with sudo -l to find the zoology relic.' },
-            seaplane: { name: "Jefferson 'Seaplane' McDonough", actor: 'Nick Jonas', role: 'Pilot', skill: 'Margarita mixing', weakness: 'Mosquitoes', quote: 'I am a good pilot!', img: '/static/assets/real_seaplane.jpg', pts: 50, hint: 5,
+            seaplane: { name: "Jefferson 'Seaplane' McDonough", actor: 'Nick Jonas', role: 'Pilot', skill: 'Margarita mixing', weakness: 'Mosquitoes', quote: 'I am a good pilot!', img: '{{ url_for('static', filename='assets/real_seaplane.jpg') }}', pts: 50, hint: 5,
                 lore: 'Seaplane is broadcasting an emergency beacon. Probe internal ports with curl http://127.0.0.1:8080.' }
         };
 
@@ -771,7 +773,7 @@
             JX.sfx.success();
 
             setTimeout(() => {
-                video.src = '/static/assets/jumanji_win.mp4';
+                video.src = '{{ url_for('static', filename='assets/jumanji_win.mp4') }}';
                 video.loop = false;
                 video.muted = false;
                 video.load();

@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_admin.css') }}">
     <style>
-        body.admin { --scene: url('/static/assets/gauntlet_jungle_bg.jpg'); }
+        body.admin { --scene: url('{{ url_for('static', filename='assets/gauntlet_jungle_bg.jpg') }}'); }
 
         .card {
             padding: 18px;

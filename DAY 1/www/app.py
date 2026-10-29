@@ -174,6 +174,25 @@ def get_csrf_token():
 def inject_csrf_token():
     return dict(csrf_token=get_csrf_token)
 
+# Static asset cache-busting: url_for('static', ...) gets ?v=<content hash> so Nginx can serve it as immutable
+_STATIC_VERSIONS = {}
+
+@app.url_defaults
+def add_static_version(endpoint, values):
+    if endpoint != 'static' or 'filename' not in values or 'v' in values:
+        return
+    path = os.path.join(app.static_folder, values['filename'])
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return
+    cached = _STATIC_VERSIONS.get(path)
+    if not cached or cached[0] != mtime:
+        with open(path, 'rb') as f:
+            cached = (mtime, hashlib.md5(f.read()).hexdigest()[:10])
+        _STATIC_VERSIONS[path] = cached
+    values['v'] = cached[1]
+
 # 6. Security & Subnet Protection Middleware
 DOCKER_BRIDGE_NETWORKS = [
     ipaddress.ip_network('172.16.0.0/12'),

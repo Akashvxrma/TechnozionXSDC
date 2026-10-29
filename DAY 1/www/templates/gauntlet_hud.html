@@ -8,6 +8,8 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
@@ -21,7 +23,7 @@
 
     <style>
         body.hud {
-            --scene: url('/static/assets/gauntlet_jungle_bg.jpg');
+            --scene: url('{{ url_for('static', filename='assets/gauntlet_jungle_bg.jpg') }}');
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -568,7 +570,7 @@
                         <!-- Relic 1: Sun Compass -->
                         <div class="relic-pedestal {% if 'compass' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="/static/assets/relic_sun_compass.jpg" alt="Sun Compass" class="relic-img">
+                                <img src="{{ url_for('static', filename='assets/relic_sun_compass.jpg') }}" alt="Sun Compass" class="relic-img">
                             </div>
                             <div class="relic-name">Sun Compass</div>
                             <div class="relic-pts numeral">+25 PTS</div>
@@ -580,7 +582,7 @@
                         <!-- Relic 2: Obsidian Blade -->
                         <div class="relic-pedestal {% if 'blade' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="/static/assets/relic_obsidian_blade.jpg" alt="Obsidian Blade" class="relic-img">
+                                <img src="{{ url_for('static', filename='assets/relic_obsidian_blade.jpg') }}" alt="Obsidian Blade" class="relic-img">
                             </div>
                             <div class="relic-name">Obsidian Blade</div>
                             <div class="relic-pts numeral">+35 PTS</div>
@@ -592,7 +594,7 @@
                         <!-- Relic 3: Jaguar Fang -->
                         <div class="relic-pedestal {% if 'jaguar' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="/static/assets/relic_jaguar_fang.jpg" alt="Jaguar Fang" class="relic-img">
+                                <img src="{{ url_for('static', filename='assets/relic_jaguar_fang.jpg') }}" alt="Jaguar Fang" class="relic-img">
                             </div>
                             <div class="relic-name">Jaguar Fang</div>
                             <div class="relic-pts numeral">+40 PTS</div>
@@ -604,7 +606,7 @@
                         <!-- Relic 4: Golden Idol -->
                         <div class="relic-pedestal {% if 'idol' in solved_ids %}is-secured{% else %}is-locked{% endif %}">
                             <div class="relic-img-wrap">
-                                <img src="/static/assets/relic_golden_idol.jpg" alt="Golden Idol" class="relic-img">
+                                <img src="{{ url_for('static', filename='assets/relic_golden_idol.jpg') }}" alt="Golden Idol" class="relic-img">
                             </div>
                             <div class="relic-name">Golden Idol</div>
                             <div class="relic-pts numeral">+50 PTS</div>
@@ -629,11 +631,11 @@
                         {% for c in curse_inventory %}
                         <div class="tarot-card">
                             {% if c.curse_type == 'quicksand' %}
-                            <img src="/static/assets/curse_quicksand_card.jpg" alt="Quicksand" class="tarot-thumb">
+                            <img src="{{ url_for('static', filename='assets/curse_quicksand_card.jpg') }}" alt="Quicksand" class="tarot-thumb">
                             {% elif c.curse_type == 'monsoon' %}
-                            <img src="/static/assets/curse_monsoon_card.jpg" alt="Monsoon" class="tarot-thumb">
+                            <img src="{{ url_for('static', filename='assets/curse_monsoon_card.jpg') }}" alt="Monsoon" class="tarot-thumb">
                             {% else %}
-                            <img src="/static/assets/curse_stampede_card.jpg" alt="Stampede" class="tarot-thumb">
+                            <img src="{{ url_for('static', filename='assets/curse_stampede_card.jpg') }}" alt="Stampede" class="tarot-thumb">
                             {% endif %}
                             <div class="tarot-info">
                                 <div class="tarot-title">{{ c.curse_type | upper }}</div>
@@ -816,7 +818,9 @@
 
                 if (data.curse_type === 'quicksand' && term) {
                     isFrozen = true;
-                    term.write("\r\n\x1b[1;31m[☠] ANCIENT QUICKSAND CURSE TRIGGERED! CONTROLS HARD-FROZEN!\x1b[0m\r\n");
+                    term.write("\r
+\x1b[1;31m[☠] ANCIENT QUICKSAND CURSE TRIGGERED! CONTROLS HARD-FROZEN!\x1b[0m\r
+");
                 }
 
                 setTimeout(() => {
@@ -824,7 +828,9 @@
                     banner.style.display = 'none';
                     if (isFrozen && term) {
                         isFrozen = false;
-                        term.write("\r\n\x1b[1;32m[+] QUICKSAND DISSIPATED. EXPEDITION CONTROLS RESTORED.\x1b[0m\r\n");
+                        term.write("\r
+\x1b[1;32m[+] QUICKSAND DISSIPATED. EXPEDITION CONTROLS RESTORED.\x1b[0m\r
+");
                     }
                     JX.sfx.unlock();
                     JX.toast('Curse dissipated. Systems nominal.', 'success');

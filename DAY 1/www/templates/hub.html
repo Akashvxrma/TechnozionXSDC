@@ -7,6 +7,7 @@
     <title>Jumanji · Expedition Hub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_3d.css') }}">
@@ -14,7 +15,7 @@
     <script src="{{ url_for('static', filename='js/jumanji_3d_engine.js') }}" defer></script>
     <style>
         body.hub {
-            --scene: url('/static/assets/jumanji_expedition_desk.jpg');
+            --scene: url('{{ url_for('static', filename='assets/jumanji_expedition_desk.jpg') }}');
             display: flex;
             flex-direction: column;
         }
@@ -165,7 +166,7 @@
 
 <body class="scene hub" data-world="hub">
     <div class="crt-overlay" aria-hidden="true"></div>
-    <audio id="drum-audio" src="/static/assets/drum.mp3" loop preload="auto"></audio>
+    <audio id="drum-audio" src="{{ url_for('static', filename='assets/drum.mp3') }}" loop preload="auto"></audio>
 
     <header class="hub-bar chassis">
         <span class="rivet rivet--tl" aria-hidden="true"></span>

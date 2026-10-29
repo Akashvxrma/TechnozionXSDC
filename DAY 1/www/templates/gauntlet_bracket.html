@@ -8,6 +8,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
@@ -15,7 +16,7 @@
 
     <style>
         body.arena {
-            --scene: url('/static/assets/gauntlet_jungle_bg.jpg');
+            --scene: url('{{ url_for('static', filename='assets/gauntlet_jungle_bg.jpg') }}');
             min-height: 100vh;
             display: flex;
             flex-direction: column;

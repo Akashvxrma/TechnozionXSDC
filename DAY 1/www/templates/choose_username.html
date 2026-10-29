@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_auth.css') }}">
     <title>Jumanji · Choose your codename</title>
-    <style>body.auth { --scene: url('/static/assets/choose_username_bg.jpg'); }</style>
+    <style>body.auth { --scene: url('{{ url_for('static', filename='assets/choose_username_bg.jpg') }}'); }</style>
 </head>
 
 <body class="auth scene">

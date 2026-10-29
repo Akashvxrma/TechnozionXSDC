@@ -8,6 +8,8 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='css/jumanji_design_system.css') }}">
@@ -21,7 +23,7 @@
 
     <style>
         body.l2 {
-            --scene: url('/static/assets/jumanji_expedition_desk.jpg');
+            --scene: url('{{ url_for('static', filename='assets/jumanji_expedition_desk.jpg') }}');
             height: 100vh;
             overflow: hidden;
             display: flex;
@@ -107,7 +109,7 @@
             gap: 24px;
             text-align: center;
             background: radial-gradient(ellipse at center, rgba(3, 7, 5, 0.5), rgba(3, 7, 5, 0.95)),
-                        url('/static/assets/jumanji_expedition_desk.jpg') center / cover;
+                        url('{{ url_for('static', filename='assets/jumanji_expedition_desk.jpg') }}') center / cover;
         }
 
         .win__title {
@@ -474,7 +476,7 @@
 
     <!-- 2. Intro Video Screen -->
     <div id="video-screen" class="screen">
-        <video id="level2-video" src="/static/assets/round3_intro.mp4" playsinline preload="metadata"></video>
+        <video id="level2-video" src="{{ url_for('static', filename='assets/round3_intro.mp4') }}" playsinline preload="metadata"></video>
     </div>
 
     <!-- 3. Victory Screen -->
@@ -605,7 +607,8 @@
                         <div class="stage-cmd-row">
                             <code class="stage-cmd">nigel_comms</code>
                             <div class="stage-actions">
-                                <button type="button" class="action-chip" onclick="injectCommand('nigel_comms\n')">Run</button>
+                                <button type="button" class="action-chip" onclick="injectCommand('nigel_comms
+')">Run</button>
                                 <button type="button" class="action-chip" onclick="JX.copy(this, 'nigel_comms')">Copy</button>
                             </div>
                         </div>
@@ -836,7 +839,7 @@
             JX.sfx.success();
 
             setTimeout(() => {
-                video.src = '/static/assets/round3_win.mp4';
+                video.src = '{{ url_for('static', filename='assets/round3_win.mp4') }}';
                 video.loop = false;
                 video.muted = false;
                 video.load();
