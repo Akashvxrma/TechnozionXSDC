@@ -547,8 +547,16 @@
         }
 
         entryScreen.addEventListener('click', startSequence);
-        document.addEventListener('keydown', () => {
-            if (entryScreen.classList.contains('is-shown')) startSequence();
+        document.addEventListener('keydown', (e) => {
+            if (entryScreen.classList.contains('is-shown')) {
+                startSequence();
+            } else if (videoScreen.classList.contains('is-shown') && (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter')) {
+                showDashboard();
+            }
+        });
+
+        videoScreen.addEventListener('click', () => {
+            if (videoScreen.classList.contains('is-shown')) showDashboard();
         });
 
         let dashboardShown = false;
