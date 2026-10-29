@@ -87,27 +87,29 @@ When players access `/level3`, an interactive security terminal (`recon_user@sdc
 ### Step 3.1: Database Extraction (80 PTS)
 
 - **Concept**: SQLite database query and schema reconnaissance.
-- **Location**: `/var/sdc_mainframe/mainframe.db`
+- **Location**: `/level3/mainframe.db`
 - **Solve Command**:
   ```bash
-  sqlite3 /var/sdc_mainframe/mainframe.db "SELECT override_key FROM system_overrides WHERE privilege_tier='user';"
-  deploy_override $(sqlite3 /var/sdc_mainframe/mainframe.db "SELECT override_key FROM system_overrides WHERE privilege_tier='user';")
+  sqlite3 /level3/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';"
+  deploy_override $(sqlite3 /level3/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';")
   ```
 
 ### Step 3.2: SUID Binary Privilege Escalation (120 PTS)
 
 - **Concept**: Ephemeral SUID binary inspection and environment variable injection.
-- **Binary**: `/usr/local/bin/lift_curse` (Permissions: `-rwsr-xr-x 1 root root`)
+- **Binary**: `/home/jumanji_admin/lift_curse` (Permissions: `-rwsr-xr-x 1 root root`)
 - **Inspection**:
   ```bash
-  strings /usr/local/bin/lift_curse | grep CHANT
-  # Reveals required environment variable CHANT=JUMANJI_MAINFRAME_OVERRIDE
+  strings /home/jumanji_admin/lift_curse | grep CHANT
+  # Reveals required environment variable CHANT=JUMANJI
   ```
 - **Escalation & Solve Command**:
   ```bash
-  export CHANT="JUMANJI_MAINFRAME_OVERRIDE"
-  /usr/local/bin/lift_curse
-  deploy_override $(cat /root/root_override.txt)
+  export CHANT="JUMANJI"
+  /home/jumanji_admin/lift_curse
+  # Inside root shell:
+  cat /root/core_override.txt
+  deploy_override $(cat /root/core_override.txt)
   ```
 
 ---
