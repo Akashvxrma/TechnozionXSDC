@@ -17,6 +17,7 @@ import requests
 import subprocess
 import time
 import json
+from werkzeug.security import generate_password_hash
 
 BASE_URL = "http://127.0.0.1:8080"
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DAY 1", "www", "jumanji_auth.db")
@@ -62,15 +63,25 @@ def compute_flag(user_id, avatar_id):
         h = hashlib.md5(f"{user_id}:{avatar_id}:{SECRET}".encode()).hexdigest()[:8]
         return f"JUMANJI{{{avatar_id}_{h}}}"
 
+ORIGINAL_SETTINGS = {}
+
 def setup_test_user():
+    global ORIGINAL_SETTINGS
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # Record original global_settings
+    ORIGINAL_SETTINGS = {}
+    for r in conn.execute("SELECT key, value FROM global_settings").fetchall():
+        ORIGINAL_SETTINGS[r['key']] = r['value']
+
     conn.execute("DELETE FROM users WHERE id = ? OR username = ?", (TEST_USER_ID, TEST_USERNAME))
     conn.execute("DELETE FROM solved_challenges WHERE user_id = ?", (TEST_USER_ID,))
+    hashed_pw = generate_password_hash(TEST_PASSWORD)
     conn.execute("""
         INSERT INTO users (id, username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, authorized_levels)
         VALUES (?, ?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1, '[2, 3, "day2"]')
-    """, (TEST_USER_ID, TEST_USERNAME, TEST_PASSWORD))
-    # Ensure both days and levels are unlocked and visible
+    """, (TEST_USER_ID, TEST_USERNAME, hashed_pw))
+    # Ensure both days and levels are unlocked and visible during verification
     conn.execute("UPDATE global_settings SET value = '1' WHERE key IN ('day1_visible', 'day2_visible', 'level1_unlocked', 'level2_unlocked', 'level3_unlocked', 'round2_unlocked', 'round3_unlocked')")
     conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level1_unlocked', '1')")
     conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level2_unlocked', '1')")
@@ -83,9 +94,14 @@ def setup_test_user():
     conn.close()
 
 def cleanup_test_user():
+    global ORIGINAL_SETTINGS
     conn = sqlite3.connect(DB_PATH)
     conn.execute("DELETE FROM users WHERE id = ? OR username = ?", (TEST_USER_ID, TEST_USERNAME))
     conn.execute("DELETE FROM solved_challenges WHERE user_id = ?", (TEST_USER_ID,))
+    # Restore production global_settings
+    if ORIGINAL_SETTINGS:
+        for k, v in ORIGINAL_SETTINGS.items():
+            conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)", (k, v))
     conn.commit()
     conn.close()
 

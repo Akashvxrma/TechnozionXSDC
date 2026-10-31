@@ -39,6 +39,19 @@ def run_tests():
     client = ctf_app.app.test_client()
     ctf_app.app.config['TESTING'] = True
 
+    # Snapshot existing global_settings to ensure test unlocks do not mutate production state
+    settings_conn = ctf_app.get_db_connection()
+    original_settings = {}
+    for key in ['day1_visible', 'day2_visible', 'level1_unlocked', 'level2_unlocked', 'level3_unlocked', 'round2_unlocked', 'round3_unlocked']:
+        row = settings_conn.execute("SELECT value FROM global_settings WHERE key = ?", (key,)).fetchone()
+        if row:
+            original_settings[key] = row['value']
+    # Ensure all testable rounds are temporarily active during automated verification
+    for key in ['day1_visible', 'day2_visible', 'level2_unlocked', 'level3_unlocked']:
+        settings_conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, '1')", (key,))
+    settings_conn.commit()
+    settings_conn.close()
+
     # ---------------------------------------------------------
     # TEST 1: CSV Formula Injection Escaping
     # ---------------------------------------------------------
@@ -424,12 +437,16 @@ def run_tests():
     else:
         print(f"[-] FAIL: PTY dimension sync failed (cols={r_cols}, rows={r_rows}, queued=({queued_c},{queued_r})).")
 
-    # Clean up test user
+    # Clean up test user and restore original production global_settings
     cleanup_conn = ctf_app.get_db_connection()
-    cleanup_conn.execute("DELETE FROM users WHERE id = ?", (test_user_id,))
-    cleanup_conn.execute("DELETE FROM solved_challenges WHERE user_id = ?", (test_user_id,))
-    cleanup_conn.commit()
-    cleanup_conn.close()
+    try:
+        cleanup_conn.execute("DELETE FROM users WHERE id = ?", (test_user_id,))
+        cleanup_conn.execute("DELETE FROM solved_challenges WHERE user_id = ?", (test_user_id,))
+        for key, val in original_settings.items():
+            cleanup_conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)", (key, val))
+        cleanup_conn.commit()
+    finally:
+        cleanup_conn.close()
 
     print("\n" + "=" * 70)
     print(f"TEST RESULTS: {passed}/{total} TESTS PASSED")

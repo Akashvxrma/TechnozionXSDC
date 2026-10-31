@@ -1976,9 +1976,19 @@ def start_pty(data):
         image_name, "bash", "-c", init_cmd
     ]
     
+    def _preexec_pty():
+        try:
+            os.login_tty(slave_fd)
+        except Exception:
+            try:
+                os.setsid()
+                fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+            except Exception:
+                pass
+
     p = subprocess.Popen(
         docker_cmd,
-        preexec_fn=os.setsid,
+        preexec_fn=_preexec_pty,
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd
@@ -2099,6 +2109,13 @@ def handle_pty_resize(data):
             fcntl.ioctl(clients[sid]['fd'], termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
         except Exception:
             pass
+        c_name = clients[sid].get('container_name')
+        if c_name:
+            try:
+                subprocess.Popen(["docker", "kill", "-s", "WINCH", c_name],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                pass
     else:
         pending_pty_sizes[sid] = (cols, rows)
 
