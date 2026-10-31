@@ -1783,32 +1783,31 @@ def submit_score():
     if sid and sid not in target_sids:
         target_sids.append(sid)
 
-    if target_sids:
-        if is_level3:
-            l3_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_user', 'level3_user', 'level2_user', 'round3_user')", (user_id,)).fetchone()
-            l3_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_root', 'level3_root', 'level2_root', 'round3_root')", (user_id,)).fetchone()
-            for s_room in target_sids:
-                socketio.emit('score-update', {'new_points': new_points}, room=s_room)
-                socketio.emit('flag-solved', {'avatar_id': canonical_id}, room=s_room)
+    if is_level3:
+        l3_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_user', 'level3_user', 'level2_user', 'round3_user')", (user_id,)).fetchone()
+        l3_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_root', 'level3_root', 'level2_root', 'round3_root')", (user_id,)).fetchone()
+        for s_room in target_sids:
+            socketio.emit('score-update', {'new_points': new_points}, room=s_room)
+            socketio.emit('flag-solved', {'avatar_id': canonical_id}, room=s_room)
 
-            if l3_user and l3_root:
-                conn.execute("UPDATE users SET level3_status = 'suspended' WHERE id = ?", (user_id,))
-                conn.commit()
-                win_payload = {'video': 'round3_win.mp4', 'points': new_points}
-                for s_room in target_sids:
-                    socketio.emit('game-win-level3', win_payload, room=s_room)
-                    socketio.emit('game-win-level2', win_payload, room=s_room)
-                    socketio.emit('game-win-r3', win_payload, room=s_room)
-        else:
+        if l3_user and l3_root:
+            conn.execute("UPDATE users SET level3_status = 'suspended' WHERE id = ?", (user_id,))
+            conn.commit()
+            win_payload = {'video': 'round3_win.mp4', 'points': new_points}
             for s_room in target_sids:
-                socketio.emit('score-update', {'new_points': new_points}, room=s_room)
-                socketio.emit('flag-solved', {'avatar_id': canonical_id}, room=s_room)
+                socketio.emit('game-win-level3', win_payload, room=s_room)
+                socketio.emit('game-win-level2', win_payload, room=s_room)
+                socketio.emit('game-win-r3', win_payload, room=s_room)
+    else:
+        for s_room in target_sids:
+            socketio.emit('score-update', {'new_points': new_points}, room=s_room)
+            socketio.emit('flag-solved', {'avatar_id': canonical_id}, room=s_room)
 
-            if new_points >= 150:
-                conn.execute("UPDATE users SET level2_status = 'suspended', status = 'suspended' WHERE id = ?", (user_id,))
-                conn.commit()
-                for s_room in target_sids:
-                    socketio.emit('game-win', {}, room=s_room)
+        if new_points >= 150:
+            conn.execute("UPDATE users SET level2_status = 'suspended', status = 'suspended' WHERE id = ?", (user_id,))
+            conn.commit()
+            for s_room in target_sids:
+                socketio.emit('game-win', {}, room=s_room)
             
     conn.close()
     return jsonify({'status': 'success', 'points_awarded': points_to_add, 'total_points': new_points})
