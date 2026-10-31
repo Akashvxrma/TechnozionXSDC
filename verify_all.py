@@ -18,8 +18,26 @@ import subprocess
 import time
 import json
 from werkzeug.security import generate_password_hash
+import urllib3
+urllib3.disable_warnings()
 
-BASE_URL = "http://127.0.0.1:8080"
+BASE_URL = os.environ.get("CTF_BASE_URL")
+if not BASE_URL:
+    try:
+        r = requests.get("https://127.0.0.1/login", verify=False, headers={"Host": "cyber.games.sdcnitw.in"}, timeout=1.5)
+        if r.status_code == 200:
+            BASE_URL = "https://127.0.0.1"
+    except Exception:
+        pass
+if not BASE_URL:
+    BASE_URL = "http://127.0.0.1:8080"
+
+def create_session():
+    s = requests.Session()
+    s.verify = False
+    if BASE_URL.startswith("https://"):
+        s.headers.update({"Host": "cyber.games.sdcnitw.in"})
+    return s
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DAY 1", "www", "jumanji_auth.db")
 SECRET = "8f7b6c5d4a3e2f1g0h9i8j7k6l5m4n3"
 
@@ -110,7 +128,7 @@ def cleanup_test_user():
 # ==============================================================================
 def test_web_endpoints():
     print(f"\n{BOLD}{CYAN}=== MODULE 1: WEB ENDPOINTS & AUTHENTICATION ==={RESET}")
-    session = requests.Session()
+    session = create_session()
     
     # 1.1 /login endpoint
     try:
@@ -640,7 +658,7 @@ def test_gauntlet_isolation(auth_session):
     else:
         log_fail("Gauntlet URLs returned unexpected response", f"D2L2: {r_d2l2.status_code}, G: {r_g.status_code}")
     # 5.5 Verify Admin Panel Cleanliness
-    admin_session = requests.Session()
+    admin_session = create_session()
     admin_session.post(f"{BASE_URL}/login", data={"username": "admin", "password": "Admin_ShadowDrop!2026"})
     r_admin = admin_session.get(f"{BASE_URL}/admin", timeout=5)
     if r_admin.status_code == 200 and "Gauntlet" not in r_admin.text:
