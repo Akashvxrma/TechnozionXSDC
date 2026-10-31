@@ -91,10 +91,40 @@
             cursor: pointer;
         }
 
+        #video-screen.is-outro {
+            z-index: 3200;
+        }
+
         #video-screen video {
             width: 100vw;
             height: 100vh;
             object-fit: cover;
+        }
+
+        .outro-skip-pill {
+            position: absolute;
+            bottom: 28px;
+            right: 32px;
+            z-index: 3300;
+            padding: 8px 18px;
+            font-family: var(--font-hud);
+            font-size: var(--step--1);
+            color: var(--gold-warm);
+            background: rgba(3, 7, 5, 0.88);
+            border: 1px solid var(--brass);
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.75);
+            letter-spacing: 0.08em;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: opacity 0.3s ease, transform 0.2s ease, border-color 0.2s ease;
+            animation: slow-blink 2.2s ease-in-out infinite;
+        }
+
+        .outro-skip-pill:hover {
+            transform: scale(1.04);
+            border-color: var(--gold);
+            color: #fff;
         }
 
         /* ---------- 3. Win Screen ---------- */
@@ -484,9 +514,10 @@
         <p class="entry__press">Press any key or click to begin</p>
     </div>
 
-    <!-- 2. Intro Video Screen -->
+    <!-- 2. Intro / Outro Video Screen -->
     <div id="video-screen" class="screen">
         <video id="level2-video" src="{{ url_for('static', filename='assets/round3_intro.mp4') }}" playsinline preload="metadata"></video>
+        <div id="outro-skip-pill" class="outro-skip-pill" style="display: none;" onclick="toHub()">Press Space or Click to Return to Hub ⇥</div>
     </div>
 
     <!-- 3. Victory Screen -->
@@ -651,8 +682,14 @@
 
         let hasStarted = false;
         let stationShown = false;
+        let isOutroVideo = false;
+        let hasWon = false;
         let term = null;
         let fitAddon = null;
+
+        const toHub = () => {
+            window.location.href = "{{ url_for('hub') }}";
+        };
 
         // --- Screen Transition Engine (Parity with Level 1) ---
         function show(el) {
@@ -698,12 +735,22 @@
             if (entryScreen.classList.contains('is-shown')) {
                 startSequence();
             } else if (videoScreen.classList.contains('is-shown') && (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter')) {
-                showStation();
+                if (isOutroVideo) {
+                    toHub();
+                } else {
+                    showStation();
+                }
             }
         });
 
         videoScreen.addEventListener('click', () => {
-            if (videoScreen.classList.contains('is-shown')) showStation();
+            if (videoScreen.classList.contains('is-shown')) {
+                if (isOutroVideo) {
+                    toHub();
+                } else {
+                    showStation();
+                }
+            }
         });
 
         function showStation() {
@@ -877,17 +924,36 @@
                     s2.textContent = 'STAGE 2: SECURED';
                     s2.className = 'pill pill--sm pill--emerald';
                 }
+                // Failsafe trigger: start victory outro flow if not already active
+                if (!hasWon) {
+                    handleVictory();
+                }
             }
         });
 
         // --- 7. Victory Flow ---
         function handleVictory() {
+            if (hasWon) return;
+            hasWon = true;
+
             JX.drums.pause();
             [stationScreen, entryScreen].forEach(el => el.classList.remove('is-shown', 'is-visible'));
             show(winScreen);
             JX.sfx.success();
 
+            const s1 = document.getElementById('stage1-status-pill');
+            if (s1) { s1.textContent = 'STAGE 1: SECURED'; s1.className = 'pill pill--sm pill--emerald'; }
+            const s2 = document.getElementById('stage2-status-pill');
+            if (s2) { s2.textContent = 'STAGE 2: SECURED'; s2.className = 'pill pill--sm pill--emerald'; }
+            const scoreEl = document.getElementById('current-score');
+            if (scoreEl) scoreEl.textContent = '200';
+
             setTimeout(() => {
+                isOutroVideo = true;
+                videoScreen.classList.add('is-outro');
+                const skipPill = document.getElementById('outro-skip-pill');
+                if (skipPill) skipPill.style.display = 'block';
+
                 video.src = '{{ url_for('static', filename='assets/round3_win.mp4') }}';
                 video.loop = false;
                 video.muted = false;
@@ -896,18 +962,18 @@
                 show(videoScreen);
                 hide(winScreen, 1000);
 
-                const toHub = () => { window.location.href = "{{ url_for('hub') }}"; };
                 video.onended = toHub;
                 video.onerror = () => setTimeout(toHub, 3000);
 
                 const p = video.play();
                 if (p !== undefined) {
                     p.catch(() => {
+                        // If unmuted autoplay blocked by browser policy, fallback to muted playback
                         video.muted = true;
-                        video.play().catch(toHub);
+                        video.play().catch(() => setTimeout(toHub, 3000));
                     });
                 }
-            }, 3000);
+            }, 2500);
         }
 
         socket.on('game-win-level3', handleVictory);

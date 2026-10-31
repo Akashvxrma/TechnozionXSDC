@@ -548,6 +548,22 @@ def test_round3_container(auth_session):
         else:
             log_fail("Day 2 Level 1 Root Override score failed", str(d_root))
 
+        # Verify Level 3 status transition to 'suspended' upon victory completion
+        vconn = sqlite3.connect(DB_PATH)
+        v_user = vconn.execute("SELECT level3_status, level3_points FROM users WHERE id = ?", (TEST_USER_ID,)).fetchone()
+        vconn.close()
+        if v_user and v_user[0] == 'suspended' and v_user[1] == 200:
+            log_pass("Day 2 Level 1 Victory State Transition confirmed: status='suspended', points=200")
+        else:
+            log_fail("Victory state transition failed", f"status: {v_user[0] if v_user else None}, points: {v_user[1] if v_user else None}")
+
+        # Verify Day 2 Level 1 Outro Video Availability (round3_win.mp4)
+        r_outro = auth_session.get(f"{BASE_URL}/static/assets/round3_win.mp4", timeout=5)
+        if r_outro.status_code == 200 and "video/mp4" in r_outro.headers.get("Content-Type", ""):
+            log_pass("Day 2 Level 1 Winning Outro Video verified: round3_win.mp4 delivered (HTTP 200 video/mp4)")
+        else:
+            log_fail("Winning Outro Video check failed", f"Status: {r_outro.status_code}, Type: {r_outro.headers.get('Content-Type')}")
+
         # Check Day 2 Level 1 duplicate submission
         dup_r3 = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "day2_level1", "flag": expected_root_flag})
         if dup_r3.json().get("status") == "already_solved":

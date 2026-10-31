@@ -510,6 +510,8 @@
 
         let selectedAvatarId = null;
         let hasStarted = false;
+        let isOutroVideo = false;
+        const toHub = () => { window.location.href = '/hub'; };
 
         function show(el) {
             el.classList.add('is-shown');
@@ -555,12 +557,22 @@
             if (entryScreen.classList.contains('is-shown')) {
                 startSequence();
             } else if (videoScreen.classList.contains('is-shown') && (e.key === ' ' || e.key === 'Escape' || e.key === 'Enter')) {
-                showDashboard();
+                if (isOutroVideo) {
+                    toHub();
+                } else {
+                    showDashboard();
+                }
             }
         });
 
         videoScreen.addEventListener('click', () => {
-            if (videoScreen.classList.contains('is-shown')) showDashboard();
+            if (videoScreen.classList.contains('is-shown')) {
+                if (isOutroVideo) {
+                    toHub();
+                } else {
+                    showDashboard();
+                }
+            }
         });
 
         let dashboardShown = false;
@@ -806,6 +818,7 @@
             JX.sfx.success();
 
             setTimeout(() => {
+                isOutroVideo = true;
                 video.src = '{{ url_for('static', filename='assets/jumanji_win.mp4') }}';
                 video.loop = false;
                 video.muted = false;
@@ -813,7 +826,6 @@
                 show(videoScreen);
                 hide(winScreen, 1000);
 
-                const toHub = () => { window.location.href = '/hub'; };
                 video.onended = toHub;
                 video.onerror = () => setTimeout(toHub, 3000);
                 const p = video.play();
