@@ -38,6 +38,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--esbuild', default=shutil.which('esbuild') or 'esbuild')
     args = ap.parse_args()
+    has_esbuild = shutil.which(args.esbuild) or (os.path.isfile(args.esbuild) and os.access(args.esbuild, os.X_OK))
+    if not has_esbuild:
+        print('warning: esbuild CLI not found, copying assets without minification', file=sys.stderr)
     brotli = shutil.which('brotli')
     if not brotli:
         print('warning: brotli CLI not found, skipping .br files', file=sys.stderr)
@@ -47,7 +50,7 @@ def main():
         src_path = os.path.join(STATIC, rel)
         with open(src_path, 'rb') as f:
             src = f.read()
-        if rel in MINIFY:
+        if rel in MINIFY and has_esbuild:
             # No --keep-names: it injects top-level helper vars that would collide with inline page globals.
             # Without a format, esbuild never renames top-level (global) names of plain scripts.
             out = subprocess.run([args.esbuild, '--minify', '--log-level=warning',

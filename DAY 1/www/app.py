@@ -37,10 +37,6 @@ import threading
 from flask_socketio import SocketIO
 from datetime import datetime, timedelta, timezone
 
-_D2_L2_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "DAY 2", "level2")
-if _D2_L2_DIR not in sys.path:
-    sys.path.insert(0, _D2_L2_DIR)
-import gauntlet_engine
 import mongo_sync
 
 def get_utc_now():
@@ -234,7 +230,8 @@ def add_static_version(endpoint, values):
 # 6. Security & Subnet Protection Middleware
 DOCKER_BRIDGE_NETWORKS = [
     ipaddress.ip_network('172.16.0.0/12'),
-    ipaddress.ip_network('10.0.0.0/8')
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('192.168.0.0/16')
 ]
 
 @app.before_request
@@ -250,13 +247,17 @@ def enforce_security_and_csrf():
         pass
 
     if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
-        # Token-based CLI flag submissions (/api/score and /gauntlet/relic/solve with token) don't carry browser cookies
-        if request.path in ('/api/score', '/gauntlet/relic/solve') and request.is_json and request.json and request.json.get('token'):
+        # Token-based CLI flag submissions (/api/score with token) don't carry browser cookies
+        if request.path == '/api/score' and request.is_json and request.json and request.json.get('token'):
             return
 
-        # Validate Origin header if present
+        # Validate Origin and Referer headers if present
         origin = request.headers.get('Origin')
         if origin and not is_allowed_origin(origin):
+            return jsonify({'error': 'Cross-origin request rejected'}), 403
+
+        referer = request.headers.get('Referer')
+        if referer and not is_allowed_origin(referer):
             return jsonify({'error': 'Cross-origin request rejected'}), 403
 
         # Validate CSRF token on admin form submissions
@@ -404,21 +405,6 @@ def init_db():
     if 'solved_at' not in sc_columns:
         conn.execute("ALTER TABLE solved_challenges ADD COLUMN solved_at DATETIME")
 
-    # Pending score sync queue for resilient webhook delivery
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS pending_score_syncs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            participant_id TEXT NOT NULL,
-            round_id TEXT NOT NULL,
-            raw_score INTEGER NOT NULL,
-            checkpoint TEXT NOT NULL,
-            checkpoint_points INTEGER NOT NULL,
-            status TEXT DEFAULT 'pending',
-            retries INTEGER DEFAULT 0,
-            created_at DATETIME
-        )
-    ''')
-
     # Insert default admin user if not exists (with secure password hashing)
     admin_env_pass = os.environ.get('ADMIN_PASSWORD', 'Admin_ShadowDrop!2026')
     user = conn.execute("SELECT * FROM users WHERE username = 'admin'").fetchone()
@@ -458,9 +444,6 @@ def init_db():
     # Day visibility on the player hub (hidden days are not shown and cannot be entered)
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('day1_visible', '1')")
     conn.execute("INSERT OR IGNORE INTO global_settings (key, value) VALUES ('day2_visible', '0')")
-
-    # Initialize Jumanji Gauntlet tournament tables
-    gauntlet_engine.init_gauntlet_db(conn)
 
     conn.commit()
     conn.close()
@@ -517,10 +500,6 @@ def hub():
     day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
     user = conn.execute("SELECT * FROM users WHERE id = ?", (session['user_id'],)).fetchone()
 
-    # Check Day 2 tournament team
-    team = None
-    if day2_visible:
-        team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
     conn.close()
 
     l2_pts = user['level2_points'] or user['points'] or 0
@@ -529,7 +508,7 @@ def hub():
     l3_status = user['level3_status'] or 'active'
 
     can_play_l2 = day1_visible and l2_unlocked and l2_status == 'active' and l2_pts < 150
-    can_play_l3 = day1_visible and l3_unlocked and l3_status == 'active' and l3_pts < 200
+    can_play_l3 = (day2_visible or day1_visible) and l3_unlocked and l3_status == 'active' and l3_pts < 200
 
     raw_auth = user['authorized_levels']
     if raw_auth:
@@ -540,56 +519,25 @@ def hub():
     else:
         auth_levels = [2, 3]
 
-    has_day2_auth = any(str(x).lower() in ('day2', 'day2-l2', 'day2_l2', 'gauntlet', '4') for x in auth_levels) or (team is not None) or (user['role'] == 'admin')
-
     # Single-target determination for the 3D Jumanji board
-    if day2_visible and has_day2_auth:
-        target_level = 'day2'
-        target_name = 'The Jumanji Gauntlet'
-        target_url = url_for('day2_level2')
-        is_unlocked = True
-        is_done = False
-        riddle = "Two by two the champions stand,\nSplit keys locked by partner’s hand.\nHold the shrine, endure the curse,\nEight survivors claim the verse."
-        movement_style = 'charge'
-        steps = 18
-    elif 3 in auth_levels and 2 not in auth_levels:
+    if (day2_visible or l2_pts >= 150) and (3 in auth_levels or 'day2' in auth_levels or 'day2-l1' in auth_levels or user['role'] == 'admin'):
         target_level = 'l3'
-        target_name = 'Simulation Core (Mainframe)'
-        target_url = url_for('level3')
-        is_unlocked = day1_visible and l3_unlocked and l3_status == 'active'
+        target_name = 'Simulation Core (Day 2 Level 1)'
+        target_url = url_for('day2_level1')
+        is_unlocked = (day2_visible or day1_visible) and l3_unlocked and l3_status == 'active'
         is_done = l3_pts >= 200
         riddle = "Beware the core where power hides,\nA cursed mainframe, changing tides.\nSpeak the chant and break the root,\nOr perish under Nigel’s boot."
         movement_style = 'heavy'
         steps = 8
-    elif 2 in auth_levels and 3 not in auth_levels:
+    else:
         target_level = 'l2'
-        target_name = 'Avatar Reconnaissance'
+        target_name = 'Avatar Reconnaissance (Day 1 Level 2)'
         target_url = url_for('level2')
         is_unlocked = day1_visible and l2_unlocked and l2_status == 'active'
         is_done = l2_pts >= 150
         riddle = "In the jungle you must wait,\nFive lost relics seal your fate.\nRecon badges, shadows deep,\nFind the secrets avatars keep."
         movement_style = 'hop'
         steps = 5
-    else:
-        # Dual-authorized (e.g. testing / local admin)
-        if l2_pts < 150:
-            target_level = 'l2'
-            target_name = 'Avatar Reconnaissance'
-            target_url = url_for('level2')
-            is_unlocked = day1_visible and l2_unlocked and l2_status == 'active'
-            is_done = False
-            riddle = "In the jungle you must wait,\nFive lost relics seal your fate.\nRecon badges, shadows deep,\nFind the secrets avatars keep."
-            movement_style = 'hop'
-            steps = 5
-        else:
-            target_level = 'l3'
-            target_name = 'Simulation Core (Mainframe)'
-            target_url = url_for('level3')
-            is_unlocked = day1_visible and l3_unlocked and l3_status == 'active'
-            is_done = l3_pts >= 200
-            riddle = "Beware the core where power hides,\nA cursed mainframe, changing tides.\nSpeak the chant and break the root,\nOr perish under Nigel’s boot."
-            movement_style = 'heavy'
-            steps = 8
 
     locked_riddle = "The board is still, the drums are low;\nThe host will say when you may go."
     completed_riddle = "Your trial is won, the relic claims its place;\nAwait the next dawn or the tournament race."
@@ -729,9 +677,10 @@ def check_level_access(user_id, level_num, is_submission=False):
             return False, "You have already completed Day 1 Level 2."
         return True, None
 
-    # Level 3 authorization check
-    elif level_num == 3:
-        if 3 not in user_levels:
+    # Day 2 Level 1 (Simulation Core Mainframe) authorization check
+    elif level_num in (3, '3', 'round3', 'r3', 'level3', 'l3', 'day2-l1', 'day2_l1', 'day2'):
+        has_l3_auth = any(str(x).lower() in ('3', 'day2', 'day2-l1', 'day2_l1', 'level3') for x in user_levels)
+        if not has_l3_auth and user['username'] != 'verification_pilot':
             conn.close()
             return False, "Access Denied: Your registration is only for Day 1 Level 2 (Avatar Reconnaissance)."
 
@@ -739,34 +688,20 @@ def check_level_access(user_id, level_num, is_submission=False):
         l3_unlocked = (l3_row['value'] == '1') if l3_row else False
         d1_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()
         d1_vis = (d1_row['value'] == '1') if d1_row else False
+        d2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()
+        d2_vis = (d2_row['value'] == '1') if d2_row else False
         stat = user['level3_status'] or 'active'
         pts = user['level3_points'] or 0
 
         conn.close()
-        if not d1_vis:
-            return False, "Day 1 has not been opened yet by the tournament host."
-        if not l3_unlocked:
-            return False, "Day 1 Level 3 is currently locked by the game master."
-        if stat == 'suspended':
-            return False, "Your Day 1 Level 3 session has ended."
-        if not is_submission and pts >= 200:
-            return False, "You have already completed Day 1 Level 3."
-        return True, None
-
-    # Day 2 Gauntlet authorization check
-    elif level_num in ('day2', 'gauntlet'):
-        has_day2_auth = any(str(x).lower() in ('day2', 'day2-l2', 'day2_l2', 'gauntlet', '4') for x in user_levels)
-        if not has_day2_auth and user['username'] != 'verification_pilot':
-            is_member = conn.execute("SELECT 1 FROM gauntlet_members WHERE user_id = ?", (user['id'],)).fetchone()
-            if not is_member:
-                conn.close()
-                return False, "Access Denied: You have not been allotted access to Day 2 Level 2 (The Jumanji Gauntlet)."
-
-        d2_row = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()
-        d2_vis = (d2_row['value'] == '1') if d2_row else False
-        conn.close()
-        if not d2_vis:
+        if not (d2_vis or d1_vis):
             return False, "Day 2 has not been opened yet by the tournament host."
+        if not l3_unlocked:
+            return False, "Day 2 Level 1 is currently locked by the game master."
+        if stat == 'suspended':
+            return False, "Your Day 2 Level 1 session has ended."
+        if not is_submission and pts >= 200:
+            return False, "You have already completed Day 2 Level 1."
         return True, None
 
     conn.close()
@@ -791,16 +726,14 @@ def auth_launch():
     # Determine target level and day
     raw_level_param = str(request.args.get('level', payload.get('targetLevel', '2'))).lower()
     target_day = payload.get('targetDay', 1)
-    is_day2 = target_day == 2 or raw_level_param in ['day2-l2', 'day-2-l2', 'day2', 'gauntlet']
-    is_level3 = raw_level_param in ['3', 'round3', 'r3', 'level3', 'l3', 'day1-l3', 'day-1-l3'] or payload.get('targetLevel') == 3
+    is_day2 = target_day == 2 or raw_level_param in ['day2-l1', 'day2_l1', 'day2', 'level3', 'day1-l3', '3']
+    is_level3 = raw_level_param in ['3', 'round3', 'r3', 'level3', 'l3', 'day2-l1', 'day2_l1', 'day1-l3'] or payload.get('targetLevel') == 3
 
     authorized_levels = payload.get('authorizedLevels', [2, 3])
     auth_normalized = [str(x).lower() for x in authorized_levels]
 
-    if is_day2:
-        req_allowed = any(k in auth_normalized for k in ['day2-l2', 'day2', 'gauntlet', '2'])
-    elif is_level3:
-        req_allowed = any(k in auth_normalized for k in ['3', 'round3', 'level3', 'day1-l3', 'day-1-l3'])
+    if is_day2 or is_level3:
+        req_allowed = any(k in auth_normalized for k in ['day2-l1', 'day2_l1', 'day2', '3', 'round3', 'level3', 'day1-l3'])
     else:
         req_allowed = any(k in auth_normalized for k in ['2', '1', 'level2', 'day1-l2', 'day-1-l2'])
 
@@ -862,10 +795,8 @@ def auth_launch():
     session['level3_points'] = l3_pts
     session['round3_points'] = l3_pts
 
-    if is_level3:
-        return redirect(url_for('level3'))
-    elif is_day2:
-        return redirect(url_for('day2_level2'))
+    if is_level3 or is_day2:
+        return redirect(url_for('day2_level1'))
     else:
         return redirect(url_for('level2'))
 
@@ -901,7 +832,7 @@ def login():
             if stored_pwd.startswith('scrypt:') or stored_pwd.startswith('pbkdf2:'):
                 is_authenticated = check_password_hash(stored_pwd, password)
             elif stored_pwd.startswith('!OAUTH_ONLY!'):
-                # Account set for OAuth without password
+                # Account set for OAuth without password: password login is strictly denied
                 is_authenticated = False
             else:
                 is_authenticated = (stored_pwd == password)
@@ -944,11 +875,9 @@ def login():
         else:
             conn.close()
             record_failed_login(client_ip)
-            if user and (user['password'] or '').startswith('!OAUTH_ONLY!'):
-                flash('This account is configured for Google Sign-In. Please click "Continue with Google" above or contact an administrator to set a password.')
-            else:
-                flash('ACCESS DENIED: Invalid credentials.')
-            
+            flash('ACCESS DENIED: Invalid credentials.')
+            return render_template('login.html')
+
     return render_template('login.html')
 
 def get_google_redirect_uri():
@@ -1068,7 +997,8 @@ def google_callback():
     session['pending_google_user'] = {
         'google_id': google_id,
         'email': email,
-        'name': profile.get('name', '')
+        'name': profile.get('name', ''),
+        'created_at': time.time()
     }
     return redirect(url_for('choose_username'))
 
@@ -1078,6 +1008,10 @@ def choose_username():
         return redirect(url_for('login'))
         
     pending = session['pending_google_user']
+    if time.time() - pending.get('created_at', 0) > 600:
+        session.pop('pending_google_user', None)
+        flash('Registration session expired. Please sign in with Google again.')
+        return redirect(url_for('login'))
     
     if request.method == 'POST':
         chosen = request.form.get('username', '').strip()
@@ -1096,10 +1030,10 @@ def choose_username():
             flash('Codename is already taken! Choose another identity.')
             return render_template('choose_username.html', email=pending['email'])
             
-        dummy_pw = secrets.token_hex(16)
+        unusable_pw = f"!OAUTH_ONLY!_{secrets.token_hex(16)}"
         conn.execute(
             "INSERT INTO users (username, password, role, points, status, google_id, email, authorized_levels) VALUES (?, ?, 'player', 0, 'active', ?, ?, '[]')",
-            (chosen, dummy_pw, pending['google_id'], pending['email'])
+            (chosen, unusable_pw, pending['google_id'], pending['email'])
         )
         conn.commit()
         new_user = conn.execute("SELECT id, username, role, points FROM users WHERE username = ?", (chosen,)).fetchone()
@@ -1143,20 +1077,19 @@ def admin():
             auth_levels = []
             if request.form.get('auth_level_2'):
                 auth_levels.append(2)
-            if request.form.get('auth_level_3'):
+            if request.form.get('auth_level_3') or request.form.get('auth_level_day2'):
                 auth_levels.append(3)
-            if request.form.get('auth_level_day2'):
-                auth_levels.append('day2')
-
-            day2_team_id = request.form.get('day2_team_id', '').strip()
-            day2_role = request.form.get('day2_role', 'auto').strip().lower()
 
             if not new_user:
                 flash("ERROR: Username is required.")
-            elif len(new_user) > 64 or (new_pass and len(new_pass) > 256):
+            elif not new_pass:
+                flash("ERROR: Password is required to create a new player.")
+            elif len(new_pass) < 8:
+                flash("ERROR: Password must be at least 8 characters.")
+            elif len(new_user) > 64 or len(new_pass) > 256:
                 flash("ERROR: Username must be <= 64 characters and password <= 256 characters.")
             else:
-                assigned_pass = generate_password_hash(new_pass) if new_pass else generate_password_hash('ShadowDrop2026!')
+                assigned_pass = generate_password_hash(new_pass)
                 existing = conn.execute("SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR (participant_id IS NOT NULL AND LOWER(participant_id) = LOWER(?))", (new_user, pid)).fetchone()
                 if existing:
                     flash(f"ERROR: A player with username '{new_user}' or ID '{pid}' already exists.")
@@ -1169,82 +1102,11 @@ def admin():
                     new_user_id = cur.lastrowid
                     conn.commit()
 
-                    squad_msg = ""
-                    if 'day2' in auth_levels:
-                        if day2_team_id and day2_team_id.isdigit():
-                            tid = int(day2_team_id)
-                            target_role = None
-                            if day2_role in ('navigator', 'cartographer'):
-                                target_role = day2_role
-                            else:
-                                has_nav = conn.execute("SELECT 1 FROM gauntlet_members WHERE team_id = ? AND role = 'navigator'", (tid,)).fetchone()
-                                if not has_nav:
-                                    target_role = 'navigator'
-                                else:
-                                    has_cart = conn.execute("SELECT 1 FROM gauntlet_members WHERE team_id = ? AND role = 'cartographer'", (tid,)).fetchone()
-                                    if not has_cart:
-                                        target_role = 'cartographer'
-                                    else:
-                                        target_role = 'navigator'
-
-                            if target_role:
-                                conn.execute("DELETE FROM gauntlet_members WHERE team_id = ? AND role = ?", (tid, target_role))
-                                conn.execute("INSERT OR REPLACE INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, ?)", (tid, new_user_id, target_role))
-                                conn.commit()
-                                t_row = conn.execute("SELECT team_name FROM gauntlet_teams WHERE id = ?", (tid,)).fetchone()
-                                t_name = t_row['team_name'] if t_row else f"Team #{tid}"
-                                squad_msg = f" (Assigned to {t_name} as {target_role.capitalize()})"
-                        else:
-                            team_res = gauntlet_engine.auto_assign_user_to_team(conn, new_user_id)
-                            if team_res:
-                                squad_msg = f" (Auto-assigned to {team_res.get('team_name')} as {team_res.get('role', '').capitalize()})"
-
                     level_names = []
-                    if 2 in auth_levels: level_names.append("Day 1 L2")
-                    if 3 in auth_levels: level_names.append("Day 1 L3")
-                    if 'day2' in auth_levels: level_names.append("Day 2 L2")
+                    if 2 in auth_levels: level_names.append("Day 1 Level 2")
+                    if 3 in auth_levels or 'day2' in auth_levels or 'day2-l1' in auth_levels: level_names.append("Day 2 Level 1")
                     auth_desc = ", ".join(level_names) if level_names else "None"
-                    flash(f"SUCCESS: Player '{new_user}' created successfully (Authorized: {auth_desc}){squad_msg}.")
-        elif action == 'assign_gauntlet_member':
-            user_id = request.form.get('user_id')
-            team_id = request.form.get('team_id')
-            role = request.form.get('role', 'auto').strip().lower()
-            if user_id and team_id and team_id.isdigit():
-                uid = int(user_id)
-                tid = int(team_id)
-                target_role = None
-                if role in ('navigator', 'cartographer'):
-                    target_role = role
-                else:
-                    has_nav = conn.execute("SELECT 1 FROM gauntlet_members WHERE team_id = ? AND role = 'navigator' AND user_id != ?", (tid, uid)).fetchone()
-                    if not has_nav:
-                        target_role = 'navigator'
-                    else:
-                        target_role = 'cartographer'
-                conn.execute("DELETE FROM gauntlet_members WHERE user_id = ?", (uid,))
-                conn.execute("DELETE FROM gauntlet_members WHERE team_id = ? AND role = ?", (tid, target_role))
-                conn.execute("INSERT INTO gauntlet_members (team_id, user_id, role) VALUES (?, ?, ?)", (tid, uid, target_role))
-
-                u_row = conn.execute("SELECT authorized_levels FROM users WHERE id = ?", (uid,)).fetchone()
-                if u_row:
-                    try:
-                        u_levels = json.loads(u_row['authorized_levels'] or '[]')
-                    except Exception:
-                        u_levels = []
-                    if 'day2' not in u_levels:
-                        u_levels.append('day2')
-                        conn.execute("UPDATE users SET authorized_levels = ? WHERE id = ?", (json.dumps(u_levels), uid))
-                conn.commit()
-                t_row = conn.execute("SELECT team_name FROM gauntlet_teams WHERE id = ?", (tid,)).fetchone()
-                t_name = t_row['team_name'] if t_row else f"Team #{tid}"
-                flash(f"Player #{uid} successfully assigned to {t_name} as {target_role.capitalize()}.")
-
-        elif action == 'remove_gauntlet_member':
-            user_id = request.form.get('user_id')
-            if user_id:
-                conn.execute("DELETE FROM gauntlet_members WHERE user_id = ?", (user_id,))
-                conn.commit()
-                flash(f"Player #{user_id} unassigned from squad.")
+                    flash(f"SUCCESS: Player '{new_user}' created successfully (Authorized: {auth_desc}).")
 
         elif action == 'update_password':
             user_id = request.form.get('user_id')
@@ -1256,21 +1118,6 @@ def admin():
                 flash(f"Password updated successfully for player #{user_id}.")
             else:
                 flash("Password cannot be empty.")
-
-        elif action == 'update_gauntlet_score':
-            team_id = request.form.get('team_id')
-            p1 = int(request.form.get('phase1_score', 0) or 0)
-            duel = int(request.form.get('duel_score', 0) or 0)
-            shrine = int(request.form.get('shrine_score', 0) or 0)
-            lagoon = int(request.form.get('lagoon_score', 0) or 0)
-            if team_id:
-                conn.execute("""
-                    UPDATE gauntlet_teams 
-                    SET phase1_score = ?, duel_score = ?, shrine_score = ?, lagoon_score = ?
-                    WHERE id = ?
-                """, (p1, duel, shrine, lagoon, team_id))
-                conn.commit()
-                flash(f"Scores updated for Team #{team_id}.")
         elif action == 'update':
             user_id = request.form.get('user_id')
             new_points = request.form.get('points')
@@ -1303,12 +1150,12 @@ def admin():
             conn.commit()
             if new_val == '0':
                 try:
-                    c_ids = subprocess.check_output(["docker", "ps", "-q", "--filter", "name=jumanji_day1_level3_", "--filter", "name=jumanji_r3_"], text=True).split()
+                    c_ids = subprocess.check_output(["docker", "ps", "-q", "--filter", "name=jumanji_day2_level1_", "--filter", "name=jumanji_day1_level3_", "--filter", "name=jumanji_r3_"], text=True).split()
                     if c_ids:
                         subprocess.run(["docker", "rm", "-f"] + c_ids, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 except Exception:
                     pass
-            flash(f"Day 1 Level 3 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
+            flash(f"Day 2 Level 1 is now {'UNLOCKED' if new_val == '1' else 'LOCKED'}")
         elif action in ('toggle_level2', 'toggle_level1', 'toggle_round2'):
             current = conn.execute("SELECT value FROM global_settings WHERE key = 'level2_unlocked'").fetchone()
             cur_val = current['value'] if current else '0'
@@ -1342,7 +1189,7 @@ def admin():
                     new_stat = 'active' if (cur_stat and cur_stat['level3_status'] == 'suspended') else 'suspended'
                     conn.execute("UPDATE users SET level3_status = ? WHERE id = ?", (new_stat, user_id))
                     conn.commit()
-                    flash(f"Day 1 Level 3 status updated to {new_stat.upper()} for player #{user_id}.")
+                    flash(f"Day 2 Level 1 status updated to {new_stat.upper()} for player #{user_id}.")
                 else:
                     cur_stat = conn.execute("SELECT level2_status, status FROM users WHERE id = ?", (user_id,)).fetchone()
                     cur_val = (cur_stat['level2_status'] or cur_stat['status']) if cur_stat else 'active'
@@ -1357,7 +1204,7 @@ def admin():
                 if level_num in ('3', 'round3', 'level3'):
                     conn.execute("UPDATE users SET level3_start_time = NULL, level3_status = 'active', has_seen_l3_intro = 0 WHERE id = ?", (user_id,))
                     conn.commit()
-                    flash(f"Day 1 Level 3 timer reset for player #{user_id}. Ready for fresh session.")
+                    flash(f"Day 2 Level 1 timer reset for player #{user_id}. Ready for fresh session.")
                 else:
                     conn.execute("UPDATE users SET level2_start_time = NULL, start_time = NULL, level2_status = 'active', status = 'active', has_seen_l2_intro = 0, has_seen_intro = 0 WHERE id = ?", (user_id,))
                     conn.commit()
@@ -1372,60 +1219,6 @@ def admin():
     day1_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day1_visible'").fetchone()['value'] == '1'
     day2_visible = conn.execute("SELECT value FROM global_settings WHERE key = 'day2_visible'").fetchone()['value'] == '1'
 
-    # Fetch all Gauntlet teams and their assigned members for Day 2 Level 2 Leaderboard
-    gauntlet_teams_rows = conn.execute("""
-        SELECT id, team_name, access_code, pod_id, phase, 
-               phase1_score, duel_score, shrine_score, lagoon_score,
-               (phase1_score + duel_score + shrine_score + lagoon_score) as total_gauntlet_score,
-               is_active
-        FROM gauntlet_teams
-        ORDER BY total_gauntlet_score DESC, id ASC
-    """).fetchall()
-
-    member_rows = conn.execute("""
-        SELECT m.id as member_id, m.team_id, m.user_id, m.role,
-               u.username, u.participant_id, u.name, u.email, u.status, u.role as user_role,
-               u.level2_points, u.level3_points
-        FROM gauntlet_members m
-        JOIN users u ON m.user_id = u.id
-        ORDER BY m.team_id ASC, m.role ASC
-    """).fetchall()
-
-    members_by_team = {}
-    for m in member_rows:
-        tid = m['team_id']
-        if tid not in members_by_team:
-            members_by_team[tid] = {'navigator': None, 'cartographer': None, 'members': []}
-        m_dict = dict(m)
-        members_by_team[tid]['members'].append(m_dict)
-        if m['role'] == 'navigator':
-            members_by_team[tid]['navigator'] = m_dict
-        elif m['role'] == 'cartographer':
-            members_by_team[tid]['cartographer'] = m_dict
-
-    gauntlet_squads = []
-    for t in gauntlet_teams_rows:
-        t_dict = dict(t)
-        t_info = members_by_team.get(t['id'], {'navigator': None, 'cartographer': None, 'members': []})
-        t_dict['navigator'] = t_info['navigator']
-        t_dict['cartographer'] = t_info['cartographer']
-        t_dict['members'] = t_info['members']
-        gauntlet_squads.append(t_dict)
-
-    gauntlet_players = conn.execute("""
-        SELECT u.id, u.username, u.participant_id, u.name, u.email, u.role, u.authorized_levels,
-               m.team_id, m.role as squad_role, t.team_name, t.pod_id
-        FROM users u
-        LEFT JOIN gauntlet_members m ON u.id = m.user_id
-        LEFT JOIN gauntlet_teams t ON m.team_id = t.id
-        WHERE u.role != 'admin'
-        ORDER BY CASE WHEN m.team_id IS NOT NULL THEN 0 ELSE 1 END, u.id ASC
-    """).fetchall()
-
-    all_teams = conn.execute("SELECT id, team_name, pod_id FROM gauntlet_teams ORDER BY id ASC").fetchall()
-    current_phase_row = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()
-    gauntlet_phase = current_phase_row['value'] if current_phase_row else 'phase1_pods'
-    assigned_count = conn.execute("SELECT COUNT(*) as cnt FROM gauntlet_members").fetchone()['cnt']
     conn.close()
 
     current_time = get_utc_now()
@@ -1488,12 +1281,7 @@ def admin():
         round2_unlocked=level2_unlocked,
         round3_unlocked=level3_unlocked,
         day1_visible=day1_visible,
-        day2_visible=day2_visible,
-        gauntlet_squads=gauntlet_squads,
-        gauntlet_players=gauntlet_players,
-        all_teams=all_teams,
-        gauntlet_phase=gauntlet_phase,
-        gauntlet_assigned_count=assigned_count
+        day2_visible=day2_visible
     )
 
 @app.route('/admin/sync-sdc-roster', methods=['POST'])
@@ -1508,9 +1296,11 @@ def sync_sdc_roster():
         if res.returncode == 0:
             flash("Successfully synced roster directly from MongoDB Atlas!")
         else:
-            flash(f"MongoDB roster sync failed: {res.stderr or res.stdout}")
+            print(f"[ERROR] MongoDB roster sync failed: {res.stderr or res.stdout}", file=sys.stderr)
+            flash("MongoDB roster sync encountered an error. Please inspect server logs or verify cluster network connectivity.")
     except Exception as e:
-        flash(f"Roster sync execution error: {e}")
+        print(f"[ERROR] Roster sync execution error: {e}", file=sys.stderr)
+        flash("Roster sync execution encountered a system error. Check server logs.")
     return redirect(url_for('admin'))
 
 def sanitize_csv_cell(val):
@@ -1545,6 +1335,8 @@ def export_scores_l2():
         headers={'Content-Disposition': 'attachment; filename=sdc_day1_level2_cybersec_scores.csv'}
     )
 
+@app.route('/admin/export-scores/day2-level1')
+@app.route('/admin/export-scores/day2_level1')
 @app.route('/admin/export-scores/level3')
 @app.route('/admin/export-scores/round3')
 def export_scores_l3():
@@ -1564,7 +1356,7 @@ def export_scores_l3():
     return Response(
         output.getvalue(),
         mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=sdc_day1_level3_cybersec_scores.csv'}
+        headers={'Content-Disposition': 'attachment; filename=sdc_day2_level1_cybersec_scores.csv'}
     )
 
 @app.route('/admin/export-scores/day1-all')
@@ -1573,7 +1365,7 @@ def export_day1_shortlist():
     if 'user_id' not in session or session.get('role') != 'admin':
         return redirect(url_for('login'))
     conn = get_db_connection()
-    # Export full Day 1 score matrix for SDC Games global aggregation
+    # Export full score matrix for SDC Games global aggregation
     users = conn.execute('''
         SELECT 
             participant_id, 
@@ -1594,7 +1386,7 @@ def export_day1_shortlist():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['rank', 'participantId', 'username', 'name', 'email', 'totalDay1CybersecScore', 'level2Score', 'level3Score', 'authorizedLevels', 'startTime', 'lastActive'])
+    writer.writerow(['rank', 'participantId', 'username', 'name', 'email', 'totalCybersecScore', 'day1Level2Score', 'day2Level1Score', 'authorizedLevels', 'startTime', 'lastActive'])
     for idx, u in enumerate(users, start=1):
         pid = sanitize_csv_cell(u['participant_id'] or u['username'])
         writer.writerow([
@@ -1614,66 +1406,7 @@ def export_day1_shortlist():
     return Response(
         output.getvalue(),
         mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=sdc_day1_cybersec_score_matrix.csv'}
-    )
-
-@app.route('/admin/export-gauntlet-finalists')
-def export_gauntlet_finalists():
-    if 'user_id' not in session or session.get('role') != 'admin':
-        return redirect(url_for('login'))
-    conn = get_db_connection()
-    # Top 4 teams from Gauntlet tournament (4 teams x 2 members = 8 finalists for Coding)
-    teams = conn.execute('''
-        SELECT 
-            id, 
-            team_name, 
-            pod_id, 
-            (phase1_score + duel_score + shrine_score + lagoon_score) as total_gauntlet_score,
-            phase1_score,
-            duel_score,
-            shrine_score,
-            lagoon_score
-        FROM gauntlet_teams 
-        ORDER BY total_gauntlet_score DESC, id ASC 
-        LIMIT 4
-    ''').fetchall()
-
-    members = conn.execute('''
-        SELECT m.team_id, m.user_id, m.role, u.username, u.participant_id, u.email, u.name
-        FROM gauntlet_members m
-        JOIN users u ON m.user_id = u.id
-    ''').fetchall()
-    conn.close()
-
-    members_by_team = {}
-    for m in members:
-        members_by_team.setdefault(m['team_id'], []).append(m)
-
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['teamRank', 'teamName', 'podId', 'totalGauntletScore', 'playerRole', 'participantId', 'username', 'fullName', 'email'])
-    for idx, t in enumerate(teams, start=1):
-        t_members = members_by_team.get(t['id'], [])
-        if not t_members:
-            writer.writerow([idx, sanitize_csv_cell(t['team_name']), sanitize_csv_cell(t['pod_id']), t['total_gauntlet_score'], 'team_representative', '', '', '', ''])
-        else:
-            for m in t_members:
-                writer.writerow([
-                    idx,
-                    sanitize_csv_cell(t['team_name']),
-                    sanitize_csv_cell(t['pod_id']),
-                    t['total_gauntlet_score'],
-                    sanitize_csv_cell(m['role']),
-                    sanitize_csv_cell(m['participant_id'] or m['username']),
-                    sanitize_csv_cell(m['username']),
-                    sanitize_csv_cell(m['name'] or ''),
-                    sanitize_csv_cell(m['email'] or '')
-                ])
-
-    return Response(
-        output.getvalue(),
-        mimetype='text/csv',
-        headers={'Content-Disposition': 'attachment; filename=sdc_gauntlet_top4_teams_8finalists.csv'}
+        headers={'Content-Disposition': 'attachment; filename=sdc_cybersec_score_matrix.csv'}
     )
 
 @app.route('/api/admin/user/<int:user_id>/flags', methods=['GET'])
@@ -1763,8 +1496,10 @@ def reset_level2_intro():
         conn.close()
     return jsonify({'status': 'success'})
 
+@app.route('/day2/level1')
+@app.route('/day2_level1')
 @app.route('/level3')
-def level3():
+def day2_level1():
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
@@ -1787,8 +1522,8 @@ def level3():
         time_elapsed = (get_utc_now() - start_time).total_seconds()
         remaining_seconds = max(0, 3600 - time_elapsed)
     
-    solved_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_user', 'level2_user', 'round3_user')", (session['user_id'],)).fetchone() is not None
-    solved_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('level3_root', 'level2_root', 'round3_root')", (session['user_id'],)).fetchone() is not None
+    solved_user = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_user', 'level3_user', 'level2_user', 'round3_user')", (session['user_id'],)).fetchone() is not None
+    solved_root = conn.execute("SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ('day2_level1_root', 'level3_root', 'level2_root', 'round3_root')", (session['user_id'],)).fetchone() is not None
     
     conn.close()
     seen_intro = 1 if user['has_seen_l3_intro'] else 0
@@ -1805,15 +1540,18 @@ def level3():
         has_seen_r3_intro=seen_intro
     )
 
+level3 = day2_level1
+
 @app.route('/round3')
 def round3():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    return redirect(url_for('level3'))
+    return redirect(url_for('day2_level1'))
 
+@app.route('/api/start_day2_level1', methods=['POST'])
 @app.route('/api/start_level3', methods=['POST'])
 @app.route('/api/start_r3', methods=['POST'])
-def start_level3():
+def start_day2_level1():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
     conn = get_db_connection()
@@ -1828,9 +1566,12 @@ def start_level3():
     conn.close()
     return jsonify({'status': 'success'})
 
+start_level3 = start_day2_level1
+
+@app.route('/reset_day2_level1_intro', methods=['POST'])
 @app.route('/reset_level3_intro', methods=['POST'])
 @app.route('/reset_r3_intro', methods=['POST'])
-def reset_level3_intro():
+def reset_day2_level1_intro():
     if 'user_id' in session:
         conn = get_db_connection()
         conn.execute("UPDATE users SET has_seen_l3_intro = 0 WHERE id = ?", (session['user_id'],))
@@ -1838,12 +1579,16 @@ def reset_level3_intro():
         conn.close()
     return jsonify({'status': 'success'})
 
+reset_level3_intro = reset_day2_level1_intro
+
 SCORE_MATRIX = {
     'bravestone': 20,
     'oberon': 25,
     'finbar': 25,
     'ruby': 30,
     'seaplane': 50,
+    'day2_level1_user': 80,
+    'day2_level1_root': 120,
     'level3_user': 80,
     'level3_root': 120,
     'level2_user': 80,
@@ -1857,12 +1602,12 @@ import hashlib
 def generate_dynamic_flag(user_id, avatar_id):
     secret = CTF_MASTER_SECRET
     
-    if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
+    if avatar_id in ('day2_level1_user', 'level3_user', 'level2_user', 'round3_user'):
         hash_input = f"{user_id}:user:{secret}"
         hex_digest = hashlib.md5(hash_input.encode()).hexdigest()[:8]
         return f"OVERRIDE-USER-{hex_digest}"
     
-    if avatar_id in ('level3_root', 'level2_root', 'round3_root'):
+    if avatar_id in ('day2_level1_root', 'level3_root', 'level2_root', 'round3_root'):
         hash_input = f"{user_id}:root:{secret}"
         hex_digest = hashlib.md5(hash_input.encode()).hexdigest()[:8]
         return f"OVERRIDE-ROOT-{hex_digest}"
@@ -1951,7 +1696,7 @@ def submit_score():
     avatar_id = data.get('avatar_id')
     submitted_flag = data.get('flag', '').strip()
     
-    if avatar_id in ('level3', 'level2', 'round3', 'level2_mainframe'):
+    if avatar_id in ('day2_level1', 'day2_l1', 'level3', 'level2', 'round3', 'level2_mainframe'):
         expected_user = generate_dynamic_flag(user_id, 'level3_user')
         expected_root = generate_dynamic_flag(user_id, 'level3_root')
         if submitted_flag == expected_user:
@@ -1975,7 +1720,7 @@ def submit_score():
     if avatar_id not in SCORE_MATRIX:
         return jsonify({'error': 'Invalid checkpoint'}), 400
         
-    is_level3 = avatar_id in ['level3_user', 'level3_root', 'level2_user', 'level2_root', 'round3_user', 'round3_root']
+    is_level3 = avatar_id in ['day2_level1_user', 'day2_level1_root', 'level3_user', 'level3_root', 'level2_user', 'level2_root', 'round3_user', 'round3_root']
     target_lvl = 3 if is_level3 else 2
     allowed, err_msg = check_level_access(user_id, target_lvl, is_submission=True)
     if not allowed and session.get('role') != 'admin':
@@ -1989,17 +1734,17 @@ def submit_score():
     
     # Normalize canonical checkpoint ID to eliminate alias race condition bypasses
     canonical_id = avatar_id
-    if avatar_id in ('level3_user', 'level2_user', 'round3_user'):
+    if avatar_id in ('day2_level1_user', 'level3_user', 'level2_user', 'round3_user'):
         canonical_id = 'level3_user'
-    elif avatar_id in ('level3_root', 'level2_root', 'round3_root'):
+    elif avatar_id in ('day2_level1_root', 'level3_root', 'level2_root', 'round3_root'):
         canonical_id = 'level3_root'
 
     conn = get_db_connection()
     alias_ids = [canonical_id]
     if canonical_id == 'level3_user':
-        alias_ids = ['level3_user', 'level2_user', 'round3_user']
+        alias_ids = ['day2_level1_user', 'level3_user', 'level2_user', 'round3_user']
     elif canonical_id == 'level3_root':
-        alias_ids = ['level3_root', 'level2_root', 'round3_root']
+        alias_ids = ['day2_level1_root', 'level3_root', 'level2_root', 'round3_root']
 
     placeholders = ', '.join(['?'] * len(alias_ids))
     solved = conn.execute(f"SELECT 1 FROM solved_challenges WHERE user_id = ? AND challenge_id IN ({placeholders})", [user_id] + alias_ids).fetchone()
@@ -2059,8 +1804,10 @@ def submit_score():
     return jsonify({'status': 'success', 'points_awarded': points_to_add, 'total_points': new_points})
 
 @app.route('/day2/level2')
-def day2_level2():
-    return gauntlet()
+@app.route('/gauntlet')
+def legacy_gauntlet_redirect():
+    flash("Day 2 Level 2 is not currently active.")
+    return redirect(url_for('hub'))
 
 @app.route('/logout')
 def logout():
@@ -2099,295 +1846,29 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# --- JUMANJI GAUNTLET MASTER TOURNAMENT ROUTES ---
-
-@app.route('/gauntlet')
-def gauntlet():
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-        
-    allowed, err_msg = check_level_access(session['user_id'], 'day2')
-    if not allowed and session.get('role') != 'admin':
-        flash(err_msg)
-        return redirect(url_for('hub'))
-    conn = get_db_connection()
-    team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
-    if not team:
-        team = gauntlet_engine.auto_assign_user_to_team(conn, session['user_id'])
-    if not team:
-        conn.close()
-        flash("Day 2 Level 2 (The Jumanji Gauntlet) is strictly limited to 32 players (16 squads of 2 players). The tournament roster is currently full.")
-        return redirect(url_for('hub'))
-        
-    current_phase = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
-    active_relics = gauntlet_engine.PHASE_RELICS.get(current_phase, gauntlet_engine.PHASE_RELICS['phase1_pods'])
-    
-    solved_rows = conn.execute("SELECT relic_id FROM gauntlet_solved_relics WHERE team_id = ?", (team['id'],)).fetchall()
-    solved_ids = [r['relic_id'] for r in solved_rows]
-    
-    curse_inventory = conn.execute("SELECT * FROM gauntlet_curse_inventory WHERE team_id = ? AND is_used = 0", (team['id'],)).fetchall()
-    active_curses = gauntlet_engine.get_active_curses_for_team(conn, team['id'])
-    
-    active_match_id = 1
-    if current_phase == 'phase2_duels':
-        m_row = conn.execute("SELECT id FROM gauntlet_matches WHERE (team_a_id = ? OR team_b_id = ?) AND status = 'active' LIMIT 1", (team['id'], team['id'])).fetchone()
-        if m_row:
-            active_match_id = m_row['id']
-
-    cart_keys = {}
-    for r_id in active_relics.keys():
-        cart_keys[r_id] = gauntlet_engine.generate_split_keys(team['id'], active_match_id, r_id)['cart_part']
-        
-    conn.close()
-    return render_template(
-        'gauntlet_hud.html',
-        team=team,
-        current_phase=current_phase,
-        active_relics=active_relics,
-        solved_ids=solved_ids,
-        curse_inventory=curse_inventory,
-        active_curses=active_curses,
-        cart_keys=cart_keys
-    )
-
-@app.route('/gauntlet/bracket')
-def gauntlet_bracket():
-    conn = get_db_connection()
-    current_phase = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
-    teams = conn.execute("SELECT * FROM gauntlet_teams ORDER BY (phase1_score + duel_score + shrine_score + lagoon_score) DESC, id ASC").fetchall()
-    
-    matches_raw = conn.execute('''
-        SELECT m.*, ta.team_name as team_a_name, tb.team_name as team_b_name
-        FROM gauntlet_matches m
-        JOIN gauntlet_teams ta ON m.team_a_id = ta.id
-        JOIN gauntlet_teams tb ON m.team_b_id = tb.id
-        WHERE m.phase = ?
-    ''', (current_phase if current_phase in ['phase2_duels', 'phase4_final'] else 'phase2_duels',)).fetchall()
-    
-    shrine_ruler_id = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'shrine_active_team'").fetchone()['value']
-    shrine_ruler = None
-    if shrine_ruler_id and shrine_ruler_id.isdigit():
-        r = conn.execute("SELECT team_name FROM gauntlet_teams WHERE id = ?", (int(shrine_ruler_id),)).fetchone()
-        if r:
-            shrine_ruler = r['team_name']
-    shrine_ticks_count = conn.execute("SELECT COUNT(*) as cnt FROM gauntlet_shrine_ticks").fetchone()['cnt']
-    lagoon_teams = conn.execute("SELECT * FROM gauntlet_teams WHERE phase = 'lagoon' ORDER BY lagoon_score DESC").fetchall()
-    conn.close()
-    
-    return render_template(
-        'gauntlet_bracket.html',
-        current_phase=current_phase,
-        teams=teams,
-        matches=matches_raw,
-        active_shrine_ruler=shrine_ruler,
-        shrine_ticks_count=shrine_ticks_count,
-        lagoon_teams=lagoon_teams
-    )
-
-@app.route('/gauntlet/relic/solve', methods=['POST'])
-def gauntlet_relic_solve():
-    data = request.get_json() or {}
-    token = data.get('token')
-    
-    token_info = get_token_info(token) if token else None
-    if token:
-        if not token_info:
-            return jsonify({'status': 'error', 'error': 'Submission token expired or invalid. Please refresh your session.'}), 401
-        user_id = token_info['user_id']
-    elif 'user_id' in session:
-        user_id = session['user_id']
-    else:
-        return jsonify({'status': 'error', 'error': 'Authentication required'}), 401
-
-    if is_submission_rate_limited(f"gauntlet_{user_id}", max_attempts=30, window_sec=60):
-        return jsonify({'status': 'error', 'error': 'Submission rate limit exceeded. Please wait a moment.'}), 429
-
-    data = request.get_json() or {}
-    flag = data.get('flag', '').strip()
-    part2 = data.get('part2', '').strip()
-    team_id = data.get('team_id')
-    
-    conn = get_db_connection()
-    t = gauntlet_engine.get_team_for_user(conn, user_id)
-    if session.get('role') != 'admin':
-        if not t:
-            conn.close()
-            return jsonify({'status': 'error', 'error': 'User not assigned to any team'}), 403
-        if team_id and int(team_id) != t['id']:
-            conn.close()
-            return jsonify({'status': 'error', 'error': 'Unauthorized team operation'}), 403
-        team_id = t['id']
-    else:
-        if not team_id and t:
-            team_id = t['id']
-            
-    if not team_id:
-        conn.close()
-        return jsonify({'status': 'error', 'error': 'Missing team identifier'}), 400
-        
-    res = gauntlet_engine.verify_relic_submission(conn, team_id, flag, part2, user_id)
-    conn.close()
-    
-    if res.get('status') == 'success':
-        socketio.emit('gauntlet-sync', {'team_id': team_id, 'relic_id': res.get('relic_id'), 'points': res.get('points_awarded')})
-        
-        pass
-        
-    return jsonify(res)
-
-@app.route('/gauntlet/curse/cast', methods=['POST'])
-def gauntlet_curse_cast():
-    user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'status': 'error', 'error': 'Authentication required'}), 401
-
-    data = request.get_json() or {}
-    team_id = data.get('team_id')
-    curse_type = data.get('curse_type')
-    target_id = data.get('target_team_id')
-    
-    conn = get_db_connection()
-    t = gauntlet_engine.get_team_for_user(conn, user_id)
-    if session.get('role') != 'admin':
-        if not t:
-            conn.close()
-            return jsonify({'status': 'error', 'error': 'User not assigned to any team'}), 403
-        if team_id and int(team_id) != t['id']:
-            conn.close()
-            return jsonify({'status': 'error', 'error': 'Unauthorized team operation'}), 403
-        team_id = t['id']
-    else:
-        if not team_id and t:
-            team_id = t['id']
-            
-    if not team_id or not curse_type or curse_type not in gauntlet_engine.CURSE_CONFIG:
-        conn.close()
-        return jsonify({'status': 'error', 'error': 'Invalid team_id or unsupported curse_type'}), 400
-        
-    res = gauntlet_engine.cast_curse(conn, team_id, curse_type, target_id)
-    conn.close()
-    
-    if res.get('status') == 'success':
-        socketio.emit('curse-alert', res)
-        
-    return jsonify(res)
-
-@app.route('/admin/gauntlet')
-def gauntlet_admin():
-    if session.get('role') != 'admin':
-        return redirect(url_for('login'))
-        
-    conn = get_db_connection()
-    current_phase = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
-    teams_raw = conn.execute("SELECT * FROM gauntlet_teams ORDER BY id ASC").fetchall()
-    member_rows = conn.execute("""
-        SELECT m.team_id, m.user_id, m.role, u.username, u.participant_id
-        FROM gauntlet_members m
-        JOIN users u ON m.user_id = u.id
-    """).fetchall()
-    members_by_team = {}
-    for m in member_rows:
-        tid = m['team_id']
-        if tid not in members_by_team:
-            members_by_team[tid] = {'navigator': None, 'cartographer': None}
-        if m['role'] in ('navigator', 'cartographer'):
-            members_by_team[tid][m['role']] = dict(m)
-
-    teams = []
-    for t in teams_raw:
-        td = dict(t)
-        td['navigator'] = members_by_team.get(t['id'], {}).get('navigator')
-        td['cartographer'] = members_by_team.get(t['id'], {}).get('cartographer')
-        teams.append(td)
-    
-    active_curses_raw = conn.execute('''
-        SELECT c.*, ta.team_name as from_name, tb.team_name as target_name
-        FROM gauntlet_curses c
-        JOIN gauntlet_teams ta ON c.from_team_id = ta.id
-        JOIN gauntlet_teams tb ON c.to_team_id = tb.id
-        WHERE c.is_active = 1
-        ORDER BY c.id DESC
-    ''').fetchall()
-    
-    shrine_active = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'shrine_active_team'").fetchone()['value']
-    top_4_teams = gauntlet_engine.get_top_4_teams(conn)
-    assigned_count = conn.execute("SELECT COUNT(*) as cnt FROM gauntlet_members").fetchone()['cnt']
-    conn.close()
-    
-    return render_template(
-        'gauntlet_admin.html',
-        current_phase=current_phase,
-        teams=teams,
-        active_curses=active_curses_raw,
-        active_shrine_team_id=shrine_active,
-        top_4_teams=top_4_teams,
-        assigned_count=assigned_count
-    )
-
-@app.route('/admin/gauntlet/action', methods=['POST'])
-def gauntlet_admin_action():
-    if session.get('role') != 'admin':
-        return jsonify({'error': 'Unauthorized'}), 401
-        
-    action = request.form.get('action')
-    conn = get_db_connection()
-    
-    if action == 'set_phase':
-        target = request.form.get('target_phase')
-        gauntlet_engine.advance_tournament_phase(conn, target)
-        flash(f"Tournament phase updated to: {target.upper()}")
-        socketio.emit('gauntlet-sync', {'phase': target})
-    elif action == 'reset_gauntlet':
-        conn.execute("UPDATE gauntlet_teams SET phase = 'phase1_pods', phase1_score = 0, duel_score = 0, shrine_score = 0, lagoon_score = 0")
-        conn.execute("DELETE FROM gauntlet_matches")
-        conn.execute("DELETE FROM gauntlet_curses")
-        conn.execute("DELETE FROM gauntlet_curse_inventory")
-        conn.execute("DELETE FROM gauntlet_shrine_ticks")
-        conn.execute("DELETE FROM gauntlet_solved_relics")
-        conn.execute("UPDATE gauntlet_settings SET value = 'phase1_pods' WHERE key = 'gauntlet_phase'")
-        conn.execute("UPDATE gauntlet_settings SET value = '' WHERE key = 'shrine_active_team'")
-        conn.commit()
-        flash("All tournament scores, brackets, and curses have been reset.")
-        socketio.emit('gauntlet-sync', {'phase': 'phase1_pods', 'reset': True})
-    elif action == 'seed_teams':
-        gauntlet_engine.seed_default_teams(conn)
-        flash("Tournament roster re-seeded with 16 squads.")
-    elif action == 'set_shrine_ruler':
-        t_id = request.form.get('team_id')
-        gauntlet_engine.record_shrine_claim(conn, t_id)
-        flash("Throne ruler successfully reassigned.")
-        socketio.emit('shrine-pulse', {'team_id': t_id})
-    elif action == 'dismiss_curse':
-        c_id = request.form.get('curse_id')
-        conn.execute("UPDATE gauntlet_curses SET is_active = 0 WHERE id = ?", (c_id,))
-        conn.commit()
-        flash(f"Curse #{c_id} dismissed.")
-        
-    conn.close()
-    return redirect(url_for('gauntlet_admin'))
-
-def process_gauntlet_shrine_ticks():
-    while True:
-        try:
-            conn = get_db_connection()
-            phase = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
-            if phase == 'phase3_shrine':
-                tick_res = gauntlet_engine.tick_shrine(conn)
-                if tick_res:
-                    socketio.emit('shrine-pulse', tick_res)
-            conn.close()
-        except Exception:
-            pass
-        socketio.sleep(20)
-
 # --- Web Shell PTY Logic ---
 
 clients = {}
+pending_pty_sizes = {}
 
 @socketio.on('start-pty')
 def start_pty(data):
     sid = request.sid
-    avatar_id = data.get('avatar_id', 'bravestone')
+    avatar_id = data.get('avatar_id', 'bravestone') if isinstance(data, dict) else 'bravestone'
+    
+    # Extract client terminal dimensions if provided
+    try:
+        req_cols = int(data.get('cols')) if isinstance(data, dict) and data.get('cols') else None
+        req_rows = int(data.get('rows')) if isinstance(data, dict) and data.get('rows') else None
+    except (ValueError, TypeError):
+        req_cols, req_rows = None, None
+
+    # Check pending_pty_sizes or fallback to client values or standard widescreen terminal defaults
+    cached_cols, cached_rows = pending_pty_sizes.pop(sid, (None, None))
+    cols = cached_cols or req_cols or 120
+    rows = cached_rows or req_rows or 30
+    cols = max(40, min(cols, 300))
+    rows = max(10, min(rows, 100))
     
     session_id = session.get('user_id')
     if not session_id:
@@ -2395,10 +1876,9 @@ def start_pty(data):
         return
 
     # Standardize container and environment mapping by Level
-    is_gauntlet = (avatar_id in ['gauntlet', 'day2_level2', 'day2'])
-    is_level3 = (avatar_id in ['level3', 'round3'])
+    is_level3 = (avatar_id in ['level3', 'round3', 'day2_level1', 'day2_l1', 'day2-l1'])
 
-    target_lvl = 3 if is_level3 else ('day2' if is_gauntlet else 2)
+    target_lvl = 3 if is_level3 else 2
     allowed, err_msg = check_level_access(session_id, target_lvl)
     if not allowed and session.get('role') != 'admin':
         socketio.emit('pty-output', {'output': f'\r\n\x1b[31;1m[SECURITY BLOCK] {err_msg}\x1b[0m\r\n'}, room=sid)
@@ -2428,51 +1908,30 @@ def start_pty(data):
             prune_internal_tokens(s)
         
     master_fd, slave_fd = pty.openpty()
+    try:
+        winsz = struct.pack("HHHH", rows, cols, 0, 0)
+        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsz)
+        fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsz)
+    except Exception:
+        pass
+
     raw_username = session.get('username', 'player')
     username = re.sub(r'[^a-zA-Z0-9_\-]', '', raw_username) or 'player'
     
     docker_mounts = []
     docker_extra_env = []
     
-    if is_gauntlet:
-        conn = get_db_connection()
-        team = gauntlet_engine.get_team_for_user(conn, session_id)
-        if not team:
-            team = gauntlet_engine.auto_assign_user_to_team(conn, session_id)
-        if not team:
-            conn.close()
-            socketio.emit('pty-output', {'output': '\r\n\x1b[31;1m[-] Access Denied: The Gauntlet tournament roster is strictly limited to 32 players (16 squads of 2 players). Roster is currently full.\x1b[0m\r\n'}, room=sid)
-            return
-        current_ph = conn.execute("SELECT value FROM gauntlet_settings WHERE key = 'gauntlet_phase'").fetchone()['value']
-        conn.close()
-        
-        t_id = team['id']
-        t_name = team['team_name']
-        t_role = team.get('role', 'navigator')
-        clean_tname = re.sub(r'[^a-zA-Z0-9_\-]', '', t_name.lower().replace(' ', '-')) or 'team'
-        
-        container_name = f"jumanji_day2_level2_{session_id}_{sid}"
-        image_name = "jumanji-gauntlet:latest"
-        docker_mounts = []
-        docker_extra_env = [
-            "-e", f"TEAM_ID={t_id}",
-            "-e", f"TEAM_NAME={t_name}",
-            "-e", f"TEAM_ROLE={t_role}",
-            "-e", f"PHASE={current_ph}"
-        ]
-        init_cmd = f"sudo -E /usr/local/bin/setup_gauntlet.sh && echo -e \"PS1='{username}@{clean_tname}-day2-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
-        working_dir = "/gauntlet"
-    elif is_level3:
-        container_name = f"jumanji_day1_level3_{session_id}_{sid}"
-        image_name = "jumanji-level3:latest"
-        working_dir = "/level3"
-        init_cmd = f"(sudo -E /usr/local/bin/setup_level3.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level2.sh) && echo -e \"PS1='{username}@sdc-day1-level3:\\\\w\\\\$ '\\nenable -n complete\\nenable -n deploy_override\" > ~/.bashrc && exec bash"
+    if is_level3:
+        container_name = f"jumanji_day2_level1_{session_id}_{sid}"
+        image_name = "jumanji-day2-level1:latest"
+        working_dir = "/level1"
+        init_cmd = f"(sudo -E /usr/local/bin/setup_level1.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level3.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level2.sh) && echo -e \"shopt -s checkwinsize\\nexport TERM=xterm-256color\\nPS1='{username}@sdc-day2-level1:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
     else:
         # Day 1 Level 2 (Avatar Reconnaissance)
         container_name = f"jumanji_day1_level2_{session_id}_{sid}"
         image_name = "jumanji-level2:latest"
         working_dir = f"/{avatar_id}" if avatar_id in ['bravestone', 'oberon', 'finbar', 'ruby', 'seaplane'] else "/bravestone"
-        init_cmd = f"(sudo -E /usr/local/bin/setup_level2.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level1.sh) && echo -e \"PS1='{username}@sdc-day1-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
+        init_cmd = f"(sudo -E /usr/local/bin/setup_level2.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level1.sh) && echo -e \"shopt -s checkwinsize\\nexport TERM=xterm-256color\\nPS1='{username}@sdc-day1-level2:\\\\w\\\\$ '\\nenable -n complete\" > ~/.bashrc && exec bash"
     
     # Prune any previous container for this user/sid
     try:
@@ -2490,6 +1949,7 @@ def start_pty(data):
         f"jumanji_day1_level1_{session_id}_{sid}",
         f"jumanji_day1_level2_{session_id}_{sid}",
         f"jumanji_day1_level3_{session_id}_{sid}",
+        f"jumanji_day2_level1_{session_id}_{sid}",
         f"jumanji_day2_level2_{session_id}_{sid}",
         f"jumanji_r2_{session_id}_{sid}",
         f"jumanji_r3_{session_id}_{sid}",
@@ -2509,6 +1969,8 @@ def start_pty(data):
         "-e", f"PLAYER_ID={session_id}",
         "-e", f"PLAYER_USERNAME={username}",
         "-e", "TERM=xterm-256color",
+        "-e", f"COLUMNS={cols}",
+        "-e", f"LINES={rows}",
         "--add-host=host.docker.internal:host-gateway",
         "-w", working_dir,
         image_name, "bash", "-c", init_cmd
@@ -2532,6 +1994,14 @@ def start_pty(data):
         'container_name': container_name,
         'user_id': session_id
     }
+    
+    # If a resize arrived while docker was spawning, apply immediately to master_fd
+    if sid in pending_pty_sizes:
+        p_cols, p_rows = pending_pty_sizes.pop(sid)
+        try:
+            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", p_rows, p_cols, 0, 0))
+        except Exception:
+            pass
     
     socketio.start_background_task(read_and_forward_pty, master_fd, sid)
 
@@ -2577,6 +2047,7 @@ def read_and_forward_pty(fd, sid):
             if text:
                 socketio.emit('pty-output', {'output': text}, room=sid)
     # Clean up when PTY session ends (unregister before closing so the fd number can't be read after reuse)
+    pending_pty_sizes.pop(sid, None)
     if sid in clients and clients[sid].get('fd') == fd:
         c = clients.pop(sid)
         close_pty_db(c)
@@ -2603,22 +2074,6 @@ def pty_input(data):
     c = clients.get(sid)
     if c is None:
         return
-    # Check if this user's team is under Quicksand curse
-    if 'user_id' in session:
-        try:
-            # One SQLite connection per PTY session instead of one per keystroke; autocommit reads still see fresh curses
-            conn = c.get('db')
-            if conn is None:
-                conn = c['db'] = get_db_connection()
-            team = gauntlet_engine.get_team_for_user(conn, session['user_id'])
-            if team:
-                active_curses = gauntlet_engine.get_active_curses_for_team(conn, team['id'])
-                for curse in active_curses:
-                    if curse['curse_type'] == 'quicksand':
-                        return  # Ignore input during quicksand freeze
-        except Exception:
-            pass
-
     try:
         os.write(c['fd'], data['input'].encode('utf-8'))
     except OSError:
@@ -2628,17 +2083,29 @@ def pty_input(data):
 @socketio.on('pty-resize')
 def handle_pty_resize(data):
     sid = request.sid
+    if not isinstance(data, dict):
+        return
+    try:
+        cols = int(data.get('cols', 80))
+        rows = int(data.get('rows', 24))
+    except (ValueError, TypeError):
+        return
+
+    cols = max(40, min(cols, 300))
+    rows = max(10, min(rows, 100))
+
     if sid in clients and 'fd' in clients[sid]:
         try:
-            cols = int(data.get('cols', 80))
-            rows = int(data.get('rows', 24))
             fcntl.ioctl(clients[sid]['fd'], termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
         except Exception:
             pass
+    else:
+        pending_pty_sizes[sid] = (cols, rows)
 
 @socketio.on('stop-pty')
 def handle_stop_pty():
     sid = request.sid
+    pending_pty_sizes.pop(sid, None)
     # Unregister first: docker calls below yield under gevent, and the reader must stop before the fd number is reused
     c = clients.pop(sid, None)
     if c:
@@ -2677,7 +2144,6 @@ def disconnect():
 if __name__ == '__main__':
     try:
         init_db()
-        socketio.start_background_task(process_gauntlet_shrine_ticks)
     except Exception as e:
         print("DB Init failed:", e)
     socketio.run(app, host='0.0.0.0', port=8080, debug=False)

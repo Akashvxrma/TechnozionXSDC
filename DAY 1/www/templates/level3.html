@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jumanji · Day 1 Level 3 Core</title>
+    <title>Jumanji · Day 2 Level 1 Core</title>
     <!-- Google Fonts -->
     <link rel="preload" href="/static/vendor/fonts/cinzel-8vIJ7ww63mVu7gt79mT7PkRXMw.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/static/vendor/fonts/sharetechmono-J7aHnp1uDWRBEqV98dVQztYldFcLowEFA87Heg.woff2" as="font" type="font/woff2" crossorigin>
@@ -430,6 +430,18 @@
             text-align: center;
         }
 
+        .guide-foot .plate {
+            white-space: normal;
+            font-size: 0.78rem;
+            text-align: center;
+            justify-content: center;
+            width: 100%;
+            letter-spacing: 0.04em;
+            line-height: 1.35;
+            padding: 6px 10px;
+            box-sizing: border-box;
+        }
+
         /* Guide Drawer Toggle Button */
         .guide-toggle-btn {
             display: none;
@@ -466,9 +478,9 @@
     <div class="crt-overlay" aria-hidden="true"></div>
 
     <!-- 1. Entry Screen (Parity with Level 1) -->
-    <div id="entry-screen" class="screen is-shown is-visible" role="button" tabindex="0" aria-label="Start Day 1 Level 3">
+    <div id="entry-screen" class="screen is-shown is-visible" role="button" tabindex="0" aria-label="Start Day 2 Level 1">
         <h1 class="carved entry__title">THE DEEP JUNGLE</h1>
-        <p class="entry__sub">Technozion X SDC Games · Day 1 · Level 3</p>
+        <p class="entry__sub">Technozion X SDC Games · Day 2 · Level 1</p>
         <p class="entry__press">Press any key or click to begin</p>
     </div>
 
@@ -491,7 +503,7 @@
 
             <div>
                 <div class="topbar__title carved">THE DEEP JUNGLE · MAINFRAME CORE</div>
-                <div class="topbar__sub">Day 1 · Level 3 · Sacred SQLite Records &amp; SUID Escalation</div>
+                <div class="topbar__sub">Day 2 · Level 1 · Sacred SQLite Records &amp; SUID Escalation</div>
             </div>
 
             <div class="row gap-2 push wrap">
@@ -564,7 +576,7 @@
                             <span class="stage-reward numeral">+80 PTS</span>
                         </div>
                         <p class="stage-desc">
-                            Query mainframe SQLite records in <code>/var/jumanji_mainframe</code> to extract the override token.
+                            Decouple the relational vault in <code>mainframe.db</code> (inspect <code>.env</code> & <code>parrish_journal.txt</code>) to reconstruct the active user override.
                         </p>
                         <div class="stage-cmd-row">
                             <code class="stage-cmd">deploy_override OVERRIDE-USER-...</code>
@@ -582,7 +594,7 @@
                             <span class="stage-reward numeral">+120 PTS</span>
                         </div>
                         <p class="stage-desc">
-                            Exploit the sacred SUID binary <code>/usr/local/bin/lift_curse</code> with the ancient chant to claim root authority.
+                            Lateralize to <code>jumanji_admin</code> via the maintenance auditor, then awaken the SUID sentinel <code>/home/jumanji_admin/lift_curse</code> to claim root authority.
                         </p>
                         <div class="stage-cmd-row">
                             <code class="stage-cmd">deploy_override OVERRIDE-ROOT-...</code>
@@ -597,16 +609,15 @@
                     <div class="radio-box">
                         <div class="radio-title">
                             <span>📻</span>
-                            <span>Field Radio Transmissions</span>
+                            <span>Field Radio & Expedition Lore</span>
                         </div>
                         <p class="radio-desc">
-                            Tune into Nigel Billingsley's radio guidance for hints and sanctuary directives:
+                            Tune into Nigel Billingsley's radio comms and read Alan Parrish's lost field journal (<code>cat parrish_journal.txt</code>) for critical navigation directives:
                         </p>
                         <div class="stage-cmd-row">
                             <code class="stage-cmd">nigel_comms</code>
                             <div class="stage-actions">
-                                <button type="button" class="action-chip" onclick="injectCommand('nigel_comms
-')">Run</button>
+                                <button type="button" class="action-chip" onclick="injectCommand('nigel_comms')">Run</button>
                                 <button type="button" class="action-chip" onclick="JX.copy(this, 'nigel_comms')">Copy</button>
                             </div>
                         </div>
@@ -708,9 +719,23 @@
         }
 
         // --- 3. Terminal Initialization ---
+        let termMountObserver = null;
+        let initialResizeSynced = false;
+
+        function termFit() {
+            if (!fitAddon || !term) return;
+            try {
+                fitAddon.fit();
+                if (socket && socket.connected && term.cols && term.rows) {
+                    socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
+                }
+            } catch (e) {}
+        }
+
         function initTerminal() {
             if (term) {
-                try { fitAddon.fit(); term.focus(); } catch (e) {}
+                termFit();
+                try { term.focus(); } catch (e) {}
                 return;
             }
 
@@ -739,13 +764,25 @@
             const mount = document.getElementById('terminal');
             if (mount) {
                 term.open(mount);
+
+                // Observe dynamic element resizes to auto-fit instantly
+                if (window.ResizeObserver) {
+                    if (termMountObserver) termMountObserver.disconnect();
+                    termMountObserver = new ResizeObserver(() => {
+                        window.requestAnimationFrame(() => termFit());
+                    });
+                    termMountObserver.observe(mount);
+                }
+
+                // If web fonts are still loading, refit once Share Tech Mono is active
+                if (document.fonts && document.fonts.ready) {
+                    document.fonts.ready.then(() => termFit());
+                }
+
                 setTimeout(() => {
-                    try {
-                        fitAddon.fit();
-                        term.focus();
-                        if (socket.connected) socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
-                    } catch (e) {}
-                }, 120);
+                    termFit();
+                    try { term.focus(); } catch (e) {}
+                }, 100);
             }
 
             term.onData(data => {
@@ -754,6 +791,10 @@
             });
 
             socket.on('pty-output', data => {
+                if (!initialResizeSynced) {
+                    initialResizeSynced = true;
+                    termFit();
+                }
                 term.write(data.output);
                 window.JX3D && JX3D.signal('telemetry');
             });
@@ -761,22 +802,26 @@
             socket.on('connect', () => window.JX3D && JX3D.signal('link', true));
             socket.on('disconnect', () => window.JX3D && JX3D.signal('link', false));
 
+            function dispatchStartPty() {
+                termFit();
+                socket.emit('start-pty', {
+                    avatar_id: 'level3',
+                    cols: term.cols || 120,
+                    rows: term.rows || 30
+                });
+            }
+
             if (socket.connected) {
-                socket.emit('start-pty', { avatar_id: 'level3' });
+                dispatchStartPty();
             } else {
                 socket.on('connect', () => {
-                    socket.emit('start-pty', { avatar_id: 'level3' });
+                    dispatchStartPty();
                 });
             }
         }
 
         window.addEventListener('resize', () => {
-            if (fitAddon) {
-                try {
-                    fitAddon.fit();
-                    if (term && socket.connected) socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
-                } catch (e) {}
-            }
+            termFit();
         });
 
         // --- 4. Countdown Timer (Parity with Level 1) ---

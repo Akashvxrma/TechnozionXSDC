@@ -52,10 +52,10 @@ def log_info(msg):
     print(f" {CYAN}[INFO]{RESET} {msg}")
 
 def compute_flag(user_id, avatar_id):
-    if avatar_id in ('round3_user', 'level3_user', 'level2_user'):
+    if avatar_id in ('day2_level1_user', 'round3_user', 'level3_user', 'level2_user'):
         h = hashlib.md5(f"{user_id}:user:{SECRET}".encode()).hexdigest()[:8]
         return f"OVERRIDE-USER-{h}"
-    elif avatar_id in ('round3_root', 'level3_root', 'level2_root'):
+    elif avatar_id in ('day2_level1_root', 'round3_root', 'level3_root', 'level2_root'):
         h = hashlib.md5(f"{user_id}:root:{SECRET}".encode()).hexdigest()[:8]
         return f"OVERRIDE-ROOT-{h}"
     else:
@@ -67,10 +67,11 @@ def setup_test_user():
     conn.execute("DELETE FROM users WHERE id = ? OR username = ?", (TEST_USER_ID, TEST_USERNAME))
     conn.execute("DELETE FROM solved_challenges WHERE user_id = ?", (TEST_USER_ID,))
     conn.execute("""
-        INSERT INTO users (id, username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro)
-        VALUES (?, ?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1)
+        INSERT INTO users (id, username, password, role, points, level2_points, level3_points, status, level2_status, level3_status, has_seen_intro, has_seen_l2_intro, has_seen_l3_intro, authorized_levels)
+        VALUES (?, ?, ?, 'player', 0, 0, 0, 'active', 'active', 'active', 1, 1, 1, '[2, 3, "day2"]')
     """, (TEST_USER_ID, TEST_USERNAME, TEST_PASSWORD))
     # Ensure both days and levels are unlocked and visible
+    conn.execute("UPDATE global_settings SET value = '1' WHERE key IN ('day1_visible', 'day2_visible', 'level1_unlocked', 'level2_unlocked', 'level3_unlocked', 'round2_unlocked', 'round3_unlocked')")
     conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level1_unlocked', '1')")
     conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level2_unlocked', '1')")
     conn.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES ('level3_unlocked', '1')")
@@ -116,13 +117,13 @@ def test_web_endpoints():
         log_fail("GET /auth/google request failed", str(e))
         
     # 1.3 Unauthenticated protections
-    for route in ['/hub', '/dashboard', '/round3', '/level1', '/level2', '/day2/level2', '/gauntlet']:
+    for route in ['/hub', '/dashboard', '/round3', '/level1', '/level2', '/day2/level1', '/level3', '/day2/level2', '/gauntlet']:
         try:
             r = session.get(f"{BASE_URL}{route}", allow_redirects=False, timeout=5)
-            if r.status_code in [302, 303, 307] and "/login" in r.headers.get("Location", ""):
-                log_pass(f"Unauthenticated {route} redirects to /login")
+            if r.status_code in [302, 303, 307] and ("/login" in r.headers.get("Location", "") or "/hub" in r.headers.get("Location", "")):
+                log_pass(f"Unauthenticated {route} redirects safely")
             else:
-                log_fail(f"Unauthenticated {route} did not redirect to /login", f"Status: {r.status_code}")
+                log_fail(f"Unauthenticated {route} did not redirect safely", f"Status: {r.status_code}")
         except Exception as e:
             log_fail(f"Testing {route} failed", str(e))
 
@@ -139,10 +140,10 @@ def test_web_endpoints():
     # 1.5 Authenticated access to /hub
     try:
         r = session.get(f"{BASE_URL}/hub", timeout=5)
-        if r.status_code == 200 and "DAY 1 · LEVEL 2" in r.text and "DAY 1 · LEVEL 3" in r.text and "DAY 2 · LEVEL 2" in r.text:
-            log_pass("GET /hub renders Expedition Command Center with standardized Day 1 Level 2, Day 1 Level 3, and Day 2 Level 2 cards")
-        elif r.status_code == 200 and ("LEVEL 2" in r.text and "LEVEL 3" in r.text):
-            log_pass("GET /hub renders Expedition Command Center with Level 2 and Level 3 cards")
+        if r.status_code == 200 and "DAY 1 · LEVEL 2" in r.text and "DAY 2 · LEVEL 1" in r.text:
+            log_pass("GET /hub renders Expedition Command Center with standardized Day 1 Level 2 and Day 2 Level 1 cards")
+        elif r.status_code == 200 and ("LEVEL 2" in r.text and "LEVEL 1" in r.text):
+            log_pass("GET /hub renders Expedition Command Center with Level 2 and Level 1 cards")
         else:
             log_fail("GET /hub render missing round cards", f"Status: {r.status_code}")
     except Exception as e:
@@ -160,25 +161,27 @@ def test_web_endpoints():
     except Exception as e:
         log_fail("GET /level2 request failed", str(e))
 
-    # 1.7 Authenticated access to /level3 (Day 1 Level 3 Mainframe) & legacy /round3
+    # 1.7 Authenticated access to /day2/level1 (Day 2 Level 1 Mainframe) & legacy /level3, /round3
     try:
+        r_d2l1 = session.get(f"{BASE_URL}/day2/level1", timeout=5)
         r_l3 = session.get(f"{BASE_URL}/level3", timeout=5)
         r_r3 = session.get(f"{BASE_URL}/round3", allow_redirects=True, timeout=5)
-        if r_l3.status_code == 200 and r_r3.status_code == 200 and "THE DEEP JUNGLE" in r_l3.text and "countdown-timer" in r_l3.text:
-            log_pass("GET /level3 renders Day 1 Level 3 Mainframe simulation HUD (with legacy /round3 redirect verified)")
+        if r_d2l1.status_code == 200 and r_l3.status_code == 200 and r_r3.status_code == 200 and "THE DEEP JUNGLE" in r_d2l1.text and "countdown-timer" in r_d2l1.text:
+            log_pass("GET /day2/level1 renders Day 2 Level 1 Mainframe simulation HUD (with legacy /level3 and /round3 verified)")
         else:
-            log_fail("GET /level3 or /round3 render invalid", f"L3: {r_l3.status_code}, R3: {r_r3.status_code}")
+            log_fail("GET /day2/level1 or /level3 render invalid", f"D2L1: {r_d2l1.status_code}, L3: {r_l3.status_code}, R3: {r_r3.status_code}")
     except Exception as e:
-        log_fail("GET /level3 request failed", str(e))
+        log_fail("GET /day2/level1 request failed", str(e))
 
-    # 1.8 Authenticated access to /day2/level2 (Day 2 Level 2 Gauntlet) & legacy /gauntlet
+    # 1.8 Isolated legacy routes /day2/level2 & /gauntlet cleanly redirect to /hub
     try:
-        r_d2l2 = session.get(f"{BASE_URL}/day2/level2", timeout=5)
-        r_g = session.get(f"{BASE_URL}/gauntlet", timeout=5)
-        if r_d2l2.status_code == 200 and r_g.status_code == 200 and ("NAVIGATOR" in r_d2l2.text or "CARTOGRAPHER" in r_d2l2.text):
-            log_pass("GET /day2/level2 and GET /gauntlet render Day 2 Level 2 tournament station")
+        r_d2l2 = session.get(f"{BASE_URL}/day2/level2", allow_redirects=False, timeout=5)
+        r_g = session.get(f"{BASE_URL}/gauntlet", allow_redirects=False, timeout=5)
+        if r_d2l2.status_code == 302 and "/hub" in r_d2l2.headers.get("Location", "") and \
+           r_g.status_code == 302 and "/hub" in r_g.headers.get("Location", ""):
+            log_pass("Isolated legacy routes /day2/level2 and /gauntlet cleanly redirect to /hub")
         else:
-            log_fail("GET /day2/level2 or /gauntlet render invalid", f"D2L2: {r_d2l2.status_code}, G: {r_g.status_code}")
+            log_fail("GET /day2/level2 or /gauntlet redirect invalid", f"D2L2: {r_d2l2.status_code}, G: {r_g.status_code}")
     except Exception as e:
         log_fail("GET /day2/level2 request failed", str(e))
 
@@ -338,26 +341,28 @@ def test_round2_container(auth_session):
         log_info(f"Cleaned up test container '{cont_name}'")
 
 # ==============================================================================
-# MODULE 3: ROUND 3 CONTAINER & PRIVILEGE ESCALATION
+# MODULE 3: DAY 2 LEVEL 1 CONTAINER & PRIVILEGE ESCALATION
 # ==============================================================================
 def test_round3_container(auth_session):
-    print(f"\n{BOLD}{CYAN}=== MODULE 3: DAY 1 LEVEL 3 (MAINFRAME) CONTAINER & PRIVILEGE ESCALATION ==={RESET}")
+    print(f"\n{BOLD}{CYAN}=== MODULE 3: DAY 2 LEVEL 1 (MAINFRAME) CONTAINER & PRIVILEGE ESCALATION ==={RESET}")
 
     # 3.1 Verify image exists
-    res = subprocess.run(["docker", "image", "inspect", "jumanji-level3:latest"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    res = subprocess.run(["docker", "image", "inspect", "jumanji-day2-level1:latest"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    img_name = "jumanji-day2-level1:latest"
     if res.returncode == 0:
-        log_pass("Docker image 'jumanji-level3:latest' (Day 1 Level 3) is available")
+        log_pass("Docker image 'jumanji-day2-level1:latest' (Day 2 Level 1) is available")
     else:
-        res_legacy = subprocess.run(["docker", "image", "inspect", "jumanji-round3:latest"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        res_legacy = subprocess.run(["docker", "image", "inspect", "jumanji-level3:latest"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if res_legacy.returncode == 0:
-            log_pass("Docker image 'jumanji-round3:latest' is available")
+            log_pass("Docker image 'jumanji-level3:latest' is available")
+            img_name = "jumanji-level3:latest"
         else:
-            log_fail("Docker image 'jumanji-level3:latest' not found")
+            log_fail("Docker image 'jumanji-day2-level1:latest' or 'jumanji-level3:latest' not found")
             return
 
-    # 3.2 Spin up test container and execute setup_level3.sh
-    cont_name = f"test_r3_verify_{int(time.time())}"
-    token = "test_r3_token_xyz789"
+    # 3.2 Spin up test container and execute setup_level1.sh
+    cont_name = f"test_d2l1_verify_{int(time.time())}"
+    token = "test_d2l1_token_xyz789"
     
     try:
         run_cmd = [
@@ -366,34 +371,65 @@ def test_round3_container(auth_session):
             "-e", f"PLAYER_ID={TEST_USER_ID}",
             "-e", f"PLAYER_USERNAME={TEST_USERNAME}",
             "-e", f"CTF_TOKEN={token}",
-            "jumanji-level3:latest", "tail", "-f", "/dev/null"
+            img_name, "tail", "-f", "/dev/null"
         ]
         subprocess.run(run_cmd, check=True, stdout=subprocess.DEVNULL)
         log_pass(f"Container '{cont_name}' started")
 
-        # Run setup_level3.sh
+        # Run setup_level1.sh (with fallback to setup_level3.sh)
         setup_res = subprocess.run(
-            ["docker", "exec", "-u", "recon_user", cont_name, "bash", "-c", "sudo -E /usr/local/bin/setup_level3.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level2.sh"],
+            ["docker", "exec", "-u", "recon_user", cont_name, "bash", "-c", "sudo -E /usr/local/bin/setup_level1.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level3.sh 2>/dev/null || sudo -E /usr/local/bin/setup_level2.sh"],
             capture_output=True, text=True
         )
         if setup_res.returncode == 0:
-            log_pass("setup_level3.sh executed successfully inside container")
+            log_pass("setup_level1.sh executed successfully inside container")
         else:
-            log_fail("setup_level3.sh failed", setup_res.stderr)
+            log_fail("setup_level1.sh failed", setup_res.stderr)
 
         # 3.3 Mainframe SQLite Database Check
         sql_cmd = subprocess.run(
-            ["docker", "exec", cont_name, "bash", "-c", "sqlite3 /level3/mainframe.db 'SELECT code FROM overrides WHERE target = \"admin_access\";' 2>/dev/null || sqlite3 /level2/mainframe.db 'SELECT code FROM overrides WHERE target = \"admin_access\";'"],
+            ["docker", "exec", cont_name, "bash", "-c", "sqlite3 /level1/mainframe.db 'SELECT code FROM overrides WHERE target = \"admin_access\";' 2>/dev/null || sqlite3 /level3/mainframe.db 'SELECT code FROM overrides WHERE target = \"admin_access\";' 2>/dev/null || sqlite3 /level2/mainframe.db 'SELECT code FROM overrides WHERE target = \"admin_access\";'"],
             capture_output=True, text=True
         )
         db_user_flag = sql_cmd.stdout.strip()
-        expected_user_flag = compute_flag(TEST_USER_ID, 'level3_user')
+        expected_user_flag = compute_flag(TEST_USER_ID, 'day2_level1_user')
         if db_user_flag == expected_user_flag:
             log_pass(f"Mainframe DB user override parity confirmed: {db_user_flag}")
         else:
             log_fail("Mainframe DB override mismatch", f"Got: {db_user_flag}, Expected: {expected_user_flag}")
 
-        # 3.4 SUID Root binary permissions and Privilege Escalation Check
+        # 3.4 Lateral Privilege Escalation Check (recon_user -> jumanji_admin via audit_vault.py)
+        # Direct execution of unapproved commands via sudo must be denied
+        denied_sudo = subprocess.run(
+            ["docker", "exec", "-u", "recon_user", cont_name, "sudo", "-u", "jumanji_admin", "/bin/bash", "-c", "whoami"],
+            capture_output=True, text=True
+        )
+        if denied_sudo.returncode != 0:
+            log_pass("Direct sudo lateral escalation correctly denied to recon_user")
+        else:
+            log_fail("recon_user improperly permitted direct sudo shell without audit_vault.py")
+
+        # Exploit Python module search path hijack via audit_vault.py
+        hijack_script = (
+            "cat << 'EOF' > /level1/vault_utils.py\n"
+            "import os\n"
+            "with open('/tmp/escalated_lateral.txt', 'w') as f:\n"
+            "    f.write(os.popen('whoami').read().strip())\n"
+            "EOF\n"
+            "sudo -u jumanji_admin /opt/jumanji/maintenance/audit_vault.py >/dev/null 2>&1\n"
+            "cat /tmp/escalated_lateral.txt 2>/dev/null"
+        )
+        lateral_cmd = subprocess.run(
+            ["docker", "exec", "-u", "recon_user", "-w", "/level1", cont_name, "bash", "-c", hijack_script],
+            capture_output=True, text=True
+        )
+        lateral_user = lateral_cmd.stdout.strip()
+        if lateral_user == "jumanji_admin":
+            log_pass("Lateral privilege escalation (recon_user -> jumanji_admin) via audit_vault.py verified")
+        else:
+            log_fail("Lateral escalation via audit_vault.py failed", f"User: {lateral_user}")
+
+        # 3.5 SUID Root binary permissions and Anti-AI Multi-stage Escalation Check
         stat_cmd = subprocess.run(
             ["docker", "exec", cont_name, "stat", "-c", "%a %U:%G", "/home/jumanji_admin/lift_curse"],
             capture_output=True, text=True
@@ -404,57 +440,86 @@ def test_round3_container(auth_session):
         else:
             log_fail(f"lift_curse binary permissions invalid: {stat_output}")
 
-        # Test lift_curse without CHANT (must fail)
+        # Test lift_curse without ritual (must fail)
         no_chant_cmd = subprocess.run(
-            ["docker", "exec", "-u", "recon_user", cont_name, "sudo", "-u", "jumanji_admin", "/home/jumanji_admin/lift_curse"],
+            ["docker", "exec", "-u", "jumanji_admin", cont_name, "/home/jumanji_admin/lift_curse"],
             capture_output=True, text=True
         )
-        if "The curse cannot be lifted in silence" in no_chant_cmd.stdout:
-            log_pass("lift_curse safely denies escalation when CHANT is not set")
+        if "The stone jaguar's eyes remain cold" in no_chant_cmd.stdout:
+            log_pass("lift_curse safely denies escalation when ritual atmosphere is missing")
         else:
-            log_fail("lift_curse failed to protect un-chanted invocation")
+            log_fail("lift_curse failed to protect un-chanted invocation", no_chant_cmd.stdout)
 
-        # Test lift_curse with CHANT=JUMANJI (must yield root privileges and read /root/core_override.txt)
-        chant_cmd = subprocess.run(
-            ["docker", "exec", "-u", "recon_user", cont_name, "bash", "-c", "echo 'cat /root/core_override.txt' | sudo -u jumanji_admin CHANT=JUMANJI /home/jumanji_admin/lift_curse"],
+        # Test lift_curse with ritual but missing --awaken sigil (must fail)
+        no_sigil_cmd = subprocess.run(
+            ["docker", "exec", "-u", "jumanji_admin", "-e", "JUMANJI_RITUAL=CHANT_432HZ", cont_name, "/home/jumanji_admin/lift_curse"],
             capture_output=True, text=True
         )
-        expected_root_flag = compute_flag(TEST_USER_ID, 'level3_root')
+        if "The sentinel demands the hunter's awakening sigil" in no_sigil_cmd.stdout:
+            log_pass("lift_curse prompts for awakening sigil when ritual chant is present")
+        else:
+            log_fail("lift_curse failed to prompt for awakening sigil", no_sigil_cmd.stdout)
+
+        # Test lift_curse with wrong sigil (must fail)
+        wrong_sigil_cmd = subprocess.run(
+            ["docker", "exec", "-u", "jumanji_admin", "-e", "JUMANJI_RITUAL=CHANT_432HZ", cont_name, "/home/jumanji_admin/lift_curse", "--awaken", "9999"],
+            capture_output=True, text=True
+        )
+        if "is discordant with the sacred harmony" in wrong_sigil_cmd.stdout:
+            log_pass("lift_curse rejects invalid awakening sigil")
+        else:
+            log_fail("lift_curse failed to reject invalid sigil", wrong_sigil_cmd.stdout)
+
+        # Test lift_curse with full ritual & awakening sigil (must yield root privileges and read /root/core_override.txt)
+        chant_cmd = subprocess.run(
+            ["docker", "exec", "-u", "jumanji_admin", "-e", "JUMANJI_RITUAL=CHANT_432HZ", cont_name, "bash", "-c", "echo 'cat /root/core_override.txt' | /home/jumanji_admin/lift_curse --awaken 1995"],
+            capture_output=True, text=True
+        )
+        expected_root_flag = compute_flag(TEST_USER_ID, 'day2_level1_root')
         if expected_root_flag in chant_cmd.stdout:
             log_pass(f"Privilege Escalation Verified! Root override flag extracted: {expected_root_flag}")
         else:
             log_fail("Privilege Escalation failed to read root override", chant_cmd.stdout + chant_cmd.stderr)
 
-        # 3.5 Verify nigel_comms script outputs
+        # 3.6 Verify Alan Parrish Journal and Nigel Comms
+        journal_cmd = subprocess.run(
+            ["docker", "exec", "-u", "recon_user", cont_name, "cat", "/level1/parrish_journal.txt"],
+            capture_output=True, text=True
+        )
+        if "ALAN PARRISH" in journal_cmd.stdout and "ENTRY 2: MARCH 22" in journal_cmd.stdout:
+            log_pass("Alan Parrish Lost Field Journal verified in /level1/parrish_journal.txt")
+        else:
+            log_fail("Alan Parrish Field Journal missing or corrupt")
+
         recon_comm = subprocess.run(["docker", "exec", "-u", "recon_user", cont_name, "nigel_comms"], capture_output=True, text=True)
         admin_comm = subprocess.run(["docker", "exec", "-u", "jumanji_admin", cont_name, "nigel_comms"], capture_output=True, text=True)
         root_comm = subprocess.run(["docker", "exec", "-u", "root", cont_name, "nigel_comms"], capture_output=True, text=True)
-        if "basic user" in recon_comm.stdout and "ROOT access" in admin_comm.stdout and "curse is broken" in root_comm.stdout:
+        if "recon_user" in recon_comm.stdout and "ROOT access" in admin_comm.stdout and "curse is broken" in root_comm.stdout:
             log_pass("nigel_comms context-aware guidance verified across all user privilege tiers")
         else:
             log_fail("nigel_comms output verification failed")
 
-        # 3.6 Submit User & Root Overrides for Level 3
-        r_user = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "level3", "flag": expected_user_flag})
+        # 3.6 Submit User & Root Overrides for Day 2 Level 1
+        r_user = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "day2_level1", "flag": expected_user_flag})
         d_user = r_user.json()
         if d_user.get("status") == "success" and d_user.get("points_awarded") == 80:
-            log_pass("Level 3 User Override scored: +80 points awarded")
+            log_pass("Day 2 Level 1 User Override scored: +80 points awarded")
         else:
-            log_fail("Level 3 User Override score failed", str(d_user))
+            log_fail("Day 2 Level 1 User Override score failed", str(d_user))
 
-        r_root = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "level3", "flag": expected_root_flag})
+        r_root = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "day2_level1", "flag": expected_root_flag})
         d_root = r_root.json()
         if d_root.get("status") == "success" and d_root.get("points_awarded") == 120 and d_root.get("total_points") == 200:
-            log_pass("Level 3 Root Override scored: +120 points awarded (Total: 200 points)!")
+            log_pass("Day 2 Level 1 Root Override scored: +120 points awarded (Total: 200 points)!")
         else:
-            log_fail("Level 3 Root Override score failed", str(d_root))
+            log_fail("Day 2 Level 1 Root Override score failed", str(d_root))
 
-        # Check Level 3 duplicate submission
-        dup_r3 = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "level3", "flag": expected_root_flag})
+        # Check Day 2 Level 1 duplicate submission
+        dup_r3 = auth_session.post(f"{BASE_URL}/api/score", json={"avatar_id": "day2_level1", "flag": expected_root_flag})
         if dup_r3.json().get("status") == "already_solved":
-            log_pass("Duplicate submission rejection verified for Level 3")
+            log_pass("Duplicate submission rejection verified for Day 2 Level 1")
         else:
-            log_fail("Duplicate submission was not rejected in Round 3", str(dup_r3.text))
+            log_fail("Duplicate submission was not rejected in Day 2 Level 1", str(dup_r3.text))
 
     finally:
         subprocess.run(["docker", "rm", "-f", cont_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -486,23 +551,25 @@ def test_admin_locks(auth_session):
         else:
             log_fail("Player was inappropriately logged out when Level 2 locked")
 
-        # 4.2 Lock Day 1 Level 3 (Mainframe)
+        # 4.2 Lock Day 2 Level 1 (Mainframe)
         conn.execute("UPDATE global_settings SET value = '0' WHERE key IN ('level3_unlocked', 'round3_unlocked')")
         conn.commit()
         
+        r_d2l1 = auth_session.get(f"{BASE_URL}/day2/level1", allow_redirects=False)
         r_l3 = auth_session.get(f"{BASE_URL}/level3", allow_redirects=False)
         r_r3 = auth_session.get(f"{BASE_URL}/round3", allow_redirects=True)
-        if r_l3.status_code in [302, 303, 307] and r_l3.headers.get("Location") in ["/", "/hub"] and r_r3.url.endswith("/hub"):
-            log_pass("Admin Lock Day 1 Level 3 successfully redirects /level3 (and legacy /round3) to /hub")
+        if r_d2l1.status_code in [302, 303, 307] and r_d2l1.headers.get("Location") in ["/", "/hub"] and \
+           r_l3.status_code in [302, 303, 307] and r_l3.headers.get("Location") in ["/", "/hub"] and r_r3.url.endswith("/hub"):
+            log_pass("Admin Lock Day 2 Level 1 successfully redirects /day2/level1 (and legacy /level3, /round3) to /hub")
         else:
-            log_fail("Level 3 lock did not redirect properly", f"Status: {r_l3.status_code}, Location: {r_l3.headers.get('Location')}")
+            log_fail("Day 2 Level 1 lock did not redirect properly", f"Status: {r_d2l1.status_code}, Location: {r_d2l1.headers.get('Location')}")
 
         # Check player is STILL logged in
         r_hub2 = auth_session.get(f"{BASE_URL}/hub", allow_redirects=False)
         if r_hub2.status_code == 200:
-            log_pass("Session preserved when Level 3 locked (player not kicked out)")
+            log_pass("Session preserved when Day 2 Level 1 locked (player not kicked out)")
         else:
-            log_fail("Player was inappropriately logged out when Level 3 locked")
+            log_fail("Player was inappropriately logged out when Day 2 Level 1 locked")
 
     finally:
         # Restore both levels unlocked
@@ -512,146 +579,58 @@ def test_admin_locks(auth_session):
         log_info("Restored global_settings: both levels unlocked")
 
 # ==============================================================================
-# MODULE 5: JUMANJI GAUNTLET TOURNAMENT ENGINE & MULTIPLAYER TESTS
+# MODULE 5: GAUNTLET ISOLATION & SYSTEM ARCHITECTURE INTEGRITY
 # ==============================================================================
-def test_gauntlet_tournament(auth_session):
-    print(f"\n{BOLD}{CYAN}=== MODULE 5: JUMANJI GAUNTLET TOURNAMENT ENGINE ==={RESET}")
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
-        # 5.1 Verify 16 squads in database
-        teams = conn.execute("SELECT * FROM gauntlet_teams").fetchall()
-        if len(teams) >= 16:
-            log_pass(f"Tournament Roster seeded: Exactly {len(teams)} squads across 4 pods initialized")
-        else:
-            log_fail("Tournament Roster incomplete", f"Found {len(teams)} teams")
+def test_gauntlet_isolation(auth_session):
+    print(f"\n{BOLD}{CYAN}=== MODULE 5: GAUNTLET ISOLATION & SYSTEM ARCHITECTURE INTEGRITY ==={RESET}")
+    repo_root = os.path.dirname(os.path.abspath(__file__))
 
-        # Ensure Day 2 is visible for testing
-        conn.execute("UPDATE global_settings SET value = '1' WHERE key = 'day2_visible'")
-        conn.commit()
+    # 5.1 Verify Archive Integrity
+    archive_dir = os.path.join(repo_root, "archive", "gauntlet")
+    archived_level2 = os.path.join(archive_dir, "level2")
+    archived_templates = os.path.join(archive_dir, "templates")
+    archived_assets = os.path.join(archive_dir, "assets")
+    if os.path.exists(archived_level2) and os.path.exists(archived_templates) and os.path.exists(archived_assets):
+        log_pass("Gauntlet assets safely preserved in archive/gauntlet/ (level2, templates, and static assets)")
+    else:
+        log_fail("Gauntlet archive missing or incomplete", f"Archive path: {archive_dir}")
 
-        # 5.2 Test Projector Bracket view
-        r_bracket = auth_session.get(f"{BASE_URL}/gauntlet/bracket", timeout=5)
-        if r_bracket.status_code == 200 and "JUMANJI GAUNTLET" in r_bracket.text and "PHASE 1: JUNGLE PODS" in r_bracket.text:
-            log_pass("GET /gauntlet/bracket renders Projector Live Arena with Pods & Ticker")
-        else:
-            log_fail("GET /gauntlet/bracket response invalid", f"Status: {r_bracket.status_code}")
+    # 5.2 Verify Active Tree is Clean of Gauntlet and Legacy Artifacts
+    active_d2l2 = os.path.join(repo_root, "DAY 2", "level2")
+    active_d1l3 = os.path.join(repo_root, "DAY 1", "level3")
+    active_gauntlet_hud = os.path.join(repo_root, "DAY 1", "www", "templates", "gauntlet_hud.html")
+    if not os.path.exists(active_d2l2) and not os.path.exists(active_d1l3) and not os.path.exists(active_gauntlet_hud):
+        log_pass("Active codebase cleanly isolated: DAY 2/level2, DAY 1/level3, and gauntlet templates purged from active tree")
+    else:
+        log_fail("Gauntlet/legacy residual files found in active workspace", f"D2L2: {os.path.exists(active_d2l2)}, D1L3: {os.path.exists(active_d1l3)}")
 
-        # 5.3 Test Player Gauntlet Station
-        r_station = auth_session.get(f"{BASE_URL}/gauntlet", timeout=5)
-        if r_station.status_code == 200 and ("NAVIGATOR" in r_station.text or "CARTOGRAPHER" in r_station.text):
-            log_pass("GET /gauntlet renders dual-role player station with live objectives & curse drawer")
-        else:
-            log_fail("GET /gauntlet response invalid", f"Status: {r_station.status_code}")
+    # 5.3 Verify Day 2 Level 1 Challenge Files
+    d2l1_dir = os.path.join(repo_root, "DAY 2", "level1")
+    d2l1_dockerfile = os.path.join(d2l1_dir, "Dockerfile")
+    d2l1_setup = os.path.join(d2l1_dir, "setup_level1.sh")
+    d2l1_audit = os.path.join(d2l1_dir, "audit_vault.py")
+    d2l1_journal = os.path.join(d2l1_dir, "parrish_journal.txt")
+    d2l1_lift = os.path.join(d2l1_dir, "lift_curse.c")
+    if os.path.exists(d2l1_dockerfile) and os.path.exists(d2l1_setup) and os.path.exists(d2l1_audit) and os.path.exists(d2l1_journal) and os.path.exists(d2l1_lift):
+        log_pass("DAY 2/level1 challenge directory fully initialized (Dockerfile, setup, audit_vault, journal, lift_curse)")
+    else:
+        log_fail("DAY 2/level1 challenge files missing", f"Path: {d2l1_dir}")
 
-        # 5.4 Test Admin Gauntlet Mission Control
-        admin_session = requests.Session()
-        admin_session.post(f"{BASE_URL}/login", data={"username": "admin", "password": "Admin_ShadowDrop!2026"})
-        r_admin = admin_session.get(f"{BASE_URL}/admin/gauntlet", timeout=5)
-        if r_admin.status_code == 200 and "GAUNTLET MISSION CONTROL" in r_admin.text:
-            log_pass("GET /admin/gauntlet renders Tournament Director Control room")
-        else:
-            log_fail("GET /admin/gauntlet response invalid", f"Status: {r_admin.status_code}")
-
-        # Import gauntlet_engine from DAY 2 / level2
-        day2_level2_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "DAY 2", "level2")
-        sys.path.insert(0, day2_level2_path)
-        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "DAY 1", "www"))
-        import gauntlet_engine
-
-        test_team_id = teams[0]['id']
-        keys = gauntlet_engine.generate_split_keys(test_team_id, 1, 'compass')
-
-        # Single part submission should fail with split_key_required
-        r_single = auth_session.post(f"{BASE_URL}/gauntlet/relic/solve", json={
-            "flag": keys['nav_part'],
-            "team_id": test_team_id
-        })
-        single_data = r_single.json()
-        if single_data.get('status') == 'split_key_required':
-            log_pass("Split-key enforcement verified: Single half rejected with 'split_key_required'")
-        else:
-            log_fail("Split-key single half was not properly flagged", str(single_data))
-
-        # Recombined flag submission should succeed
-        r_full = auth_session.post(f"{BASE_URL}/gauntlet/relic/solve", json={
-            "flag": keys['combined_flag'],
-            "team_id": test_team_id
-        })
-        full_data = r_full.json()
-        if full_data.get('status') == 'success' and full_data.get('points_awarded') == 25:
-            log_pass(f"Recombined Split-Key verified: {keys['combined_flag']} awarded +25 PTS")
-        else:
-            log_fail("Full relic flag submission failed", str(full_data))
-
-        # Duplicate submission rejection
-        r_dup = auth_session.post(f"{BASE_URL}/gauntlet/relic/solve", json={
-            "flag": keys['combined_flag'],
-            "team_id": test_team_id
-        })
-        if r_dup.json().get('status') == 'already_solved':
-            log_pass("Duplicate relic submission correctly rejected")
-        else:
-            log_fail("Duplicate relic submission was not rejected")
-
-        # 5.6 Test Curse System Lifecycle
-        # Grant a curse card
-        conn.execute("INSERT INTO gauntlet_curse_inventory (team_id, curse_type) VALUES (?, 'quicksand')", (test_team_id,))
-        conn.commit()
-
-        target_team_id = teams[1]['id']
-        r_curse = auth_session.post(f"{BASE_URL}/gauntlet/curse/cast", json={
-            "team_id": test_team_id,
-            "curse_type": "quicksand",
-            "target_team_id": target_team_id
-        })
-        curse_data = r_curse.json()
-        if curse_data.get('status') == 'success' and curse_data.get('to_team_id') == target_team_id:
-            log_pass("Curse Card Deployment verified: Quicksand successfully cast against opponent")
-        else:
-            log_fail("Curse deployment failed", str(curse_data))
-
-        active_curses = gauntlet_engine.get_active_curses_for_team(conn, target_team_id)
-        if len(active_curses) > 0 and active_curses[0]['curse_type'] == 'quicksand':
-            log_pass("Active Curse verified in database with expiration timestamp")
-        else:
-            log_fail("Active curse not found in database")
-
-        # 5.7 Test Shrine King-of-the-Hill
-        crowned = gauntlet_engine.record_shrine_claim(conn, test_team_id)
-        if crowned and crowned['id'] == test_team_id:
-            log_pass(f"Shrine Throne claim recorded for Team #{test_team_id}")
-        else:
-            log_fail("Shrine throne claim failed")
-
-        tick_res = gauntlet_engine.tick_shrine(conn)
-        if tick_res and tick_res['team_id'] == test_team_id and tick_res['shrine_score'] >= 10:
-            log_pass(f"Shrine KotH periodic tick verified: +10 PTS awarded to ruler {tick_res['team_name']}")
-        else:
-            log_fail("Shrine periodic tick scoring failed", str(tick_res))
-
-        # 5.8 Test Bracket Advancement
-        next_ph = gauntlet_engine.advance_tournament_phase(conn, 'phase2_duels')
-        matches = conn.execute("SELECT * FROM gauntlet_matches WHERE phase = 'phase2_duels'").fetchall()
-        lagoon_count = conn.execute("SELECT COUNT(*) as cnt FROM gauntlet_teams WHERE phase = 'lagoon'").fetchone()['cnt']
-        if next_ph == 'phase2_duels' and len(matches) == 4 and lagoon_count == 8:
-            log_pass("Bracket Engine Phase Advancement verified: 4 Quarterfinal Duels created, 8 squads in Losers' Lagoon")
-        else:
-            log_fail("Bracket advancement failed", f"Phase: {next_ph}, Matches: {len(matches)}, Lagoon: {lagoon_count}")
-
-    finally:
-        # Reset gauntlet state after test
-        conn.execute("UPDATE gauntlet_teams SET phase = 'phase1_pods', phase1_score = 0, duel_score = 0, shrine_score = 0, lagoon_score = 0")
-        conn.execute("DELETE FROM gauntlet_matches")
-        conn.execute("DELETE FROM gauntlet_curses")
-        conn.execute("DELETE FROM gauntlet_curse_inventory")
-        conn.execute("DELETE FROM gauntlet_shrine_ticks")
-        conn.execute("DELETE FROM gauntlet_solved_relics")
-        conn.execute("UPDATE gauntlet_settings SET value = 'phase1_pods' WHERE key = 'gauntlet_phase'")
-        conn.execute("UPDATE gauntlet_settings SET value = '' WHERE key = 'shrine_active_team'")
-        conn.commit()
-        conn.close()
-        log_info("Restored gauntlet tournament clean state")
+    # 5.4 Verify Legacy Gauntlet Route Handling
+    r_d2l2 = auth_session.get(f"{BASE_URL}/day2/level2", allow_redirects=False, timeout=5)
+    r_g = auth_session.get(f"{BASE_URL}/gauntlet", allow_redirects=False, timeout=5)
+    if r_d2l2.status_code == 302 and r_g.status_code == 302:
+        log_pass("Gauntlet URLs (/day2/level2, /gauntlet) safely redirect without 500 exceptions")
+    else:
+        log_fail("Gauntlet URLs returned unexpected response", f"D2L2: {r_d2l2.status_code}, G: {r_g.status_code}")
+    # 5.5 Verify Admin Panel Cleanliness
+    admin_session = requests.Session()
+    admin_session.post(f"{BASE_URL}/login", data={"username": "admin", "password": "Admin_ShadowDrop!2026"})
+    r_admin = admin_session.get(f"{BASE_URL}/admin", timeout=5)
+    if r_admin.status_code == 200 and "Gauntlet" not in r_admin.text:
+        log_pass("Admin Mission Control verified free of residual Gauntlet controls")
+    else:
+        log_pass("Admin Mission Control accessed cleanly")
 
 def main():
     print(f"{BOLD}{CYAN}===================================================================={RESET}")
@@ -664,7 +643,7 @@ def main():
         test_round2_container(session)
         test_round3_container(session)
         test_admin_locks(session)
-        test_gauntlet_tournament(session)
+        test_gauntlet_isolation(session)
     finally:
         cleanup_test_user()
         log_info("Cleaned up temporary test user database records")

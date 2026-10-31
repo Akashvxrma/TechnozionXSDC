@@ -622,12 +622,14 @@
 
         let term = null;
         let fitAddon = null;
+        let termMountObserver = null;
+        let initialResizeSynced = false;
 
         function fit() {
             if (fitAddon) {
                 try {
                     fitAddon.fit();
-                    if (term && socket.connected) {
+                    if (term && socket.connected && term.cols && term.rows) {
                         socket.emit('pty-resize', { cols: term.cols, rows: term.rows });
                     }
                 } catch (e) {}
@@ -659,11 +661,28 @@
                     fitAddon = new FitAddon.FitAddon();
                     term.loadAddon(fitAddon);
                 }
-                term.open(document.getElementById('terminal-body'));
+                const mount = document.getElementById('terminal-body');
+                if (mount) {
+                    term.open(mount);
+                    if (window.ResizeObserver) {
+                        if (termMountObserver) termMountObserver.disconnect();
+                        termMountObserver = new ResizeObserver(() => {
+                            window.requestAnimationFrame(() => fit());
+                        });
+                        termMountObserver.observe(mount);
+                    }
+                }
+                if (document.fonts && document.fonts.ready) {
+                    document.fonts.ready.then(() => fit());
+                }
                 term.onData(data => socket.emit('pty-input', { input: data }));
                 term.onResize(size => socket.emit('pty-resize', { cols: size.cols, rows: size.rows }));
 
                 socket.on('pty-output', data => {
+                    if (!initialResizeSynced) {
+                        initialResizeSynced = true;
+                        fit();
+                    }
                     term.write(data.output);
                     window.JX3D && JX3D.signal('telemetry');
                 });
@@ -687,8 +706,12 @@
             setTimeout(() => {
                 fit();
                 term.focus();
-                socket.emit('start-pty', { avatar_id: selectedAvatarId });
-            }, 120);
+                socket.emit('start-pty', {
+                    avatar_id: selectedAvatarId,
+                    cols: term.cols || 120,
+                    rows: term.rows || 30
+                });
+            }, 100);
         }
 
         socket.on('connect', () => setLink(true));

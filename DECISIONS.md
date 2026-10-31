@@ -4,16 +4,18 @@ This document records the foundational architectural, security, and game-design 
 
 ---
 
-## ADR 001: OAuth-Only Authentication for Participants
+## ADR 001: Hybrid Authentication (Google OAuth + Explicit Admin Passwords)
 
 - **Status**: Accepted & Implemented
-- **Context**: Initially, participants could authenticate either via Google OAuth or directly via their Participant ID (e.g., `SDC-2026-0001`) with a shared default password (`ShadowDrop2026!`). This introduced a severe vulnerability where participants could guess each other's credentials and impersonate rival squads.
+- **Context**: Participants registered on the SDC Games website authenticate seamlessly via Google OAuth 2.0. In addition, tournament administrators require the ability to create manual player accounts and assign explicit custom passwords via the Admin panel without shared default password backdoors.
 - **Decision**: 
-  - Permanently eliminate password login for all player accounts.
-  - Require Google OAuth 2.0 as the sole authentication mechanism for participants.
-  - Match Google user emails against pre-registered emails in the local SQLite database.
-  - Restrict username/password login strictly to tournament directors (`role = 'admin'`).
-- **Consequences**: Zero credential-stuffing vulnerability; guaranteed identity authenticity.
+  - Support dual authentication avenues:
+    1. **Google OAuth 2.0**: The primary authentication mechanism for participants registered on the SDC Games portal.
+    2. **ID & Explicit Password**: Accounts created by administrators or given explicit passwords in `/admin` authenticate via Username or Participant ID.
+  - Zero Shared Default Passwords: Eliminate universal shared default passwords (such as `ShadowDrop2026!`) to prevent credential-stuffing and squad impersonation attacks. Synced OAuth accounts remain protected under `!OAUTH_ONLY!_<hex>` unless an administrator explicitly assigns a custom password.
+  - Transparent cryptographic password upgrade: Plaintext passwords automatically upgrade to salted `scrypt` hashes upon first authentication.
+  - Full admin control: Tournament administrators can create accounts with mandatory custom passwords or update participant credentials dynamically via `/admin`.
+- **Consequences**: Zero default-credential attack surface; guarantees authentic identity verification for Google-synced players while providing full password flexibility for admin-provisioned competitors.
 
 ---
 
@@ -132,4 +134,37 @@ This document records the foundational architectural, security, and game-design 
   - Deprecate wildcard SocketIO CORS; replace with `is_allowed_origin` callable restricting connections to loopback (`127.0.0.1`, `localhost`), RFC 1918 private subnets (`10.x`, `172.16-31.x`, `192.168.x`), and `.nip.io` domains.
   - Implement a 30 req/min sliding-window rate limiter on all flag submission routes.
 - **Consequences**: Complete immunity against cross-site request forgery, cross-site WebSocket hijacking, and automated rapid flag brute-forcing.
+
+---
+
+## ADR 011: Restructure Day 1 Level 3 as Day 2 Level 1 and Safely Archive the Gauntlet
+
+- **Status**: Accepted & Implemented
+- **Context**: The competition format was adjusted to feature a two-day event: Day 1 (Avatar Reconnaissance) and Day 2 (Simulation Core Mainframe DB & SUID Privilege Escalation). The multi-player Gauntlet engine introduced background tick threads, complex split-key dependencies, and per-keystroke curse queries that were not needed for this tournament phase.
+- **Decision**:
+  - Rename and promote Day 1 Level 3 to **Day 2 Level 1** (`/day2/level1`).
+  - Retain full backward-compatibility for `/level3` and `/round3` so existing bookmarks and scripts function without issue.
+  - Create `DAY 2/level1/` with unified Dockerfile and setup scripts symlinking `/level1` $\leftrightarrow$ `/level3`.
+  - Isolate and safely back up all Gauntlet engine code (`gauntlet_engine.py`, `setup_gauntlet.sh`, `setup_shrine.sh`, `Dockerfile.gauntlet`) and templates (`gauntlet_hud.html`, `gauntlet_bracket.html`, `gauntlet_admin.html`) into `archive/gauntlet/`.
+  - Delete `DAY 2/level2/` and Gauntlet templates from the active workspace.
+  - Strip Gauntlet imports, background ticker threads, and per-keystroke SQLite curse lookups from `app.py`.
+  - Redirect legacy `/day2/level2` and `/gauntlet` routes cleanly to `/hub` with HTTP 302.
+  - Update automated verification and security test suites (`test_security.py`, `verify_all.py`) to test the new structure.
+- **Consequences**: Platform performance is improved (keystroke latency eliminated), architecture is simplified, and all Gauntlet assets are preserved in `archive/gauntlet/` for future tournament seasons.
+
+---
+
+## ADR 012: Terminal Window Pre-Sizing and Readline Redraw Synchronization
+
+- **Status**: Accepted & Implemented
+- **Context**: In wide browser viewports (~138 columns), long shell commands ($>80$ characters) triggered severe readline line-wrapping corruption and text overlapping. The backend PTY was spawned with default 80x24 kernel geometry because initial frontend `pty-resize` events were dropped while Docker was launching, and `~/.bashrc` overwrites stripped Debian's `shopt -s checkwinsize`.
+- **Decision**:
+  - Accept initial viewport dimensions (`cols` and `rows`) directly in the WebSocket `start-pty` event payload.
+  - Apply `termios.TIOCSWINSZ` immediately to both master and slave PTY file descriptors before launching `docker run`.
+  - Maintain a thread-safe `pending_pty_sizes` cache to capture any asynchronous resize events received during container launch.
+  - Pass `COLUMNS` and `LINES` environment variables into the Docker container.
+  - Enable `shopt -s checkwinsize` and `export TERM=xterm-256color` in container `.bashrc`.
+  - Attach modern `ResizeObserver` instances in the frontend (`level3.html` and `level2.html`) and synchronize dimensions with `document.fonts.ready`.
+- **Consequences**: Complete elimination of readline cursor drift, cursor-up line collisions, and text overlapping across all display resolutions.
+
 

@@ -45,7 +45,7 @@ This document provides an exhaustive, function-by-function reference of all serv
 | `record_failed_login(ip)` | `/login` handler | `_LOGIN_HISTORY` | Records timestamp of failed authentication and prunes expired IP records. |
 | `is_submission_rate_limited(key, limit, window_sec)` | Submission routes | `collections.deque`, `time.time` | Sliding-window rate limiter (30 req/min) guarding `/api/score` and relic solves. |
 | `sanitize_csv_cell(val)` | Admin CSV export endpoints | String formatting | Escapes spreadsheet formula injection (OWASP CWE-1236) by prefixing `=`, `+`, `-`, `@` with `'`. |
-| `get_token_info(token)` | `/api/score`, `/gauntlet/relic/solve` | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe retrieval and 2-hour TTL expiration check for CLI submission tokens. |
+| `get_token_info(token)` | `/api/score` | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe retrieval and 2-hour TTL expiration check for CLI submission tokens. |
 | `set_internal_token(token, user_id, sid)` | `start_pty` | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe registration of active container CLI submission tokens. |
 | `prune_internal_tokens(sid)` | Disconnect / Logout / Stop PTY | `_TOKENS_LOCK`, `INTERNAL_TOKENS` | Thread-safe eviction of expired tokens or tokens belonging to disconnected sockets. |
 | `get_csrf_token()` | Session init / Form render | `secrets.token_hex(32)`, `session` | Generates or retrieves session-bound 32-byte cryptographic CSRF token. |
@@ -54,7 +54,7 @@ This document provides an exhaustive, function-by-function reference of all serv
 | `get_utc_now()` | Internal helper | `datetime.now(timezone.utc)` | Generates timezone-aware naive UTC timestamp for SQLite storage. |
 | `add_security_headers(response)` | `@app.after_request` | N/A | Injects OWASP defense headers (`X-Content-Type-Options`, `X-Frame-Options`, `Content-Security-Policy`). |
 | `get_db_connection()` | Database access across app | `sqlite3.connect('jumanji_auth.db')` | Opens SQLite database connection with row factory enabled. |
-| `init_db()` | App startup | `gauntlet_engine.init_gauntlet_db()` | Creates SQLite tables for users, scores, global settings, audit logs. |
+| `init_db()` | App startup | `get_db_connection()` | Creates SQLite tables for users, scores, global settings, audit logs. |
 | `handle_ping()` | `@socketio.on('ping')` | `get_db_connection()` | Updates `users.last_active` timestamp for live telemetry. |
 | `index()` | `GET /` | `login()`, `admin()`, `hub()` | Entrypoint redirect based on authentication and role. |
 | `hub()` | `GET /hub` | `check_level_access()`, `get_db_connection()` | Renders main Expedition Command Center displaying unlocked rounds. |
@@ -66,42 +66,37 @@ This document provides an exhaustive, function-by-function reference of all serv
 | `google_callback()` | `GET /auth/callback` | `get_db_connection()`, Google Token API | Exchanges auth code for Google user profile and establishes session. |
 | `choose_username()` | `GET/POST /auth/choose-username` | `get_db_connection()` | Prompts first-time OAuth players to configure an in-game codename. |
 | `register()` | `GET /register` | `login()` | Deprecated legacy route redirecting directly to `/login`. |
-| `admin()` | `GET/POST /admin` | `get_db_connection()` | Host management console for level locking, timers, Day 2 Gauntlet leaderboard & player squad allotments, and score matrix. |
+| `admin()` | `GET/POST /admin` | `get_db_connection()` | Host management console for level locking, timers, Day 1 Level 2 & Day 2 Level 1 leaderboards, and MongoDB roster sync. |
 | `sync_sdc_roster()` | `POST /admin/sync-sdc-roster` | `mongo_sync.sync_roster_from_mongodb()` | Triggers manual roster synchronization directly from MongoDB. |
 | `export_scores_l2()` | `GET /admin/export-scores/level2`| `get_db_connection()`, `csv.writer` | Streams CSV of Day 1 Level 2 (Avatar) participant rankings. |
-| `export_scores_l3()` | `GET /admin/export-scores/level3`| `get_db_connection()`, `csv.writer` | Streams CSV of Day 1 Level 3 (Mainframe) privilege escalation ranks. |
-| `export_day1_shortlist()` | `GET /admin/export-scores/day1-all` | `get_db_connection()`, `csv.writer` | Streams complete aggregated Day 1 cybersec score matrix. |
-| `export_gauntlet_finalists()` | `GET /admin/export-gauntlet-finalists` | `get_db_connection()`, `csv.writer` | Exports the Top 4 teams (8 finalists) for championship qualification. |
+| `export_scores_l3()` | `GET /admin/export-scores/level3`| `get_db_connection()`, `csv.writer` | Streams CSV of Day 2 Level 1 (Mainframe) privilege escalation ranks. |
+| `export_day1_shortlist()` | `GET /admin/export-scores/day1-all` | `get_db_connection()`, `csv.writer` | Streams complete aggregated cybersec score matrix. |
 | `get_user_flags(user_id)` | Internal helper | `get_db_connection()` | Fetches solved avatar challenge IDs for the current player. |
 | `level2()` | `GET /level2` | `check_level_access()`, `get_user_flags()` | Renders Day 1 Level 2 Avatar Reconnaissance mission station. |
 | `redirect_to_level2()` | `GET /level1`, `/round2` | `level2()` | Legacy backward-compatibility redirect to `level2()`. |
 | `start_level2()` | `POST /level2/start` | `get_db_connection()`, `get_utc_now()` | Starts individual 60-minute countdown timer for Level 2. |
 | `reset_level2_intro()` | `POST /level2/reset-intro` | `get_db_connection()` | Clears intro flag allowing player to re-watch avatar briefing. |
-| `level3()` | `GET /level3` | `check_level_access()`, `get_db_connection()` | Renders Day 1 Level 3 Mainframe cybersec simulation station. |
-| `round3()` | `GET /round3` | `level3()` | Legacy backward-compatibility redirect to `level3()`. |
-| `start_level3()` | `POST /level3/start` | `get_db_connection()`, `get_utc_now()` | Starts individual 60-minute countdown timer for Level 3. |
-| `reset_level3_intro()` | `POST /level3/reset-intro` | `get_db_connection()` | Clears intro flag for Level 3 mainframe briefing. |
-| `generate_dynamic_flag(user_id, avatar)` | Internal crypto helper | `hashlib.md5()` | Derives deterministic keyed flag `JUMANJI{avatar_hash}` for player. |
+| `day2_level1()` | `GET /day2/level1`, `/day2_level1`, `/level3` | `check_level_access()`, `get_db_connection()` | Renders Day 2 Level 1 Mainframe cybersec simulation station. |
+| `round3()` | `GET /round3` | `day2_level1()` | Legacy backward-compatibility redirect to `day2_level1()`. |
+| `start_day2_level1()` | `POST /level3/start`, `/api/start_day2_level1` | `get_db_connection()`, `get_utc_now()` | Starts individual 60-minute countdown timer for Day 2 Level 1. |
+| `reset_day2_level1_intro()` | `POST /level3/reset-intro`, `/reset_day2_level1_intro` | `get_db_connection()` | Clears intro flag for Day 2 Level 1 mainframe briefing. |
+| `generate_dynamic_flag(user_id, avatar)` | Internal crypto helper | `hashlib.md5()` | Derives deterministic keyed flag `JUMANJI{avatar_hash}` or `OVERRIDE-*` for player. |
 | `proxy_whois()` | `GET /api/whois/<ip>` | `requests.get()` | Safe API proxy querying local whois microservice. |
-| `submit_score()` | `POST /submit-score` | `generate_dynamic_flag()`, `socketio.emit`| Validates flag submission, credits points, updates database, emits sync. |
-| `day2_level2()` | `GET /day2/level2` | `gauntlet()` | Canonical route alias routing directly into `gauntlet()`. |
+| `submit_score()` | `POST /api/score`, `/submit-score` | `generate_dynamic_flag()`, `socketio.emit`| Validates flag submission, credits points atomically, emits sync. |
+| `legacy_gauntlet_redirect()` | `GET /day2/level2`, `/gauntlet` | `redirect(url_for('hub'))` | Safely redirects legacy Gauntlet URLs to `/hub`. |
 | `logout()` | `GET /logout` | `session.clear()` | Destroys Flask session and redirects to login portal. |
-| `gauntlet()` | `GET /gauntlet` | `gauntlet_engine.get_team_for_user()`, `auto_assign_user_to_team()` | Renders Day 2 Level 2 dual-role tournament telemetry HUD. |
-| `gauntlet_bracket()` | `GET /gauntlet/bracket` | `get_db_connection()` | Stadium Projector live arena showing Pod standings and Duels. |
-| `gauntlet_relic_solve()` | `POST /gauntlet/relic/solve`| `gauntlet_engine.verify_relic_submission()` | Validates split-key submissions and awards tournament relic points. |
-| `gauntlet_curse_cast()` | `POST /gauntlet/curse/cast`| `gauntlet_engine.cast_curse()`, `socketio.emit` | Deploys tactical curse card against opposing squad and emits alert. |
-| `gauntlet_admin()` | `GET /admin/gauntlet` | `gauntlet_engine.get_top_4_teams()`, `get_db_connection()` | Tournament Director control room showing top 4 qualifiers & controls. |
-| `gauntlet_admin_action()` | `POST /admin/gauntlet/action`| `gauntlet_engine.advance_tournament_phase()` | Manually advances tournament phases, resets state, or assigns throne. |
-| `process_gauntlet_shrine_ticks()`| Background task (20s) | `gauntlet_engine.tick_shrine()`, `socketio.emit` | Periodically awards +10 PTS to active ruler of the Sacred Shrine. |
-| `start_pty(data)` | `@socketio.on('pty-connect')`| `pty.openpty()`, `docker run` (subprocess) | Spawns sandboxed ephemeral Docker container linked to xterm.js terminal. |
+| `start_pty(data)` | `@socketio.on('start-pty')`| `pty.openpty()`, `termios.TIOCSWINSZ`, `docker run` | Pre-sizes master and slave PTY with frontend dimensions and spawns sandboxed ephemeral Docker container. |
 | `read_and_forward_pty(fd, sid)` | Background thread | `os.read()`, `socketio.emit('pty-output')` | Asynchronously pipes container stdout/stderr back to player's browser. |
-| `pty_input(data)` | `@socketio.on('pty-input')` | `os.write()` | Pipes player keystrokes into active container PTY file descriptor. |
-| `pty_resize(data)` | `@socketio.on('pty-resize')`| `fcntl.ioctl()` | Synchronizes terminal column and row dimensions with browser window. |
-| `pty_cleanup(sid)` | Disconnect / exit | `docker rm -f` (subprocess) | Destroys orphaned Docker containers and terminates worker threads. |
+| `pty_input(data)` | `@socketio.on('pty-input')` | `os.write()` | Pipes player keystrokes into active container PTY file descriptor without DB overhead. |
+| `handle_pty_resize(data)` | `@socketio.on('resize')`, `@socketio.on('pty-resize')`| `fcntl.ioctl(TIOCSWINSZ)`, `pending_pty_sizes` | Dynamically resizes active PTY or caches incoming resize events if container is mid-launch. |
+| `handle_stop_pty()` | `@socketio.on('stop-pty')`, `@socketio.on('disconnect')` | `docker rm -f`, `os.close()` | Destroys active Docker container, closes PTY file descriptor, and prunes session tokens. |
 
 ---
 
-## 3. Gauntlet Tournament Engine: `DAY 2/level2/gauntlet_engine.py`
+## 3. Archived Gauntlet Tournament Engine: `archive/gauntlet/level2/gauntlet_engine.py`
+
+> [!NOTE]
+> The Gauntlet tournament engine functions below are archived in `archive/gauntlet/` for reference and future tournament reuse.
 
 | Function | Called By | Callees / Tables | Description |
 | :--- | :--- | :--- | :--- |
@@ -141,7 +136,7 @@ This document provides an exhaustive, function-by-function reference of all serv
 | `test_module_2_level2_avatars()` | Main execution | Tests container spin-up, all 5 avatar solves, flags, hints, and duplicate limits. |
 | `test_module_3_level3_mainframe()` | Main execution | Tests mainframe container, user override, and SUID root exploit parity. |
 | `test_module_4_admin_lock()` | Main execution | Tests Game Master locks, session preservation, and route protection. |
-| `test_module_5_jumanji_gauntlet()` | Main execution | Tests 16 squads, split-key submission, curses, King of the Hill, and phase advancement. |
+| `test_module_5_gauntlet_isolation_and_architecture()` | Main execution | Tests Gauntlet archival isolation, safe URL redirects, and active challenge integrity. |
 
 ---
 

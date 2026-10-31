@@ -1,0 +1,36 @@
+================================================================================
+          EXCERPTS FROM THE LOST EXPEDITION JOURNAL OF ALAN PARRISH
+================================================================================
+Found half-buried in the moss-covered roots of the golden fig tree, near the
+obsidian vault entrance.
+
+[ENTRY 1: OCTOBER 14]
+"The jungle's heart does not yield to careless plunder. In the bronze vault
+(mainframe.db), a dozen glittering tokens lay scattered like fool's gold.
+The dark hunter Van Pelt has seeded the registry with phantom mirrors
+(_decoy_registry) to lure the hasty into deadly traps.
+Trust only the branch that breathes life ('ONLINE') within the system tree.
+Before striking, read the weathered scrolls preserved in /var/log/mainframe;
+their parchment records the true frequency of the living nodes."
+
+[ENTRY 2: MARCH 22]
+"I watched the overseer from the high canopies today. His mechanical hound
+runs maintenance rounds through /opt/jumanji/maintenance/audit_vault.py.
+It possesses power beyond ordinary wanderers, yet it suffers a curious blindness:
+it searches for its tools (vault_utils) only where its feet currently tread.
+Plant your own seed in the dirt beneath your boots, give it the name it seeks,
+and when the overseer commands the audit, his voice will become your own."
+
+[ENTRY 3: AUGUST 09]
+"Twenty-six years I waited in this realm—from the day the dice rolled in '69
+until the hour of awakening in 1995. The great stone altar at the summit
+will remain cold and mute to those who merely touch it.
+Two rites must be observed before the curse will shatter:
+First, you must attune the atmosphere with the sacred vibration:
+the ancient chant that resonates at 432 Hertz (CHANT_432HZ in JUMANJI_RITUAL).
+Second, you must proclaim the year the sleepers awoke (--awaken 1995).
+If the automaton's heart resists, look into its bronze clockwork
+with the artificer's lenses (gdb, ltrace) to align the true numeric rune.
+Only then will the bronze sentinel yield the core override."
+================================================================================
+

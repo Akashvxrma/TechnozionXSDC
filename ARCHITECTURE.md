@@ -20,18 +20,21 @@ This document details the architectural topology, data models, container isolati
                                   (Flask + Flask-SocketIO)
                                              |
                       +----------------------+----------------------+
-                      |                      |                      |
-                      v                      v                      v
-              [ SQLite 3 DB ]        [ gauntlet_engine ]    [ Host Docker Daemon ]
-             (jumanji_auth.db)       - Split-key HMAC       - PTY pseudo-terminals
-             - Users & Roster        - Bracket promotions   - Per-player containers
-             - Solved Relics         - Live KotH ticks      - No host mounts
-             - Curses & Inventory    - Top 4 Qualifiers     - Ephemeral lifetime
+                      |                                             |
+                      v                                             v
+              [ SQLite 3 DB ]                             [ Host Docker Daemon ]
+             (jumanji_auth.db)                            - PTY pseudo-terminals
+             - Users & Roster                             - Per-player containers
+             - Solved Relics                              - Ephemeral lifetime
+             - WAL Concurrency                            - Day 1 L2 & Day 2 L1
                       ^
                       | (Optional Roster Sync)
               [ MongoDB Atlas ]
              (Cluster: sdcgames26)
 ```
+
+> [!NOTE]
+> The Jumanji Gauntlet tournament engine and templates are safely archived in `archive/gauntlet/`. All `/day2/level2` and `/gauntlet` routes redirect to `/hub`.
 
 ---
 
@@ -51,18 +54,15 @@ Each participant requiring terminal access interacts with an isolated container 
 |   +------------------------------------------------------------------------+   |
 |                                                                                |
 |   +------------------------------------------------------------------------+   |
-|   | DAY 1 LEVEL 3 CONTAINER: jumanji-level3:latest                        |   |
+|   | DAY 2 LEVEL 1 CONTAINER: jumanji-day2-level1:latest (or jumanji-level3) |  |
 |   | - User: recon_user (non-root)                                          |   |
-|   | - Setup: /usr/local/bin/setup_level3.sh                                |   |
-|   | - Puzzles: SUID binary /usr/local/bin/lift_curse (CHANT required)      |   |
-|   +------------------------------------------------------------------------+   |
-|                                                                                |
-|   +------------------------------------------------------------------------+   |
-|   | DAY 2 LEVEL 2 GAUNTLET CONTAINER: jumanji-gauntlet:latest              |   |
-|   | - User: recon_user (non-root)                                          |   |
-|   | - Environment: TEAM_ID, TEAM_NAME, TEAM_ROLE, PHASE                    |   |
-|   | - Self-Cleanup: rm -f /usr/local/bin/setup_gauntlet.sh on completion  |   |
-|   | - Security: ZERO host volume mounts (secrets protected)                |   |
+|   | - Setup: /usr/local/bin/setup_level1.sh (or setup_level3.sh)           |   |
+|   | - Puzzles: Relational DB sharding & decoy isolation (80 PTS);          |   |
+|   |            Lateral escalation to jumanji_admin via audit_vault.py;     |   |
+|   |            Stripped SUID lift_curse with ritual & awakening sigil      |   |
+|   |            (120 PTS, Total 200 PTS)                                    |   |
+|   | - Lore conduits: Alan Parrish Lost Journal, Nigel Billingsley radio    |   |
+|   | - Working directory: /level1 (symlinked to /level3)                    |   |
 |   +------------------------------------------------------------------------+   |
 +--------------------------------------------------------------------------------+
 ```
@@ -90,7 +90,10 @@ Each participant requiring terminal access interacts with an isolated container 
   - `points` (INTEGER)
   - `solved_at` (DATETIME)
 
-### The Jumanji Gauntlet (Day 2 Level 2)
+### The Jumanji Gauntlet (Archived - `archive/gauntlet`)
+> [!NOTE]
+> The Gauntlet tournament schema and state machine have been retired to `archive/gauntlet/` for future special events. The live production CTF focuses on Day 1 Level 2 (Avatars) and Day 2 Level 1 (Mainframe DB & SUID Privilege Escalation).
+
 ```mermaid
 erDiagram
     gauntlet_teams ||--o{ gauntlet_members : contains
@@ -144,8 +147,9 @@ The platform employs real-time bidirectional WebSocket events:
 | `pty-connect` | Client $\rightarrow$ Server | `{rows, cols}` | Spawns sandboxed Docker container and opens PTY channel. |
 | `pty-input` | Client $\rightarrow$ Server | `{input}` | Forwards raw keystrokes into running terminal shell. |
 | `pty-output` | Server $\rightarrow$ Client | `{output}` | Renders terminal output in client xterm.js instance. |
-| `gauntlet-sync` | Server $\rightarrow$ Client | `{phase, reset, team_id}`| Live refreshes brackets, podium meters, and relic states. |
-| `curse-alert` | Server $\rightarrow$ Client | `{curse_type, from, to}` | Triggers blood-red visual filters and tribal audio sound effects. |
+| `game-win-level3` | Server $\rightarrow$ Client | `{}` | Displays victory modal upon achieving root privilege escalation. |
+| `gauntlet-sync` *(Archived)* | Server $\rightarrow$ Client | `{phase, reset, team_id}`| Live refreshes brackets, podium meters, and relic states. |
+| `curse-alert` *(Archived)* | Server $\rightarrow$ Client | `{curse_type, from, to}` | Triggers blood-red visual filters and tribal audio sound effects. |
 | `game-win-level3` | Server $\rightarrow$ Client | `{}` | Displays victory modal upon achieving root privilege escalation. |
 
 ---
@@ -185,7 +189,7 @@ The platform employs real-time bidirectional WebSocket events:
 
 ### 6.1 Container Network Boundary & Subnet Filtering
 - **Docker Bridge Restriction**:
-  - Sandboxed containers execute on default Docker bridges (`172.17.0.0/16`, `172.18.0.0/16`).
+  - Sandboxed containers execute on default Docker bridges (`172.16.0.0/12`, `10.0.0.0/8`, `192.168.0.0/16`).
   - While container CLI tools (`complete`, `deploy_override`) require access to `http://host.docker.internal:8080/api/score`, container network requests are strictly forbidden from accessing administrative or authentication surfaces.
   - An `@app.before_request` middleware inspects `request.remote_addr`. Any incoming request from Docker bridge subnets targeting `/admin`, `/login`, `/register`, `/auth/*`, or `/choose-username` is immediately terminated with **HTTP 403 Forbidden**.
 - **Host Daemon Binding**:
@@ -195,9 +199,9 @@ The platform employs real-time bidirectional WebSocket events:
 - **Session-Bound Cryptographic Tokens**:
   - Every authenticated session generates a 32-byte cryptographically secure hexadecimal token via `secrets.token_hex(32)`.
   - Exposed globally to all Jinja2 templates through `@app.context_processor` as `csrf_token()`.
-  - Injected into all administrative POST forms in `admin.html` (10 actions) and `gauntlet_admin.html` (5 actions).
+  - Injected into all administrative POST forms in `admin.html` and verified on all state-altering mutation endpoints.
 - **Strict Origin & Referer Validation**:
-  - All state-altering administrative POST endpoints (`/admin/*`, `/admin/gauntlet/action`) validate incoming `Origin` and `Referer` headers against `request.host_url`.
+  - All state-altering administrative POST endpoints (`/admin/*`) and interactive container reset/start endpoints validate incoming `Origin` and `Referer` headers against `request.host_url`.
   - CSRF tokens are validated using constant-time comparison (`hmac.compare_digest`), preventing timing-attack extraction. Cross-origin requests without valid tokens are immediately aborted.
 
 ### 6.3 Dynamic Socket.IO Origin Restrictions
@@ -213,7 +217,7 @@ The platform employs real-time bidirectional WebSocket events:
 ### 6.4 Flag Submission Rate Limiting
 - **In-Memory Sliding Window**:
   - Implemented `is_submission_rate_limited(key, limit=30, window_sec=60)` tracking timestamp deques per user session / client IP.
-  - Applied to `/api/score`, `/submit-score`, and `/gauntlet/relic/solve`.
+  - Applied to `/api/score` and `/submit-score`.
   - Limits automated brute-force attacks to a maximum of 30 submissions per 60-second window, returning `HTTP 429 Too Many Requests` with a descriptive retry-after header.
 
 ### 6.5 Cryptographic Secret Hierarchy & Persistence
@@ -250,4 +254,11 @@ The platform employs real-time bidirectional WebSocket events:
 - **Safe Spreadsheet Exports**:
   - All admin CSV export routes (`/admin/export-scores/*`, `/admin/export-day1-shortlist`, `/admin/export-gauntlet-finalists`) pass all string values through `sanitize_csv_cell()`.
   - Cells beginning with `=`, `+`, `-`, `@`, `\t`, or `\r` are prefixed with `'` to prevent command execution or formula calculation when opened in Microsoft Excel or Google Sheets.
+
+### 6.10 Terminal PTY Pre-Sizing & Readline Synchronization
+- **Pre-Sized Kernel PTY**:
+  - Frontend terminal viewports emit dynamic viewport dimensions (`cols`, `rows`) during the initial `start-pty` connection handshake.
+  - The server applies `fcntl.ioctl(..., TIOCSWINSZ)` to both master and slave PTY file descriptors before executing `docker run`.
+  - Injected `pending_pty_sizes` cache captures asynchronous resize events dispatched during container initialization.
+  - Container `.bashrc` enforces `shopt -s checkwinsize` and `export TERM=xterm-256color`, ensuring seamless line-wrapping and preventing cursor overwrites during long command entry.
 
